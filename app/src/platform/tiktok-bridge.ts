@@ -2,6 +2,7 @@ import { bridgeError, err, ok } from '@minidrama/shared';
 
 import { CAPABILITY_NAMES } from './types';
 import { callSdk, resolveSdkNamespace, sdkHas, withTimeout } from './sdk';
+import { installFailClosedVideoReplace } from './video-replace';
 import type {
   BridgeResult,
   CapabilityName,
@@ -45,6 +46,10 @@ export class TikTokBridge implements PlatformBridge {
     if (result.ok) {
       this.#ready = true;
       this.#capabilities = this.#probeCapabilities();
+      // Native `<video>` replacement must be fail-closed before any screen renders. Missing or
+      // throwing is not a boot failure: the platform default blocked UI is already fail-closed,
+      // and this API is a customisation hook, not a capability the rest of the app depends on.
+      installFailClosedVideoReplace(this.#namespace);
     }
     return result;
   }
@@ -86,6 +91,10 @@ export class TikTokBridge implements PlatformBridge {
       if (typeof ctor !== 'function') {
         return err(bridgeError('BRIDGE_UNKNOWN', 'getPlayer did not return a constructor', ctor));
       }
+      // Documented equivalent: the same method also lives on the constructor `getPlayer()`
+      // returns. Re-installing the identical callback is idempotent; a constructor without it
+      // reports `absent` and playback continues.
+      installFailClosedVideoReplace(ctor);
       return ok(ctor as VePlayerConstructor);
     } catch (cause) {
       return err(bridgeError('BRIDGE_UNKNOWN', 'getPlayer threw', cause));

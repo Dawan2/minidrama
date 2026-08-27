@@ -13,6 +13,11 @@ import { join, relative, sep } from 'node:path';
  * `createElement(tagFromSomewhereElse)` is invisible to both, and it creates exactly the element
  * TikTok replaces with a blocked UI. Demanding a literal element name costs nothing — no surface
  * in this app has a reason to compute one — and it makes the other two rules mean what they claim.
+ *
+ * The third one is the replacement-customisation API. Product code that calls
+ * `setValidateVideoReplaceElement` is how a native `<video>` stays on screen, or how a custom
+ * blocked UI is painted in its place. The fail-closed installer in `src/platform/video-replace.ts`
+ * is the only production caller; a second call site is a second policy.
  */
 
 export interface SourceViolation {
@@ -24,10 +29,15 @@ export interface SourceViolation {
 
 export const PLATFORM_DIR = join('src', 'platform');
 
+/** The only production file allowed to name the native-video replacement API. */
+export const VIDEO_REPLACE_INSTALLER = join(PLATFORM_DIR, 'video-replace.ts');
+
 const SOURCE_EXTENSIONS = ['.ts', '.tsx'];
 
 /** A `createElement` whose first argument is not a quoted name — a variable, a call, a template. */
 const COMPUTED_ELEMENT_NAME = /\bcreateElement\s*\(\s*[^'"`)]/;
+
+const VIDEO_REPLACE_API = 'setValidateVideoReplaceElement';
 
 export function listSourceFiles(root: string): readonly string[] {
   const found: string[] = [];
@@ -76,6 +86,14 @@ export function checkSourceTree(appRoot: string): readonly SourceViolation[] {
           evidence: line.trim(),
         });
       }
+      if (line.includes(VIDEO_REPLACE_API) && !isVideoReplaceInstaller(relativePath)) {
+        violations.push({
+          file: relativePath,
+          line: index + 1,
+          rule: `${VIDEO_REPLACE_API} may only be installed from ${VIDEO_REPLACE_INSTALLER}`,
+          evidence: line.trim(),
+        });
+      }
     });
   }
 
@@ -85,4 +103,13 @@ export function checkSourceTree(appRoot: string): readonly SourceViolation[] {
 function isComment(line: string): boolean {
   const trimmed = line.trimStart();
   return trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*');
+}
+
+function isVideoReplaceInstaller(relativePath: string): boolean {
+  if (relativePath === VIDEO_REPLACE_INSTALLER) {
+    return true;
+  }
+  // Tests may name the API to assert the installer was called with it. A product file that
+  // names it is a second policy, which is the thing the rule exists to stop.
+  return relativePath.endsWith('.test.ts') || relativePath.endsWith('.test.tsx');
 }
