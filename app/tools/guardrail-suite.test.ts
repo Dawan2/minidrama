@@ -109,7 +109,14 @@ describe('guardrail suite', () => {
         },
       }),
     );
-    expect(violations.map((violation) => violation.rule)).toContain('no native video element');
+    // The emitted-chunk scan and the built-document scan report the same rule name, so `subject`
+    // is what tells this case apart from the document case below.
+    expect(violations).toContainEqual(
+      expect.objectContaining({
+        subject: 'dist/assets/main-abc.js',
+        rule: 'no <video> element',
+      }),
+    );
   });
 
   it('keeps the VePlayer bans: a third-party player in the artifact fails', () => {
@@ -130,7 +137,9 @@ describe('guardrail suite', () => {
         },
       }),
     );
-    expect(violations.map((violation) => violation.rule)).toContain('no <video> element');
+    expect(violations).toContainEqual(
+      expect.objectContaining({ subject: 'dist/index.html', rule: 'no <video> element' }),
+    );
   });
 
   it('keeps the source containment rule', () => {

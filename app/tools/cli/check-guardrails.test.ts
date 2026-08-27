@@ -90,7 +90,7 @@ describe('check-guardrails CLI', () => {
     const result = run(['--app-root', root, '--dist', join(root, 'dist')]);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('no native video element');
+    expect(result.stderr).toContain('no <video> element');
   });
 
   it('exits zero on a compliant source tree and artifact', () => {
