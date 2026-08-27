@@ -40,7 +40,9 @@ import type { AdPlacement } from '../data/unlock-api';
  *
  * Watch progress is a heartbeat on that same instance (`PUT /v1/progress/episodes/{episodeId}`),
  * throttled to `GET /v1/config`'s `progressHeartbeatSec`, flushed on pause / hide / unmount, and
- * never a client-computed `completed` or a guessed 0 when the player has not spoken.
+ * never a client-computed `completed` or a guessed 0 when the player has not spoken. A pre-seek
+ * tick at 0 after a non-zero session resume is not a watch: reporting it would last-write-wins
+ * over the other device's position (`PRG-001`).
  */
 
 const EMPTY_EPISODES: Page<EpisodeItem> = {

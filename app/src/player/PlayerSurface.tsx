@@ -82,6 +82,9 @@ export function PlayerSurface({
         : createProgressHeartbeat({
             episodeId: wantedEpisodeRef.current,
             intervalSec: progressOptions.intervalSec,
+            // Session resume, not catalog duration. A pre-seek tick at 0 must not LWW-wipe
+            // another device's position (`PRG-001`).
+            resumePositionSec: descriptor.resumePositionSec,
             report: (id, report) => {
               const current = progressRef.current;
               // The surface unmounted or a test dropped the reporter. Not a guessed 0 position.
@@ -157,7 +160,8 @@ export function PlayerSurface({
 
   useEffect(() => {
     wantedEpisodeRef.current = episodeId;
-    heartbeatRef.current?.setEpisode(episodeId);
+    const next = playlist.find((entry) => entry.episodeId === episodeId);
+    heartbeatRef.current?.setEpisode(episodeId, next?.resumePositionSec ?? 0);
     const facade = facadeRef.current;
     if (facade === null) {
       return;
@@ -165,7 +169,7 @@ export function PlayerSurface({
     if (facade.switchToEpisode(episodeId) === 'OUT_OF_REACH') {
       setGeneration((current) => current + 1);
     }
-  }, [episodeId]);
+  }, [episodeId, playlist]);
 
   return (
     <section
