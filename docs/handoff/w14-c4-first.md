@@ -94,7 +94,7 @@ documented floor"). A drop from a previous copy of 70% to 60% fails the ratchet.
 The live run at merge is green:
 
 ```
-coverage global lines 94.61% (11641/12304), branches 92.35%, core lines 98.07%, diff lines 91.93% (490/533)
+coverage global lines 94.19% (11694/12415), branches 92.26%, core lines 98.07%, diff lines 91.93% (490/533)
 coverage gate passed
 ```
 
@@ -112,20 +112,25 @@ coverage gate passed
 
 ## 5. Verification
 
-`pnpm verify` green on `49415cb` before the main merge, first green after the typecheck fix for
-`exactOptionalPropertyTypes`. Re-run after merging `origin/main`. L1 sequence: format → lint →
-typecheck → test:coverage → check:coverage → build → guardrails. Tests are not skipped.
+`pnpm verify` green on `ea31f33` after merging `origin/main` (`b453294` G2.7 + W15 C3 report).
+L1 sequence: format → lint → typecheck → test:coverage → check:coverage → build → guardrails.
+Tests are not skipped.
 
 | Package | Tests |
 | --- | ---: |
 | `packages/shared` | 55 |
 | `packages/config` | 45 |
 | `packages/quality` | 67 |
-| `server` | 1,594 (before G2.7 merge; G2.7 adds migrate-check tests) |
+| `server` | 1,604 |
 | `app` | 964 |
-| **Total at 49415cb** | **2,725** |
+| **Total** | **2,735** |
 
-Zero skipped. Guardrails passed against `app/dist`.
+Zero skipped. Guardrails passed against `app/dist`. Coverage at that SHA:
+
+```
+coverage global lines 94.19% (11694/12415), branches 92.26%, core lines 98.07%, diff lines 91.93% (490/533)
+coverage gate passed
+```
 
 ---
 
