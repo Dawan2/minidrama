@@ -111,6 +111,33 @@ describe('the player screen', () => {
     expect(instance.config.episodeId).not.toMatch(/ep_demo_/);
   });
 
+  it('starts VePlayer at the session resume, not at catalog duration', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) => ok(playbackDescriptor({ episodeId, resumePositionSec: 45 })),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      api: playCatalog([episodeItem({ durationSec: 90 })]),
+      playbackApi,
+    });
+
+    expect((await player()).config.startTime).toBe(45);
+    expect((await player()).config.startTime).not.toBe(90);
+  });
+
+  it('starts at 0 when the session sent 0, rather than inventing a midpoint', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) => ok(playbackDescriptor({ episodeId, resumePositionSec: 0 })),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      api: playCatalog([episodeItem({ durationSec: 90 })]),
+      playbackApi,
+    });
+
+    expect((await player()).config.startTime).toBe(0);
+  });
+
   it('carries no native media element, on a screen whose whole job is media', async () => {
     renderPlayer({ bridge: await readyBridge() });
     await player();
@@ -150,6 +177,7 @@ describe('locked episodes are intercepted at every entry', () => {
     expect(screen.getByTestId('play-page').dataset['state']).toBe('locked');
     expect(screen.queryByTestId('player-container')).toBeNull();
     expect(MockVePlayer.instances).toHaveLength(0);
+    expect(MockVePlayer.instances.map((instance) => instance.config.startTime)).toEqual([]);
     expect(playbackApi.createCalls).toEqual(['ep_test_0004']);
   });
 
