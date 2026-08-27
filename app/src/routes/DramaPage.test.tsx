@@ -23,7 +23,7 @@ import {
   paidCoinOrder,
   stubUnlockApi,
 } from '../testing/unlock-fixtures';
-import { renderSurface } from '../testing/render';
+import { renderSurface, settle } from '../testing/render';
 import type { CapabilityName } from '../platform/types';
 import type { CatalogApi } from '../data/catalog-api';
 import type { EpisodeItem } from '@minidrama/shared';
@@ -234,6 +234,12 @@ describe('the episode list', () => {
     expect(screen.queryByTestId('watch-now')).toBeNull();
   });
 
+  /**
+   * Two-round paging is driven through `settle` rather than stacked `findBy*`/`waitFor`. Each async
+   * utility is a one-second wall-clock budget that a worker descheduled under parallel load can
+   * spend without doing any work. `act` returns when React has run out of work rather than when a
+   * timer says so, which starvation delays but cannot break.
+   */
   it('appends a further page of episodes', async () => {
     const api = stubCatalogApi({
       drama: () => ok(dramaDetail()),
@@ -242,13 +248,14 @@ describe('the episode list', () => {
           ? ok(page([episodeItem({ globalEpisodeNumber: 1 })], 'cur_2'))
           : ok(page([episodeItem({ globalEpisodeNumber: 2 })])),
     });
-    renderDrama(api, await readyBridge());
+    const bridge = await readyBridge();
+    await settle(() => renderDrama(api, bridge));
 
-    fireEvent.click(await screen.findByTestId('load-more-episodes'));
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('episode-row')).toHaveLength(2);
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more-episodes'));
     });
+
+    expect(screen.getAllByTestId('episode-row')).toHaveLength(2);
     expect(api.episodeCalls[1]?.cursor).toBe('cur_2');
   });
 });

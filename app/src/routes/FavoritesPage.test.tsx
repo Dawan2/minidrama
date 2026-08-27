@@ -14,7 +14,7 @@ import {
   favoritesPage,
   stubFavoritesApi,
 } from '../testing/favorites-fixtures';
-import { renderSurface } from '../testing/render';
+import { renderSurface, settle } from '../testing/render';
 import { stubSession } from '../testing/history-fixtures';
 
 /** The catalogue, resolving whatever the list names. A row needs a title before it can be drawn. */
@@ -288,6 +288,12 @@ describe('a favourite the catalogue could not resolve', () => {
 /**
  * The list is paged, which the fan-out could not be: a "load more" over candidates would have paged
  * the wrong collection. `hasMore` is not consulted — `nextCursor === null` is exactly equivalent.
+ *
+ * Two-round paging tests are driven through `settle` rather than stacked `findBy*`/`waitFor`. Each
+ * async utility is a one-second wall-clock budget that a worker descheduled under parallel load can
+ * spend without doing any work. `act` returns when React has run out of work rather than when a
+ * timer says so, which starvation delays but cannot break. One-round tests in this file keep
+ * `findBy*`.
  */
 describe('paging the list', () => {
   it('offers more only while the server says there is more', async () => {
@@ -309,13 +315,13 @@ describe('paging the list', () => {
           ? ok(favoritesPage(['drm_1'], 'cursor_2'))
           : ok(favoritesPage(['drm_2'])),
     });
-    renderFavorites({ favoritesApi });
+    await settle(() => renderFavorites({ favoritesApi }));
 
-    fireEvent.click(await screen.findByTestId('load-more-favorites'));
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('favorite-row')).toHaveLength(2);
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more-favorites'));
     });
+
+    expect(screen.getAllByTestId('favorite-row')).toHaveLength(2);
     expect(favoritesApi.listCalls.map((call) => call.cursor)).toEqual([undefined, 'cursor_2']);
     expect(screen.queryByTestId('load-more-favorites')).toBeNull();
   });
@@ -331,11 +337,13 @@ describe('paging the list', () => {
           ? ok(favoritesPage(['drm_1'], 'cursor_2'))
           : err(offlineFailure()),
     });
-    renderFavorites({ favoritesApi });
+    await settle(() => renderFavorites({ favoritesApi }));
 
-    fireEvent.click(await screen.findByTestId('load-more-favorites'));
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more-favorites'));
+    });
 
-    expect(await screen.findByTestId('retryable-error')).toBeDefined();
+    expect(screen.getByTestId('retryable-error')).toBeDefined();
     expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
     expect(screen.getByTestId('favorites-page').getAttribute('data-state')).toBe('ready');
   });
@@ -351,11 +359,13 @@ describe('paging the list', () => {
           ? ok(favoritesPage(['drm_1'], 'cursor_2'))
           : err(favoritesHttpFailure(401)),
     });
-    renderFavorites({ favoritesApi });
+    await settle(() => renderFavorites({ favoritesApi }));
 
-    fireEvent.click(await screen.findByTestId('load-more-favorites'));
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more-favorites'));
+    });
 
-    expect(await screen.findByTestId('favorites-sign-in-more')).toBeDefined();
+    expect(screen.getByTestId('favorites-sign-in-more')).toBeDefined();
     expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
     expect(screen.queryByTestId('retryable-error')).toBeNull();
   });
