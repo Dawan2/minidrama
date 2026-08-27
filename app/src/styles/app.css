@@ -800,6 +800,8 @@ a {
   overflow: hidden;
   background: #000000;
   border-radius: var(--radius);
+  /* Vertical 切集 is ours; VePlayer still owns tap-to-pause (AC-PL-6). */
+  touch-action: none;
 }
 
 .player-surface__mount {
