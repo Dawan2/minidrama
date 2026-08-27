@@ -115,6 +115,7 @@
   "picker.close": "Close",
   "picker.group": "{start}–{end}",
   "picker.locked": "Locked",
+  "picker.watched": "Watched",
   "picker.current": "Now playing",
   "picker.unavailable": "We could not load the episode list.",
   "state.loading": "Loading…",

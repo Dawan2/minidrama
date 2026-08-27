@@ -11,6 +11,7 @@ import { createGrantedUnlockFactsPort } from './modules/unlock/granted-facts.js'
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
 import { createInMemoryFavoritesStore } from './modules/search/favorites.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
+import { createSqliteSessionStore } from './modules/identity/sqlite-session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
 import { createInMemoryUnlockStore } from './modules/unlock/unlock-store.js';
 import { createSqliteUnlockStore } from './modules/unlock/sqlite-unlock-store.js';
@@ -18,6 +19,7 @@ import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
 import { databaseNotWiredMessage } from './db/database-url.js';
 import { openMigratedSqlite } from './db/migrate.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
+import { createSqliteWebhookEventStore } from './modules/platform-tiktok/sqlite-event-store.js';
 import { createMockIdentityPort } from './modules/identity/test-login.js';
 import { createSeedDramaDirectory } from './modules/search/dramas.js';
 import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
@@ -27,6 +29,7 @@ import { createUnavailableEntitlementFactsPort } from './modules/entitlement/fac
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
 import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import { createUnavailableWalletBalancePort } from './modules/wallet/balance-port.js';
+import { createCatalogDramaProgressPort } from './modules/catalog/drama-progress-lookup.js';
 import { createUnavailableWatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { createCorsPolicy } from './core/origin-policy.js';
@@ -45,6 +48,7 @@ import { registerCors } from './core/cors.js';
 import { searchRoutes } from './modules/search/routes.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
 import { walletRoutes } from './modules/wallet/routes.js';
+import { dramaProgressRoutes } from './modules/progress/drama-routes.js';
 import { watchHistoryRoutes } from './modules/progress/history-routes.js';
 import type { CatalogStore } from './modules/catalog/store.js';
 // Aliased because the entitlement module publishes an interface of the same name that answers a
@@ -60,12 +64,14 @@ import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-po
 import type { PlatformTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import type { PlaybackMediaPort } from './modules/playback/media-port.js';
 import type { ServerConfig } from './config.js';
+import type { SqliteDatabase } from './db/sqlite.js';
 import type { SessionStore } from './modules/identity/session-store.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { UnlockStore } from './modules/unlock/unlock-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WalletBalancePort } from './modules/wallet/balance-port.js';
+import type { DramaProgressCatalogPort } from './modules/progress/drama-catalog-port.js';
 import type { WatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import type { WatchProgressStore } from './modules/progress/store.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
@@ -89,12 +95,20 @@ import type { LogDestination } from './core/logging.js';
 export interface AppDependencies {
   readonly platformCredentials?: PlatformCredentials;
   readonly signatureVerifier?: SignatureVerifier;
+  /**
+   * Inbound platform webhook events, stored before verification. Injected by tests that need to
+   * read the records back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same file
+   * as unlock receipts and sessions), and the in-memory skeleton otherwise; a postgres URL is
+   * refused rather than rewritten to a file.
+   */
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
   /**
    * Sessions. Injected by tests that need to mint one for a known user without going through a
    * platform exchange — which is the supported way to log in during a test, and needs no flag,
-   * because it is reachable from a test process and from nowhere else.
+   * because it is reachable from a test process and from nowhere else. Uninjected, the default is
+   * SQLite when `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts and webhook
+   * events), and the in-memory map otherwise.
    */
   readonly sessionStore?: SessionStore;
   /**
@@ -130,8 +144,9 @@ export interface AppDependencies {
   readonly unlockOrderStore?: UnlockOrderStore;
   /**
    * The unlock records a verified payment writes — what a viewer owns. Injected by tests that need
-   * to read the receipts back. The default is SQLite when `DATABASE_URL=sqlite:<path>`, and the
-   * in-memory skeleton otherwise; a postgres URL is refused rather than rewritten to a file.
+   * to read the receipts back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same
+   * file as sessions and webhook events), and the in-memory skeleton otherwise; a postgres URL is
+   * refused rather than rewritten to a file.
    */
   readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
@@ -149,6 +164,12 @@ export interface AppDependencies {
    */
   readonly watchProgressStore?: WatchProgressStore;
   readonly watchHistoryCatalogPort?: WatchHistoryCatalogPort;
+  /**
+   * Episode-to-number mapping for `GET /v1/progress/dramas/{dramaId}`. Defaults to the live
+   * catalogue store, the same one the episode list is served from, so a watched mark cannot land
+   * on a different cell than the grid. Inject the unavailable port to assert the `503` path.
+   */
+  readonly dramaProgressCatalogPort?: DramaProgressCatalogPort;
   /**
    * Search and favourites. The favourites store defaults to the in-memory skeleton; the drama
    * directory the two read defaults to a seed, and `modules/search/dramas.ts` explains why it is a
@@ -247,7 +268,14 @@ export async function buildApp(
   // wrote a receipt no decision could see would be a purchase that changed nothing — so the join is
   // made here, once, for every module that asks what a viewer owns. It adds facts and decides
   // nothing: a facts port that refuses still refuses, which is what the default deployment does.
-  const unlockStore = dependencies.unlockStore ?? openUnlockStore(app, config);
+  //
+  // One sqlite file when DATABASE_URL asks for it: unlock receipts, sessions, and webhook events
+  // share the connection, so a process restart cannot keep a receipt and drop the idempotency
+  // claim by opening two files.
+  const durableDb = openSharedSqlite(app, config, dependencies);
+  const unlockStore =
+    dependencies.unlockStore ??
+    (durableDb === undefined ? createInMemoryUnlockStore() : createSqliteUnlockStore(durableDb));
   const entitlementFactsPort = createGrantedUnlockFactsPort(
     dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort(),
     unlockStore,
@@ -262,7 +290,11 @@ export async function buildApp(
   // attributed to whatever it resolves to and a payment is later correlated against that same
   // account id — so a second resolver here would not be a wiring inconsistency, it would be a
   // purchase recorded for the wrong viewer.
-  const sessionStore = dependencies.sessionStore ?? createInMemorySessionStore({ now });
+  const sessionStore =
+    dependencies.sessionStore ??
+    (durableDb === undefined
+      ? createInMemorySessionStore({ now })
+      : createSqliteSessionStore(durableDb, { now }));
   const viewerResolver = dependencies.viewerResolver ?? createSessionViewerResolver(sessionStore);
 
   // The only place the mock exchange can enter the system, and the only gate on it. `identityPort`
@@ -347,6 +379,13 @@ export async function buildApp(
     now,
   });
 
+  await app.register(dramaProgressRoutes, {
+    store: watchProgressStore,
+    viewerResolver,
+    catalogPort:
+      dependencies.dramaProgressCatalogPort ?? createCatalogDramaProgressPort(catalogStore),
+  });
+
   await app.register(watchHistoryRoutes, {
     store: watchProgressStore,
     viewerResolver,
@@ -369,7 +408,11 @@ export async function buildApp(
 
   await app.register(platformTiktokRoutes, {
     signatureVerifier,
-    eventStore: dependencies.webhookEventStore ?? createInMemoryWebhookEventStore(),
+    eventStore:
+      dependencies.webhookEventStore ??
+      (durableDb === undefined
+        ? createInMemoryWebhookEventStore()
+        : createSqliteWebhookEventStore(durableDb)),
     clientKey: credentials.clientKey,
     // Fulfilment stays here, on the verified callback: it records the payment against the order and
     // then writes the unlock record the entitlement decision reads. Both stores go to the sink,
@@ -383,9 +426,18 @@ export async function buildApp(
   return app;
 }
 
-function openUnlockStore(app: FastifyInstance, config: ServerConfig) {
-  if (config.database.kind !== 'sqlite') {
-    return createInMemoryUnlockStore();
+function openSharedSqlite(
+  app: FastifyInstance,
+  config: ServerConfig,
+  dependencies: AppDependencies,
+): SqliteDatabase | undefined {
+  if (config.database.kind !== 'sqlite') return undefined;
+  if (
+    dependencies.unlockStore !== undefined &&
+    dependencies.sessionStore !== undefined &&
+    dependencies.webhookEventStore !== undefined
+  ) {
+    return undefined;
   }
 
   const path = config.database.path === ':memory:' ? ':memory:' : resolve(config.database.path);
@@ -393,6 +445,6 @@ function openUnlockStore(app: FastifyInstance, config: ServerConfig) {
   app.addHook('onClose', async () => {
     db.close();
   });
-  app.log.info({ path }, 'unlock receipts persist in sqlite');
-  return createSqliteUnlockStore(db);
+  app.log.info({ path }, 'unlock receipts, sessions, and webhook events persist in sqlite');
+  return db;
 }

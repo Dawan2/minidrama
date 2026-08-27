@@ -526,6 +526,70 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/progress/dramas/{dramaId}:
+    parameters:
+      - name: dramaId
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+    get:
+      operationId: getDramaProgress
+      summary: List this viewer's progress under one drama
+      description: |
+        The batch read PNL-01 uses for watched marks (`docs/02-screen-inventory.md`). One request
+        for the drama, not one `GET /v1/progress/episodes/{episodeId}` per cell.
+
+        `items` are stored rows only. An episode the viewer has never reported is absent, not
+        listed with `completed: false`. `episodeNumber` is the drama-wide running order from
+        `catalog`, never parsed out of the episode id. `completed` is the stored flag the write
+        already computed; this read does not re-derive it from the position.
+
+        `lastWatched` is the newest accepted report under this drama, or `null` when `items` is
+        empty. It is a resume pointer, not a range: watched marks come from `items[].completed`,
+        never from "everything before this number".
+
+        The three answers stay apart:
+
+          - `401` — nobody is asking. Progress is per-viewer; there is no anonymous reading.
+          - `200` with `items: []` and `lastWatched: null` — signed in, never watched this drama.
+            An empty grid of marks, not an error.
+          - `503` — signed in, and `catalog` cannot name the episodes of this drama. Never flattened
+            into the empty list: that list is a claim about the viewer.
+
+        The answer is per-viewer and is sent `Cache-Control: private, no-store`.
+      tags: [progress]
+      security:
+        - bearerSession: []
+      responses:
+        '200':
+          description: |
+            This viewer's stored rows under the drama, possibly empty. An empty body is an answer
+            about the viewer, not a failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DramaProgressView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: '`AUTH_REQUIRED`. No credential, or one that could not be read or resolved.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            `COMMON_SERVICE_UNAVAILABLE`. Either the session could not be resolved, or the
+            catalogue cannot describe this drama's episodes, so the rows cannot be numbered without
+            guessing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/users/me/watch-history:
     get:
       operationId: listWatchHistory
@@ -1771,6 +1835,60 @@ components:
           type: string
           format: date-time
           description: Server time of the last accepted report. Absent when `recorded` is false.
+
+    DramaProgressItem:
+      type: object
+      required: [episodeId, episodeNumber, positionSec, completed]
+      properties:
+        episodeId:
+          type: string
+        episodeNumber:
+          type: integer
+          minimum: 1
+          description: |
+            Counted in `globalEpisodeNumber`, the number the picker displays. The per-season number
+            would mark a different cell in every season past the first.
+        positionSec:
+          type: integer
+          minimum: 0
+          description: Where the viewer stopped, in whole seconds.
+        completed:
+          type: boolean
+          description: |
+            The stored completion flag, computed on the write from the position/duration ratio.
+            The picker paints a watched mark from this field, and only this field.
+
+    DramaLastWatched:
+      type: object
+      required: [episodeId, episodeNumber, positionSec]
+      description: |
+        The newest accepted report under this drama. A pointer, not a watched-up-to range.
+      properties:
+        episodeId:
+          type: string
+        episodeNumber:
+          type: integer
+          minimum: 1
+        positionSec:
+          type: integer
+          minimum: 0
+
+    DramaProgressView:
+      type: object
+      required: [items, lastWatched]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DramaProgressItem'
+          description: |
+            Stored rows only, in drama-wide episode order. Empty when this viewer has never
+            reported a position under the drama.
+        lastWatched:
+          description: The newest item, or `null` when `items` is empty.
+          oneOf:
+            - $ref: '#/components/schemas/DramaLastWatched'
+            - type: 'null'
 
     WatchHistoryEntry:
       type: object
