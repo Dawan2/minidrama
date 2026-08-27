@@ -5,6 +5,7 @@ import { createInMemorySessionStore } from './modules/identity/session-store.js'
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
 import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
+import { createMockIdentityPort } from './modules/identity/test-login.js';
 import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
@@ -62,13 +63,14 @@ export interface AppDependencies {
   readonly identityPort?: PlatformIdentityPort;
   /**
    * Sessions. Injected by tests that need to mint one for a known user without going through a
-   * platform exchange.
+   * platform exchange — which is the supported way to log in during a test, and needs no flag,
+   * because it is reachable from a test process and from nowhere else.
    */
   readonly sessionStore?: SessionStore;
   /**
    * Entitlement reads content and viewer state. The facts port defaults to refusing until the data
    * layer exists, so a deployment cannot serve invented entitlements by omission. The viewer
-   * resolver defaults to the session store above.
+   * resolver defaults to the session store above rather than to a refusal.
    */
   readonly entitlementFactsPort?: EntitlementFactsPort;
   readonly viewerResolver?: ViewerResolver;
@@ -172,6 +174,17 @@ export async function buildApp(
   const sessionStore = dependencies.sessionStore ?? createInMemorySessionStore({ now });
   const viewerResolver = dependencies.viewerResolver ?? createSessionViewerResolver(sessionStore);
 
+  // The only place the mock exchange can enter the system, and the only gate on it. `identityPort`
+  // is otherwise the real port, which refuses every code until the HTTP exchange lands.
+  if (config.testLoginEnabled) {
+    app.log.warn(
+      'MOCK LOGIN IS ENABLED: /v1/auth/login accepts mock:<userId> codes and issues real sessions. This must never be a production deployment.',
+    );
+  }
+  const identityPort =
+    dependencies.identityPort ??
+    (config.testLoginEnabled ? createMockIdentityPort() : createTiktokIdentityPort(credentials));
+
   await app.register(healthRoutes);
 
   await app.register(playbackRoutes, {
@@ -217,10 +230,7 @@ export async function buildApp(
     catalogPort: dependencies.watchHistoryCatalogPort ?? createUnavailableWatchHistoryCatalogPort(),
   });
 
-  await app.register(identityRoutes, {
-    identityPort: dependencies.identityPort ?? createTiktokIdentityPort(credentials),
-    sessionStore,
-  });
+  await app.register(identityRoutes, { identityPort, sessionStore });
 
   await app.register(platformTiktokRoutes, {
     signatureVerifier,

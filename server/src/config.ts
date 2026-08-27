@@ -1,3 +1,4 @@
+import { isTestLoginEnabled } from './modules/identity/test-login.js';
 import { parseOriginAllowlist } from './core/origin-policy.js';
 import type { RejectedOrigin } from './core/origin-policy.js';
 
@@ -30,6 +31,13 @@ export interface ServerConfig {
    * the default rather than widening the window.
    */
   readonly webhookToleranceSec: number;
+  /**
+   * Whether the mock login path is live. False for every deployment that has not deliberately asked
+   * for it twice, in two variables, one of which is a sentence — see
+   * `modules/identity/test-login.ts`. It is read here rather than in the module so that the whole of
+   * what the environment can switch on is visible in one file.
+   */
+  readonly testLoginEnabled: boolean;
 }
 
 const DEFAULT_WEBHOOK_TOLERANCE_SEC = 300;
@@ -52,5 +60,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     corsRejectedOrigins: origins.rejected,
     hasPlatformCredentials: Boolean(env['TIKTOK_CLIENT_KEY'] && env['TIKTOK_CLIENT_SECRET']),
     webhookToleranceSec: parseToleranceSec(env['TIKTOK_WEBHOOK_TOLERANCE_SEC']),
+    testLoginEnabled: isTestLoginEnabled(env),
   };
 }
