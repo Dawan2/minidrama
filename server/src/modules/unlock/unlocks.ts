@@ -82,6 +82,40 @@ export function createCoinUnlock(input: NewCoinUnlock): Unlock {
   };
 }
 
+export interface NewAdUnlock {
+  readonly id: string;
+  readonly userId: string;
+  readonly episodeId: string;
+  readonly dramaId: string;
+  /**
+   * The ad-session id that authorised this grant. Replaces `orderId` for coin receipts: there is
+   * no trade order, and inventing one would make an ad look like a payment.
+   */
+  readonly sessionId: string;
+  readonly grantedAtMs: number;
+}
+
+/**
+ * A completed rewarded-ad view, written as a durable `AD` receipt.
+ *
+ * `costCoins` is 0: nothing was charged. `expiresAtMs` is `null`: the same permanence a coin
+ * unlock has. There is no input for either, and no input for `method`, so a caller cannot write
+ * a row that reads as a purchase while being an ad, or the reverse.
+ */
+export function createAdUnlock(input: NewAdUnlock): Unlock {
+  return {
+    id: input.id,
+    userId: input.userId,
+    episodeId: input.episodeId,
+    dramaId: input.dramaId,
+    method: 'AD',
+    costCoins: 0,
+    orderId: input.sessionId,
+    grantedAtMs: input.grantedAtMs,
+    expiresAtMs: null,
+  };
+}
+
 export function newUnlockId(): string {
   return `${UNLOCK_ID_PREFIX}${randomUUID().replaceAll('-', '')}`;
 }

@@ -19,6 +19,7 @@ import type { PurchaseCapabilities } from '../catalog/access-presentation';
 import type { Resource } from '../data/use-resource';
 import type { TranslationKey } from '../core/i18n';
 import type { UnlockPacing } from '../unlock/coin-unlock';
+import type { AdPlacement } from '../data/unlock-api';
 
 /**
  * SCR-05, the player screen.
@@ -58,11 +59,13 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
   const [pickerOpen, setPickerOpen] = useState(false);
   const [unlockDismissed, setUnlockDismissed] = useState(false);
   const [advanceUnlock, setAdvanceUnlock] = useState<EpisodeItem | null>(null);
+  const [advancePlacement, setAdvancePlacement] = useState<AdPlacement | null>(null);
   const advancingRef = useRef(false);
 
   useEffect(() => {
     setUnlockDismissed(false);
     setAdvanceUnlock(null);
+    setAdvancePlacement(null);
   }, [episodeId]);
 
   const session = useResource(
@@ -113,17 +116,19 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
         ? advanceUnlock
         : null;
 
-  async function attemptAdvance(target: EpisodeItem): Promise<void> {
+  async function attemptAdvance(target: EpisodeItem, placement: AdPlacement): Promise<void> {
     if (target.id === episodeId || advancingRef.current) {
       return;
     }
     advancingRef.current = true;
     setAdvanceUnlock(null);
+    setAdvancePlacement(null);
     const gate = await gateAdvance(playbackApi, target.id);
     advancingRef.current = false;
     if (gate.kind === 'LOCKED') {
       setUnlockDismissed(false);
       setAdvanceUnlock(target);
+      setAdvancePlacement(placement);
       return;
     }
     if (gate.kind === 'ENTITLED') {
@@ -169,7 +174,7 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
             data-testid="player-next"
             type="button"
             onClick={() => {
-              void attemptAdvance(next);
+              void attemptAdvance(next, 'AFTER_EPISODE');
             }}
           >
             {translate('player.nextEpisode')}
@@ -195,7 +200,7 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
           }}
           onLockedAttempt={(episode) => {
             setPickerOpen(false);
-            void attemptAdvance(episode);
+            void attemptAdvance(episode, 'MANUAL_SKIP');
           }}
         />
       ) : null}
@@ -207,9 +212,13 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
           onClose={() => {
             setUnlockDismissed(true);
             setAdvanceUnlock(null);
+            setAdvancePlacement(null);
           }}
           onEntitlementChanged={session.reload}
           {...(unlockPacing === undefined ? {} : { pacing: unlockPacing })}
+          {...(advanceUnlock !== null && advancePlacement !== null
+            ? { adPlacement: advancePlacement }
+            : {})}
         />
       )}
     </main>

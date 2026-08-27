@@ -51,6 +51,7 @@ import { playbackRoutes } from './modules/playback/routes.js';
 import { progressRoutes } from './modules/progress/routes.js';
 import { registerCors } from './core/cors.js';
 import { searchRoutes } from './modules/search/routes.js';
+import { adRoutes } from './modules/unlock/ad-routes.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
 import { walletRoutes } from './modules/wallet/routes.js';
 import { dramaProgressRoutes } from './modules/progress/drama-routes.js';
@@ -75,6 +76,10 @@ import type { ServerConfig } from './config.js';
 import type { SqliteDatabase } from './db/sqlite.js';
 import type { SessionStore } from './modules/identity/session-store.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
+import type { AdCompletionVerifier } from './modules/unlock/ad-completion.js';
+import type { AdPlacementConfig } from './modules/unlock/ad-placement.js';
+import type { AdRewardLog } from './modules/unlock/ad-reward-log.js';
+import type { AdSessionStore } from './modules/unlock/ad-session-store.js';
 import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { UnlockStore } from './modules/unlock/unlock-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
@@ -170,6 +175,16 @@ export interface AppDependencies {
    */
   readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
+  /**
+   * Rewarded-ad unlock (C4-08). Defaults have no Portal placement id, so the session endpoint
+   * answers `UNLOCK_AD_UNAVAILABLE` rather than minting a nonce for an invented unit. The
+   * verifier defaults to the reported `isEnded` flag (U-18: there is no SSV callback) and is
+   * injected by tests that prove a refusing verifier still blocks a grant.
+   */
+  readonly adPlacement?: AdPlacementConfig;
+  readonly adCompletionVerifier?: AdCompletionVerifier;
+  readonly adSessionStore?: AdSessionStore;
+  readonly adRewardLog?: AdRewardLog;
   /**
    * Coin balance. The default reports `UNAVAILABLE` rather than `0`: there is no platform coin
    * figure and no ledger this process owns, and an invented zero is a wrong balance a viewer who
@@ -398,6 +413,22 @@ export async function buildApp(
     orderStore: unlockOrderStore,
     tradeOrderPort: dependencies.tradeOrderPort ?? createUnavailableTradeOrderPort(),
     now,
+  });
+
+  // Same facts, same viewer, same unlock table as the coin path. A second store here would let
+  // an ad grant write a receipt the entitlement decision never reads. Placement ids default to
+  // absent: GATE-4 has not produced one, and a placeholder would be a review-cycle product id.
+  await app.register(adRoutes, {
+    factsPort: entitlementFactsPort,
+    viewerResolver,
+    unlockStore,
+    now,
+    ...(dependencies.adPlacement === undefined ? {} : { placement: dependencies.adPlacement }),
+    ...(dependencies.adCompletionVerifier === undefined
+      ? {}
+      : { verifier: dependencies.adCompletionVerifier }),
+    ...(dependencies.adSessionStore === undefined ? {} : { sessions: dependencies.adSessionStore }),
+    ...(dependencies.adRewardLog === undefined ? {} : { rewardLog: dependencies.adRewardLog }),
   });
 
   // The same viewer resolver as unlock and progress: two things resolving sessions is how one

@@ -519,3 +519,60 @@ describe('getting out of the panel', () => {
     expect(document.getElementById(labelId ?? '')?.textContent).toBeTruthy();
   });
 });
+
+describe('the ad channel (F-4 placements only)', () => {
+  it('is absent when the panel is not a permitted placement', () => {
+    renderPanel();
+    expect(screen.queryByTestId('unlock-ad-action')).toBeNull();
+  });
+
+  it('is absent when createRewardedVideoAd is missing, even on a permitted placement', () => {
+    renderSurface(
+      <UnlockPanel
+        adPlacement="AFTER_EPISODE"
+        bridge={payingBridge({ unavailable: ['createRewardedVideoAd'] })}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={vi.fn()}
+        pacing={instantPacing()}
+      />,
+      { api: stubCatalogApi(), unlockApi: stubUnlockApi() },
+    );
+    expect(screen.queryByTestId('unlock-ad-action')).toBeNull();
+  });
+
+  it('posts isEnded false to the server and does not treat a skip as a grant', async () => {
+    const unlockApi = stubUnlockApi({
+      adSession: () =>
+        ok({
+          nonce: 'nonce_1',
+          adUnitId: 'ad_fx_rewarded',
+          placement: 'AFTER_EPISODE',
+          episodeId: 'ep_test_0004',
+        }),
+      adGrant: () => err(unlockFailure(422, 'UNLOCK_AD_NOT_COMPLETED')),
+    });
+    const onEntitlementChanged = vi.fn();
+    const bridge = payingBridge({ rewardedAdCompletes: false });
+
+    renderSurface(
+      <UnlockPanel
+        adPlacement="AFTER_EPISODE"
+        bridge={bridge}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={onEntitlementChanged}
+        pacing={instantPacing()}
+      />,
+      { api: stubCatalogApi(), unlockApi },
+    );
+
+    fireEvent.click(screen.getByTestId('unlock-ad-action'));
+    const failure = await screen.findByTestId('unlock-ad-failure');
+    expect(failure.getAttribute('data-reason')).toBe('NOT_COMPLETED');
+    expect(onEntitlementChanged).not.toHaveBeenCalled();
+    expect(unlockApi.adGrantCalls[0]?.isEnded).toBe(false);
+  });
+});

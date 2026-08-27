@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ok } from '@minidrama/shared';
 
-import { COIN_ORDERS_PATH, coinOrderEndpoint, createUnlockApi } from './unlock-api';
+import { COIN_ORDERS_PATH, AD_GRANTS_PATH, AD_SESSIONS_PATH, coinOrderEndpoint, createUnlockApi } from './unlock-api';
 import { apiFailure } from './failure';
 import { coinOrder, grantedCoinOrder } from '../testing/unlock-fixtures';
 import type { HttpPoster, HttpReader } from './http';
@@ -20,6 +20,8 @@ function postSpy() {
 describe('coin order endpoints', () => {
   it('publishes the paths the server registered', () => {
     expect(COIN_ORDERS_PATH).toBe('/v1/unlock/coin-orders');
+    expect(AD_SESSIONS_PATH).toBe('/v1/unlock/ad-sessions');
+    expect(AD_GRANTS_PATH).toBe('/v1/unlock/ad-grants');
     expect(coinOrderEndpoint('uord_1')).toBe('/v1/unlock/coin-orders/uord_1');
   });
 
@@ -147,5 +149,71 @@ describe('a response that is not a coin order', () => {
     for (const body of [null, 'ok', 7, [coinOrder()]]) {
       expect((await narrows(body)).ok, JSON.stringify(body)).toBe(false);
     }
+  });
+});
+
+describe('ad unlock client', () => {
+  it('posts placement and episode id, and no invented unit id', async () => {
+    const postJson = vi.fn<HttpPoster['postJson']>(() =>
+      Promise.resolve(
+        ok({
+          nonce: 'n1',
+          adUnitId: 'ad_fx_rewarded',
+          placement: 'AFTER_EPISODE',
+          episodeId: 'ep_1',
+          expiresAt: '2026-08-27T10:10:00.000Z',
+        }),
+      ),
+    );
+    const result = await createUnlockApi({
+      getJson: () => Promise.resolve(ok({})),
+      postJson,
+    }).createAdSession({ episodeId: 'ep_1', placement: 'AFTER_EPISODE' });
+
+    expect(result.ok).toBe(true);
+    expect(postJson).toHaveBeenCalledWith(AD_SESSIONS_PATH, {
+      episodeId: 'ep_1',
+      placement: 'AFTER_EPISODE',
+    });
+    const body = postJson.mock.calls[0]![1] as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['episodeId', 'placement']);
+  });
+
+  it('sends the reported isEnded and the idempotency key on grant', async () => {
+    const postJson = vi.fn<HttpPoster['postJson']>(() =>
+      Promise.resolve(
+        ok({
+          unlock: { id: 'ulk_1', episodeId: 'ep_1', method: 'AD', costCoins: 0 },
+          quota: { usedToday: 1, dailyLimit: 5 },
+        }),
+      ),
+    );
+    await createUnlockApi({ getJson: () => Promise.resolve(ok({})), postJson }).grantAdUnlock({
+      episodeId: 'ep_1',
+      nonce: 'n1',
+      isEnded: false,
+      idempotencyKey: 'ad_key',
+    });
+
+    expect(postJson).toHaveBeenCalledWith(
+      AD_GRANTS_PATH,
+      { episodeId: 'ep_1', nonce: 'n1', isEnded: false },
+      { headers: { 'Idempotency-Key': 'ad_key' } },
+    );
+  });
+
+  it('rejects a grant whose method is not AD or whose cost is not zero', async () => {
+    const result = await createUnlockApi(
+      httpStub({
+        unlock: { id: 'ulk_1', episodeId: 'ep_1', method: 'COIN', costCoins: 30 },
+        quota: { usedToday: 1, dailyLimit: 5 },
+      }),
+    ).grantAdUnlock({
+      episodeId: 'ep_1',
+      nonce: 'n1',
+      isEnded: true,
+      idempotencyKey: 'ad_key',
+    });
+    expect(result.ok).toBe(false);
   });
 });

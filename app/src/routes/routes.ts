@@ -58,6 +58,10 @@ export function playPath(episodeId: string): string {
   return `/play/${encodeURIComponent(episodeId)}`;
 }
 
+export function isPlayPath(pathname: string): boolean {
+  return pathname === '/play' || pathname.startsWith('/play/');
+}
+
 export function fallbackPath(reason: FallbackReason): string {
   return `${ROUTES.fallback}?reason=${reason}`;
 }
