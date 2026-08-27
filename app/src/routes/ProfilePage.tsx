@@ -17,7 +17,7 @@ import { useWalletApi } from '../data/wallet-api-context';
  * Who the app thinks the viewer is, the entries that lead to the personal screens, and a wallet
  * card that quotes a coin balance only when the server sent one. What is still not here is a VIP
  * card, a real nickname, or a recharge sheet: `GET /users/me` does not exist, SCR-11 has no
- * contract, and the Beans rate is `C3-09`.
+ * contract, and the Beans rate is `C3-09`. Settings (SCR-12) is reachable from here.
  *
  * The wallet card is fail-closed. `GET /v1/wallet` is not served today, and a missing figure is a
  * statement rather than `0 coins`. A viewer who has recharged and sees an invented zero will not
@@ -80,6 +80,9 @@ export function ProfilePage(): React.JSX.Element {
         </Link>
         <Link className="profile-entry" data-testid="wallet-entry" to={ROUTES.wallet}>
           {translate('profile.wallet')}
+        </Link>
+        <Link className="profile-entry" data-testid="settings-entry" to={ROUTES.settings}>
+          {translate('profile.settings')}
         </Link>
       </nav>
     </main>

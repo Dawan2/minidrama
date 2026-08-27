@@ -131,6 +131,12 @@ describe('App routing', () => {
     expect(screen.queryByTestId('fallback-page')).toBeNull();
   });
 
+  it('renders the settings route', async () => {
+    renderAt('/settings');
+    expect(await screen.findByTestId('settings-page')).toBeDefined();
+    expect(screen.queryByTestId('fallback-page')).toBeNull();
+  });
+
   it('keeps an unauthorised wallet read on its own screen', async () => {
     const walletApi = stubWalletApi({
       wallet: () => err(walletHttpFailure(401)),

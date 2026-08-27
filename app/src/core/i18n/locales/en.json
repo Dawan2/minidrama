@@ -92,6 +92,7 @@
   "profile.history": "Continue watching",
   "profile.favorites": "Favourites",
   "profile.wallet": "Wallet",
+  "profile.settings": "Settings",
   "auth.signIn": "Sign in",
   "auth.signingIn": "Signing in…",
   "auth.signInUnavailable": "We could not sign you in. Please try again later.",
@@ -164,5 +165,14 @@
   "wallet.txRefund": "Refund",
   "wallet.txCredit": "+{n} coins",
   "wallet.txDebit": "−{n} coins",
-  "wallet.txAmountUnknown": "Amount not available"
+  "wallet.txAmountUnknown": "Amount not available",
+  "settings.heading": "Settings",
+  "settings.version": "Version",
+  "settings.legal": "Legal",
+  "settings.termsUnpublished": "The official Terms of Service URL has not been published yet.",
+  "settings.privacyUnpublished": "The official Privacy Policy URL has not been published yet.",
+  "settings.support": "Support",
+  "settings.supportHint": "Use this address for complaints. It is a placeholder until the portal mailbox exists.",
+  "settings.localData": "On this device",
+  "settings.localDataHint": "The session is held in memory only. Closing the mini app drops it; there is no local cache to clear."
 }

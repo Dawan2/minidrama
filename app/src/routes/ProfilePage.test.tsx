@@ -110,6 +110,14 @@ describe('the profile entries', () => {
     expect(wallet.getAttribute('href')).toBe('/wallet');
   });
 
+  it('leads to the settings screen', () => {
+    renderSurface(<ProfilePage />);
+
+    const settings = screen.getByTestId('settings-entry');
+    expect(settings.textContent).toContain('Settings');
+    expect(settings.getAttribute('href')).toBe('/settings');
+  });
+
   it('offers only the entries that lead somewhere', () => {
     renderSurface(<ProfilePage />);
 
@@ -118,6 +126,7 @@ describe('the profile entries', () => {
       '/history',
       '/favorites',
       '/wallet',
+      '/settings',
     ]);
   });
 });

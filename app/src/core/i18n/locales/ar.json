@@ -92,6 +92,7 @@
   "profile.history": "متابعة المشاهدة",
   "profile.favorites": "المفضلة",
   "profile.wallet": "المحفظة",
+  "profile.settings": "الإعدادات",
   "auth.signIn": "تسجيل الدخول",
   "auth.signingIn": "جارٍ تسجيل الدخول…",
   "auth.signInUnavailable": "لم نتمكن من تسجيل دخولك. يرجى المحاولة لاحقًا.",
@@ -164,5 +165,14 @@
   "wallet.txRefund": "استرداد",
   "wallet.txCredit": "+{n} عملة",
   "wallet.txDebit": "−{n} عملة",
-  "wallet.txAmountUnknown": "المبلغ غير متاح"
+  "wallet.txAmountUnknown": "المبلغ غير متاح",
+  "settings.heading": "الإعدادات",
+  "settings.version": "الإصدار",
+  "settings.legal": "الشؤون القانونية",
+  "settings.termsUnpublished": "لم يُنشر بعد عنوان URL الرسمي لشروط الخدمة.",
+  "settings.privacyUnpublished": "لم يُنشر بعد عنوان URL الرسمي لسياسة الخصوصية.",
+  "settings.support": "الدعم",
+  "settings.supportHint": "استخدم هذا العنوان للشكاوى. إنه عنصر نائب إلى أن يتوفر صندوق بريد البوابة.",
+  "settings.localData": "على هذا الجهاز",
+  "settings.localDataHint": "تُحفظ الجلسة في الذاكرة فقط. إغلاق التطبيق المصغّر يحذفها؛ لا توجد ذاكرة تخزين مؤقت محلية للمسح."
 }

@@ -36,6 +36,7 @@ describe('routes', () => {
     expect(ROUTES.history).toBe('/history');
     expect(ROUTES.favorites).toBe('/favorites');
     expect(ROUTES.wallet).toBe('/wallet');
+    expect(ROUTES.settings).toBe('/settings');
   });
 
   /**
@@ -55,6 +56,7 @@ describe('routes', () => {
       'me',
       'play',
       'search',
+      'settings',
       'wallet',
     ]);
   });
