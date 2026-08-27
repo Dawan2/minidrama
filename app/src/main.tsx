@@ -2,17 +2,21 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 
+import './styles/app.css';
 import { App } from './App';
+import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
+import { createCatalogApi } from './data/catalog-api';
+import { createHttpClient } from './data/http';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
 
 /**
  * Boot entry point.
  *
  * The sequence in `docs/architecture/system-overview.md` §3.1 is serial by design: nothing
- * business-facing renders on a half-initialized runtime. Wave 1 wires the first two steps —
- * bridge selection and `init` — and leaves login, `/config` and deep-link resolution as the
- * Wave 2 continuation, marked below so the order is not reinvented.
+ * business-facing renders on a half-initialized runtime. Wave 1 wired bridge selection and `init`;
+ * this slot adds the catalogue client and leaves login, `/config` and deep-link resolution as the
+ * remaining continuation, marked below so the order is not reinvented.
  */
 async function boot(): Promise<void> {
   const container = document.getElementById('root');
@@ -30,14 +34,33 @@ async function boot(): Promise<void> {
 
   // W2, in this order: capability probe merge → silent login → GET /v1/config → deep-link target.
 
+  /**
+   * The catalogue reads are anonymous-capable (`docs/12-api-contracts.md` §2.2), so the client is
+   * constructed before login and carries no credentials. When session handling lands it belongs
+   * inside this client — one place that attaches the header and one place that refreshes it —
+   * rather than at the call sites.
+   *
+   * A missing base URL is left to fail as a request rather than throwing here: a boot that dies
+   * because an environment variable is absent is a white screen, and the retryable error state is
+   * a screen with a button on it.
+   */
+  const api = createCatalogApi(
+    createHttpClient({
+      baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
+      fetch: (url, init) => fetch(url, init),
+    }),
+  );
+
   document.documentElement.lang = DEFAULT_LOCALE;
   document.documentElement.dir = isRtl(DEFAULT_LOCALE) ? 'rtl' : 'ltr';
 
   createRoot(container).render(
     <StrictMode>
-      <HashRouter>
-        <App bridge={bridge} />
-      </HashRouter>
+      <CatalogApiProvider api={api}>
+        <HashRouter>
+          <App bridge={bridge} />
+        </HashRouter>
+      </CatalogApiProvider>
     </StrictMode>,
   );
 }

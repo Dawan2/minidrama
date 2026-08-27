@@ -1,10 +1,13 @@
 import { MemoryRouter } from 'react-router';
+import { ok } from '@minidrama/shared';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { App } from './App';
+import { CatalogApiProvider } from './data/catalog-api-context';
 import { MockBridge } from './platform/mock-bridge';
 import { MockVePlayer } from './player/mock-veplayer';
+import { dramaDetail, episodeItem, page, stubCatalogApi } from './testing/catalog-fixtures';
 
 beforeEach(() => {
   MockVePlayer.reset();
@@ -12,10 +15,17 @@ beforeEach(() => {
 
 function renderAt(path: string) {
   const bridge = new MockBridge();
+  const api = stubCatalogApi({
+    drama: () => ok(dramaDetail()),
+    episodes: () => ok(page([episodeItem()])),
+  });
+
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <App bridge={bridge} />
-    </MemoryRouter>,
+    <CatalogApiProvider api={api}>
+      <MemoryRouter initialEntries={[path]}>
+        <App bridge={bridge} />
+      </MemoryRouter>
+    </CatalogApiProvider>,
   );
 }
 
@@ -23,6 +33,12 @@ describe('App routing', () => {
   it('redirects the root to home', async () => {
     renderAt('/');
     expect(await screen.findByTestId('home-page')).toBeDefined();
+  });
+
+  it('renders the drama detail route', async () => {
+    renderAt('/drama/drm_test_0001');
+    expect(await screen.findByTestId('drama-page')).toBeDefined();
+    expect(await screen.findByTestId('drama-header')).toBeDefined();
   });
 
   it('renders the player route', async () => {
@@ -33,9 +49,11 @@ describe('App routing', () => {
     });
   });
 
-  // A static ZIP cannot 404 gracefully, so an unknown path must land somewhere with a way out.
-  it('sends an unknown route to the fallback screen', async () => {
+  // A static ZIP cannot 404 gracefully, so an unknown path must land somewhere with a way out —
+  // and with the reason the fallback screen needs to explain itself (IA §5).
+  it('sends an unknown route to the fallback screen as a missing page', async () => {
     renderAt('/not-a-real-route');
-    expect(await screen.findByTestId('fallback-page')).toBeDefined();
+    const fallback = await screen.findByTestId('fallback-page');
+    expect(fallback.getAttribute('data-reason')).toBe('NOT_FOUND');
   });
 });
