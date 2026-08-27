@@ -187,10 +187,9 @@ describe.each(backends)('FavoritesStore (%s)', (_label, open) => {
       await favorites.remove('user_a', 'drm_1');
       await favorites.add('user_a', 'drm_1', NOW + 120_000);
 
-      expect((await favorites.list('user_a', { limit: 20 })).rows.map((row) => row.dramaId)).toEqual([
-        'drm_1',
-        'drm_2',
-      ]);
+      expect(
+        (await favorites.list('user_a', { limit: 20 })).rows.map((row) => row.dramaId),
+      ).toEqual(['drm_1', 'drm_2']);
     });
 
     // The property that makes a page boundary mean anything. Two favourites can share a
@@ -202,11 +201,9 @@ describe.each(backends)('FavoritesStore (%s)', (_label, open) => {
       await favorites.add('user_a', 'drm_a', NOW);
       await favorites.add('user_a', 'drm_c', NOW);
 
-      expect((await favorites.list('user_a', { limit: 20 })).rows.map((row) => row.dramaId)).toEqual([
-        'drm_c',
-        'drm_b',
-        'drm_a',
-      ]);
+      expect(
+        (await favorites.list('user_a', { limit: 20 })).rows.map((row) => row.dramaId),
+      ).toEqual(['drm_c', 'drm_b', 'drm_a']);
     });
 
     it('never lists another viewer’s favourites', async () => {
@@ -215,9 +212,9 @@ describe.each(backends)('FavoritesStore (%s)', (_label, open) => {
       await favorites.add('user_a', 'drm_1', NOW);
       await favorites.add('user_b', 'drm_2', NOW + 1);
 
-      expect((await favorites.list('user_a', { limit: 20 })).rows.map((row) => row.dramaId)).toEqual([
-        'drm_1',
-      ]);
+      expect(
+        (await favorites.list('user_a', { limit: 20 })).rows.map((row) => row.dramaId),
+      ).toEqual(['drm_1']);
     });
 
     describe('paging', () => {
