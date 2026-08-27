@@ -13,7 +13,7 @@ import { loadConfig } from '../../config.js';
 /**
  * C3-06, the next store after watch progress: a favourite written, a process restart, the
  * same GET still reports it. Unlock receipts, sessions, webhook events, coin unlock orders,
- * and watch progress already survive this bounce; catalogue and search directory stay in memory.
+ * and watch progress already survive this bounce; the catalogue and search hits persist too.
  */
 
 const dirs: string[] = [];

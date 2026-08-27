@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { SEED_SEARCHABLE_DRAMAS, createSeedDramaDirectory } from './dramas.js';
+import { createInMemoryCatalogStore } from '../catalog/store.js';
+import {
+  SEED_SEARCHABLE_DRAMAS,
+  createCatalogDramaDirectory,
+  createSeedDramaDirectory,
+} from './dramas.js';
 import type { SearchableDrama } from './dramas.js';
 
 /**
@@ -80,5 +85,23 @@ describe('SEED_SEARCHABLE_DRAMAS', () => {
   // and a media handle reaches a client only through a playback session (correction A4).
   it('carries no URL', () => {
     expect(JSON.stringify(SEED_SEARCHABLE_DRAMAS)).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('createCatalogDramaDirectory', () => {
+  it('lists the catalogue’s published dramas, not a parallel seed', async () => {
+    const directory = createCatalogDramaDirectory(createInMemoryCatalogStore());
+    const searchable = await directory.listSearchable();
+
+    expect(searchable.every((drama) => drama.status === 'PUBLISHED')).toBe(true);
+    expect(searchable.map((drama) => drama.id)).toContain('drm_revenge_0001');
+    expect(searchable.map((drama) => drama.id)).not.toContain('drm_offline_0007');
+    expect(searchable.map((drama) => drama.id)).not.toContain('drm_draft_0008');
+  });
+
+  it('looks a delisted drama up so favouriting can tell 410 from 404', async () => {
+    const directory = createCatalogDramaDirectory(createInMemoryCatalogStore());
+    expect((await directory.lookup('drm_offline_0007'))?.status).toBe('OFFLINE');
+    expect(await directory.lookup('drm_nope')).toBeUndefined();
   });
 });

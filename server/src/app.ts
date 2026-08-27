@@ -25,7 +25,7 @@ import { openMigratedSqlite } from './db/migrate.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createSqliteWebhookEventStore } from './modules/platform-tiktok/sqlite-event-store.js';
 import { createMockIdentityPort } from './modules/identity/test-login.js';
-import { createSeedDramaDirectory } from './modules/search/dramas.js';
+import { createCatalogDramaDirectory } from './modules/search/dramas.js';
 import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
@@ -184,11 +184,11 @@ export interface AppDependencies {
   readonly dramaProgressCatalogPort?: DramaProgressCatalogPort;
   /**
    * Search and favourites. The favourites store defaults to SQLite when `DATABASE_URL=sqlite:<path>`
-   * (the same file as unlock receipts, sessions, webhook events, coin unlock orders, and watch
-   * progress), and the in-memory skeleton otherwise; a postgres URL is refused rather than rewritten
-   * to a file. The drama directory the two read defaults to a seed, and `modules/search/dramas.ts`
-   * explains why it is a port rather than a second catalogue — the catalogue module owns the
-   * records, and wiring these two together is a follow-up rather than an integration decision.
+   * (the same file as unlock receipts, sessions, webhook events, coin unlock orders, watch progress,
+   * and the catalogue), and the in-memory skeleton otherwise; a postgres URL is refused rather than
+   * rewritten to a file. The drama directory the two read defaults to the catalogue store above —
+   * search is not a second table of titles. Inject a directory to pin search without standing up a
+   * catalogue.
    */
   readonly favoritesStore?: FavoritesStore;
   readonly dramaDirectory?: DramaDirectory;
@@ -425,9 +425,12 @@ export async function buildApp(
   // Search and favourites. `searchRoutes` was `discoveryRoutes` on its own branch and collided by
   // name with the feed above; both are registered here, which is the whole of A2's resolution.
   // Favourites take the same viewer resolver as progress and watch history, because two things
-  // resolving sessions is how one endpoint accepts the credential another rejects.
+  // resolving sessions is how one endpoint accepts the credential another rejects. Search takes
+  // the catalogue store above, not a seed, so a title the drama page serves is the title a query
+  // can find — and a bounce that kept the catalogue and dropped search hits cannot happen by
+  // opening two files.
   await app.register(searchRoutes, {
-    directory: dependencies.dramaDirectory ?? createSeedDramaDirectory(),
+    directory: dependencies.dramaDirectory ?? createCatalogDramaDirectory(catalogStore),
     favorites: favoritesStore,
     viewerResolver,
     dramaSummaries: createCatalogDramaSummaryLookup(catalogStore),

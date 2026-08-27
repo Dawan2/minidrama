@@ -1,21 +1,18 @@
+import type { CatalogStore } from '../catalog/store.js';
+import type { DramaRecord } from '../catalog/types.js';
+
 /**
- * The dramas this slot can see — a stand-in for `catalog`, and shaped so that it stops being one.
+ * The dramas search and favourites can see — a port over `catalog`, not a second catalogue.
  *
- * There is no `catalog` module on this branch: it is being built in an adjacent slot this wave. Two
- * ways to deal with that were available, and only one of them is reversible.
- *
- * The first is to invent a catalogue here — records, publication rules, cover art, episode
- * numbering. That produces a second source of truth for content, and the merge that removes it has
- * to reconcile two sets of rules rather than delete a file.
- *
- * The second, taken here, is to name the *question* search and favourites actually ask of the
- * catalogue, answer it from a seed, and keep the answer a strict subset of what `catalog` already
- * stores. `SearchableDrama` is field-for-field a subset of that module's `DramaRecord` — including
+ * `SearchableDrama` is field-for-field a subset of `catalog`'s `DramaRecord` — including
  * `stat.playCount`, which is why the nesting is preserved — so a `DramaRecord` satisfies it
- * structurally with no adapter, and the seed records below carry the same ids, titles, tags and
- * counters as that module's `SEED_DRAMAS`. When the two branches meet, `DramaDirectory` is
- * implemented over `CatalogStore` and this file's seed is deleted; the search tests keep passing
- * because they assert against ids that exist on both sides.
+ * structurally with no adapter. `createCatalogDramaDirectory` is the production implementation:
+ * the same `CatalogStore` the drama page reads, including the sqlite tables migration `0007`
+ * already persists. A searchable-only table would be a second catalogue DB.
+ *
+ * `createSeedDramaDirectory` remains for tests that inject a directory without standing up the
+ * catalogue. The seed records below carry the same ids, titles, tags and counters as
+ * `SEED_DRAMAS`, so those tests still assert against ids that exist on both sides.
  *
  * What is deliberately *not* modelled here: seasons, episodes, numbering, free windows,
  * `viewerAccess`, cover art. None of them is an input to a keyword match or a favourite row, and
@@ -125,6 +122,34 @@ export const SEED_SEARCHABLE_DRAMAS: readonly SearchableDrama[] = [
     stat: { playCount: 0 },
   },
 ];
+
+export function toSearchableDrama(drama: DramaRecord): SearchableDrama {
+  return {
+    id: drama.id,
+    title: drama.title,
+    tags: drama.tags,
+    status: drama.status,
+    stat: { playCount: drama.stat.playCount },
+  };
+}
+
+/**
+ * The production directory: the catalogue's own records, filtered the way `listDramas` already
+ * filters. Search does not keep a parallel table.
+ */
+export function createCatalogDramaDirectory(store: CatalogStore): DramaDirectory {
+  return {
+    async listSearchable() {
+      const dramas = await store.listDramas({ sort: 'HOT' });
+      return dramas.map(toSearchableDrama);
+    },
+
+    async lookup(dramaId: string) {
+      const found = await store.getDrama(dramaId);
+      return found === undefined ? undefined : toSearchableDrama(found.drama);
+    },
+  };
+}
 
 export function createSeedDramaDirectory(
   seed: readonly SearchableDrama[] = SEED_SEARCHABLE_DRAMAS,
