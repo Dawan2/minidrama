@@ -1,0 +1,19 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Packaged client artifacts (uploaded to the TikTok Developer Portal by hand)
+release/
+*.zip
+
+# Local environment. Never commit real credentials; see .env.example.
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+.eslintcache
+.vite/
