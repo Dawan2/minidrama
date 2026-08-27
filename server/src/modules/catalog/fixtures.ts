@@ -19,6 +19,7 @@ import type { UnlockPolicy } from '@minidrama/shared';
  * | `ep_suspense_e03` | `COIN` ignores VIP: a subscriber still has to buy it |
  * | `drm_offline_0007` | A delisted drama is the most-played record here, and appears in no list |
  * | `drm_draft_0008` | An unpublished drama is the newest record here, and appears in no list |
+ * | `drm_sweet_0003` | Volume: 80 listed episodes, so a default page of 50 has a remainder. Fixture ids (`ep_sweet_eNN`), not BytePlus vids — GATE-8 stays unanswered |
  *
  * Cover hosts use `.invalid` per the repository convention: a fixture that leaked into a build
  * fails loudly instead of fetching somebody else's image. The real image origin also has to be
@@ -64,6 +65,21 @@ function paidRun(from: number, to: number, priceCoins: number): readonly Episode
     priceCoins,
   }));
 }
+
+/**
+ * W7 / C2 exit: seed data ≥ 2 dramas and ≥ 80 *listed* episodes (`docs/00-wave-plan.md`).
+ *
+ * Listed means `isListed`: published seasons, including offline episodes (they keep their number)
+ * and excluding drafts and offline seasons. The 27-episode seed never produced a second page at
+ * the episode list's default of 50; this floor is what makes listing-quality measurable.
+ *
+ * This is fixture volume, not BytePlus ingest. No `vid`, no partner content id. GATE-8 stays
+ * unanswered.
+ */
+export const SEED_LISTED_EPISODE_FLOOR = 80;
+
+/** Same document: the drama half of the floor. Already met by the original eight-drama seed. */
+export const SEED_PUBLISHED_DRAMA_FLOOR = 2;
 
 export const SEED_DRAMAS: readonly DramaRecord[] = [
   {
@@ -111,7 +127,7 @@ export const SEED_DRAMAS: readonly DramaRecord[] = [
     tags: ['sweet', 'office'],
     status: 'PUBLISHED',
     totalSeasons: 1,
-    totalEpisodes: 4,
+    totalEpisodes: 80,
     freeEpisodes: 5,
     isCompleted: false,
     releaseAt: '2026-07-30T08:00:00.000Z',
@@ -285,7 +301,7 @@ export const SEED_EPISODES: readonly EpisodeRecord[] = [
   ...episodesOf('drm_dynasty_0002', 'ssn_dynasty_s1', 'ep_dynasty_s1e', paidRun(1, 3, 80)),
   ...episodesOf('drm_dynasty_0002', 'ssn_dynasty_s2', 'ep_dynasty_s2e', paidRun(1, 3, 80)),
   ...episodesOf('drm_dynasty_0002', 'ssn_dynasty_s3', 'ep_dynasty_s3e', paidRun(1, 2, 80)),
-  ...episodesOf('drm_sweet_0003', 'ssn_sweet_s1', 'ep_sweet_e', paidRun(1, 4, 50)),
+  ...episodesOf('drm_sweet_0003', 'ssn_sweet_s1', 'ep_sweet_e', paidRun(1, 80, 50)),
   ...episodesOf('drm_suspense_0004', 'ssn_suspense_s1', 'ep_suspense_e', [
     { episodeNumber: 1, unlockPolicy: 'COIN', priceCoins: 40 },
     { episodeNumber: 2, unlockPolicy: 'COIN', priceCoins: 40 },
