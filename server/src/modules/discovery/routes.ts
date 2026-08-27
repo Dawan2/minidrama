@@ -10,6 +10,7 @@ import { toDramaSummary } from '../catalog/views.js';
 import type { CatalogStore } from '../catalog/store.js';
 import type { ContinueWatchingSource, ResolvedContinueEntry } from './feed.js';
 import type { ViewerResolver } from '../catalog/viewer.js';
+import type { ViewerResolver as SessionViewerResolver } from '../entitlement/viewer-resolver.js';
 
 /**
  * The recommendation feed (`docs/12-api-contracts.md` §4.8).
@@ -24,6 +25,16 @@ const FEED_LIMIT = { fallback: 10, max: 50 };
 export interface DiscoveryRouteOptions {
   readonly store: CatalogStore;
   readonly viewerResolver: ViewerResolver;
+  /**
+   * Who is signed in, for the continue-watching rail. Distinct from `viewerResolver` above, which
+   * answers unlocks and VIP and is still the anonymous placeholder on the default deployment.
+   * Optional so a catalogue-only test can still boot; without it the rail stays empty.
+   *
+   * A bad token does not 401 this public read — it is answered as anonymous, same as folding
+   * `viewer.favorited` into the drama detail. The home feed is anonymous-capable; a rejected
+   * session is not a reason to refuse the popularity mix.
+   */
+  readonly sessionViewer?: SessionViewerResolver;
   readonly continueWatching: ContinueWatchingSource;
 }
 
@@ -42,7 +53,7 @@ export async function discoveryRoutes(
   app: FastifyInstance,
   options: DiscoveryRouteOptions,
 ): Promise<void> {
-  const { store, viewerResolver, continueWatching } = options;
+  const { store, sessionViewer, continueWatching } = options;
 
   app.get('/v1/recommendations/feed', async (request, reply) => {
     const query = request.query as Record<string, unknown>;
@@ -81,12 +92,15 @@ export async function discoveryRoutes(
     }
 
     const scene = (rawScene ?? 'HOME') as FeedScene;
-    const viewer = await viewerResolver.resolve(request);
+    // Public read: a missing, rejected, or unresolvable session is anonymous, not a 401. Progress
+    // and history 401 because the row *is* the identity; the feed is still a catalogue mix.
+    const session = sessionViewer?.resolve(request.headers.authorization);
+    const userId = session?.ok === true ? session.value : null;
 
     const [hot, recent, progress] = await Promise.all([
       store.listDramas({ sort: 'HOT' }),
       store.listDramas({ sort: 'NEW' }),
-      continueWatching.forViewer(viewer),
+      continueWatching.forViewer(userId),
     ]);
 
     const resolved: ResolvedContinueEntry[] = [];
@@ -116,7 +130,7 @@ export async function discoveryRoutes(
       keyOf: (entry) => `${ascendingKey(entry.rank)}|${entry.drama.id}`,
       limit: limit.value,
       cursor: rawCursor,
-      fingerprint: queryFingerprint({ list: 'feed', scene, viewer: viewer.userId ?? 'anonymous' }),
+      fingerprint: queryFingerprint({ list: 'feed', scene, viewer: userId ?? 'anonymous' }),
     });
     if (!page.ok) {
       return reply.status(400).send(
