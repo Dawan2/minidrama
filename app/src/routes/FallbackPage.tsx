@@ -27,7 +27,7 @@ export function FallbackPage(): React.JSX.Element {
 
   return (
     <main className="page page--fallback" data-testid="fallback-page" data-reason={reason}>
-      <h1>{translate('fallback.heading')}</h1>
+      <h1 className="page__heading">{translate('fallback.heading')}</h1>
       <p>{translate(MESSAGE_KEYS[reason])}</p>
       <Link className="state__action" to={ROUTES.home}>
         {translate('fallback.backHome')}
