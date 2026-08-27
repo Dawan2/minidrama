@@ -5,11 +5,11 @@ import type { PlatformTradeOrderPort, TradeOrderRequest } from './trade-order-po
 /**
  * A stand-in for the platform's trade-order API, and a counting wrapper around any implementation.
  *
- * `POST /v2/minis/trade_order/create/` is W23 work behind two business milestones, so the fixture
- * mints deterministic identifiers instead: `tto_fx_0001`, `tto_fx_0002`, in creation order. They
- * look nothing like a real trade order id on purpose — a test that passes because it recognised a
- * plausible-looking identifier has tested the identifier, and nothing here should ever be mistaken
- * for something a real callback could carry.
+ * The live `POST /v2/minis/trade_order/create/` adapter is `createTiktokTradeOrderPort`. These
+ * fixtures mint deterministic identifiers instead: `tto_fx_0001`, `tto_fx_0002`, in creation order.
+ * They look nothing like a real trade order id on purpose — a test that passes because it
+ * recognised a plausible-looking identifier has tested the identifier, and nothing here should
+ * ever be mistaken for something a real callback could carry.
  *
  * This is test and development data. `buildApp` never reaches for it: the default port refuses, so
  * an unwired deployment cannot hand out an order that no payment can ever be matched to.

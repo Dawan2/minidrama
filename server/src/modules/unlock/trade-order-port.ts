@@ -11,11 +11,11 @@ import type { Result } from '@minidrama/shared';
  * the order is stored rather than patched in afterwards. An order with no `tradeOrderId` is an
  * order no payment can ever be matched to, which is a support ticket by construction.
  *
- * Creating the trade order is `POST /v2/minis/trade_order/create/`, which is W23 work and gated on
- * business milestones M2 and M4 (`docs/00-wave-plan.md` §2). Until then this is an interface with a
- * refusing default, in the same posture as `EntitlementFactsPort` and `PlaybackMediaPort`: a
+ * Creating the trade order is `POST /v2/minis/trade_order/create/`
+ * (`docs/research/tiktok-minis-official.md` §6.1). The HTTP adapter lives in `platform-tiktok`
+ * (`createTiktokTradeOrderPort`). This module keeps the interface and the refusing default: a
  * deployment that cannot create a real trade order answers `503` rather than inventing an
- * identifier that no callback will ever carry.
+ * identifier that no callback will ever carry. GATE-2 / GATE-4 / Q-G-7 still block a live amount.
  */
 
 export interface TradeOrderRequest {
@@ -28,11 +28,16 @@ export interface TradeOrderRequest {
    * in. The client never supplies an amount, here or anywhere.
    *
    * The platform charges Beans, and what a coin is worth in Beans is a pricing decision that does
-   * not exist yet — so this port carries the number we do have and no conversion. W23 supplies the
-   * mapping and this request grows the platform-side amount next to it; inventing a rate here would
-   * bury a commercial decision in a type definition.
+   * not exist yet (`C3-09` / Q-G-7) — so this port carries the number we do have and no conversion.
+   * Inventing a rate here would bury a commercial decision in a type definition.
    */
   readonly priceCoins: number;
+  /**
+   * Platform `token_amount` (integer Beans). Present only after an observation populates it from
+   * configuration (`C4-06`). Absent is not `priceCoins` and is not a default rate: the HTTP adapter
+   * must refuse rather than copy or multiply the coin price.
+   */
+  readonly tokenAmount?: number;
 }
 
 /**
@@ -62,3 +67,11 @@ export function createUnavailableTradeOrderPort(): PlatformTradeOrderPort {
     createTradeOrder: async () => err('TRADE_ORDER_UNAVAILABLE'),
   };
 }
+
+/**
+ * Compile-time: a coin→Beans rate on this request is a type error, not a review comment.
+ * `tokenAmount` is the observed platform integer, not a rate.
+ */
+type ForbiddenRateKey = 'beansPerCoin' | 'coinToBeans' | 'BEANS_RATE' | 'beansRate';
+type CarriesNoRate<T> = Extract<keyof T, ForbiddenRateKey> extends never ? true : false;
+const _tradeOrderRequestCarriesNoRate: CarriesNoRate<TradeOrderRequest> = true;
