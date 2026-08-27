@@ -12,6 +12,8 @@
 > `docs/handoff/w13-merge-cycle-docs.md`, which is what `main` held when this slot started.
 > **Already on `main`:** `ERROR_OUTCOMES` (`9b06c18` / `0a46e77`). This slot did not open
 > `paid-trade-orders.ts` or its test.
+> **Not merged:** `cursor/w13-work-veplayer-replace-72c4`, which appeared on origin while verify
+> ran. Empty overlap; left alone. Cycle-3 next had not published a branch.
 > This slot adds this document and nothing else of its own.
 
 ---
@@ -98,19 +100,21 @@ composition. Confirmed on the merged tree:
 
 ## 3. In-flight work, left alone
 
-Two other slots were named as things this merge must not overwrite. Neither had published a branch
-on origin, nor changed a silent-login path on `origin/main`, by the time the merge ran or by the
-time this document was committed.
+Two other slots were named as things this merge must not overwrite. Neither had changed a
+silent-login path on `origin/main`. `origin/main` did not move during this slot.
 
-| Slot | Origin branch at merge time | Predicted overlap |
+| Slot | Origin branch | Overlap with silent-login's nine files |
 | --- | --- | --- |
-| VePlayer replace-element (`bc-f269a2f6`) | none published | Player wrapper / `setValidateVideoReplaceElement` / bundle scan (`C3-10` SR-5). Not `http.ts`, `transports.ts`, or `session/` |
-| Cycle-3 next (`bc-3439f016`) | none published | Whatever it picks after C3-01. This merge closes C3-01; it does not open that slot's files |
+| VePlayer replace-element (`bc-f269a2f6`) | `cursor/w13-work-veplayer-replace-72c4` appeared on origin *during* this slot, two commits (`a38710e`, `833cea2`), cut from `ba4bfb3` | empty. It edits `tiktok-bridge.ts`, `video-replace.ts` and its test, `import-hygiene.test.ts`, `bundle-scan.test.ts`, `source-rules.ts` and its test, and `docs/handoff/w13-veplayer-replace.md` |
+| Cycle-3 next (`bc-3439f016`) | none published | — |
 
-`origin/main` did not move during this slot. There was nothing to compose against and nothing to
-clobber. If either slot later lands on paths this merge also touched, the compose is theirs: keep
-both behaviours. Silent-login is the session transport and the recovery policy; VePlayer is the
-player surface; those are not the same functions.
+The VePlayer branch was not merged, rebased, or edited. When that slot (or a later merge slot)
+lands it, the compose is theirs: this merge did not touch a line of those eight files, so a merge
+of `833cea2` onto this `main` should be as clean as this one was.
+
+If cycle-3 next later lands on paths this merge also touched, keep both behaviours. Silent-login
+is the session transport and the recovery policy; VePlayer is the player surface; those are not
+the same functions.
 
 `ERROR_OUTCOMES` was already an ancestor of `ba4bfb3`. Untouched, as instructed.
 
@@ -147,8 +151,14 @@ The work slot's own suites on this tree: `session-recovery.test.ts` 18, `transpo
 
 ## 5. What is not merged
 
-Every `cursor/*` tip on origin is now an ancestor of `main`, including
-`cursor/w12-work-silent-login-97cf`. The two in-flight slots in §3 have not published a branch.
+One `cursor/*` tip on origin is not an ancestor of `main`, and was left that way:
+
+| Branch | Why it stayed off `main` |
+| --- | --- |
+| `cursor/w13-work-veplayer-replace-72c4` | In-flight work this slot was told not to overwrite. Two commits, eight files, no silent-login overlap |
+
+Every other `cursor/*` branch on origin is an ancestor of `main`, including
+`cursor/w12-work-silent-login-97cf`. Cycle-3 next (`bc-3439f016`) has not published a branch.
 
 ```
 for b in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/cursor); do
@@ -156,7 +166,7 @@ for b in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/curs
 done
 ```
 
-prints nothing.
+prints `NOT MERGED: origin/cursor/w13-work-veplayer-replace-72c4`.
 
 ---
 
