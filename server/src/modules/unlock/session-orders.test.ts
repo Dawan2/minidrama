@@ -354,10 +354,11 @@ describe('a session this server did not issue buys nothing', () => {
   // A `404` here would say the order is gone. It is not: the caller is, and the remedy is silent
   // login rather than opening a second order for an episode they may already have paid for.
   it('refuses to report an order once the session that opened it has expired', async () => {
-    const order = await openOrder(signIn(BUYER));
+    const token = signIn(BUYER);
+    const order = await openOrder(token);
     nowMs += SESSION_TTL_SEC * 1000 + 1;
 
-    const response = await readOrder(order.orderId, 'stale');
+    const response = await readOrder(order.orderId, token);
 
     expect(response.statusCode).toBe(401);
     expect(errorCode(response)).toBe('AUTH_REQUIRED');
