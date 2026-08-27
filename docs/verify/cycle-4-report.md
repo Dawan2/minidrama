@@ -649,33 +649,35 @@ a gate.
 
 ---
 
-## 13. Postscript — in-flight at write time
+## 13. Postscript — what moved while this report was being written
 
 Everything above through §12 was measured against `origin/main` at **`3cb724c`**
-(2026-08-27T23:01:09Z). `pnpm verify` ran in this slot after that snapshot. Two agents were
-RUNNING when the snapshot was taken and when this section was written; neither is an ancestor of
-`3cb724c`.
+(2026-08-27T23:01:09Z). `pnpm verify` ran in this slot on that SHA (3,217 tests, exit 0).
+Two agents were RUNNING at snapshot; one landed before this file was pushed.
 
-| Agent | Branch on origin | Tip | Status when this file was written |
+| Agent | Branch | Tip at snapshot | State when this section was written |
 |---|---|---|---|
-| `bc-9578758f` W14 work L2 G2.3 | `cursor/w14-work-g23-72c4` | `84e2fe7` Add the L2 G2.3 smoke job: Playwright P0, and a missing binary is red | **RUNNING, not on `main`.** Diff includes `l2.yml`, `packages/quality/src/smoke.ts`, Playwright specs `login-home` / `browse-play` |
-| `bc-f27bbed5` W14 work next C4 after seek | `cursor/w14-work-c4-after-seek-72c4` | `85d0bc9` Lead the home feed with continue-watching from the heartbeat table | **RUNNING, not on `main`.** Diff is server discovery/progress plus `docs/handoff/w14-c4-after-seek.md` |
+| `bc-f27bbed5` W14 work next C4 after seek | `cursor/w14-work-c4-after-seek-72c4` | `85d0bc9` | **Landed.** `origin/main` **`546dfe6`** (2026-08-27T23:06:48Z): "HOME continue-watching comes from heartbeats, and anonymous stays the mix". Agent IDLE |
+| `bc-9578758f` W14 work L2 G2.3 | `cursor/w14-work-g23-72c4` | `84e2fe7` | **Still RUNNING, not on `main`.** `l2.yml` on `546dfe6` still says "G2.3 is still absent." |
 
-**Neither landing, if it happens after this file, changes the §0 verdict on its own.**
+**Continue-watching landing does not change the §0 verdict.** Re-derived against `546dfe6`, not
+the handoff:
 
-- **G2.3** would close the C4-02 remainder and the "no Playwright" half of C3's first exit. It
-  would not execute on GitHub while D-17 holds. It would not open protocol-C4 播放体验.
-- **Continue-watching** is protocol-C4-adjacent product, not an a11y gate and not a cross-end
-  conflict suite. It would not close protocol C4's three exits.
+- `createProgressContinueWatchingSource` lists the viewer's heartbeat rows. Anonymous does not
+  read the store. A rejected session is **200** catalogue mix, not 401. A non-integer position is
+  dropped. Completed is the stored position, not an invented `0`.
+- That is a HOME rail, fail-closed. It is **not** the protocol-C4 exit "跨端进度冲突用例通过"
+  and it is **not** an a11y gate. §0's second protocol-C4 row should now read "heartbeats +
+  session resume + HOME rail on `main`; cross-end conflict cases still absent" rather than
+  "continue-watching is on an unmerged branch". Still **Not met**.
+- G2.3 is unchanged. C4-02 remainder, D-17, AM items, C4-03, C4-07: unchanged. No AM date
+  appeared.
 
-If a later integrator merges either onto `main`, re-score C4-02 / the feed row against that SHA.
-This report's snapshot SHA is **`3cb724c`**.
-
-`origin/cursor/w13-work-c3-remain-72c4` is still not an ancestor of `main`.
-`origin/cursor/w14-work-c4-subseq-72c4` is a leftover ads duplicate; do not retake.
-
-AM items did not move. No date appeared.
+`origin/cursor/w13-work-c3-remain-72c4` and leftover `cursor/w14-work-c4-subseq-72c4` are still
+not ancestors of `main`.
 
 The verdict in §0 stands: running-count C4 does not pass, on D-17 and on protocol-C4 exits (the
 latter correctly unscheduled). The C4 backlog's buildable half mostly does, G2.3 is the named
-remainder, and the AM-blocked half is still unknown.
+remainder, continue-watching is now on `main` as a rail, and the AM-blocked half is still unknown.
+
+Snapshot SHA for §§0–12: **`3cb724c`**. Trunk after the continue-watching merge: **`546dfe6`**.
