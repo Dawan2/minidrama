@@ -3,11 +3,13 @@ import type { FastifyError, FastifyInstance } from 'fastify';
 
 import { catalogRoutes } from './modules/catalog/routes.js';
 import { createAnonymousViewerResolver } from './modules/catalog/viewer.js';
+import { createEmptyContinueWatchingSource } from './modules/discovery/feed.js';
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createSessionIssuer } from './modules/identity/session.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
+import { discoveryRoutes } from './modules/discovery/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { identityRoutes } from './modules/identity/routes.js';
@@ -16,6 +18,7 @@ import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.j
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
 import type { CatalogStore } from './modules/catalog/store.js';
+import type { ContinueWatchingSource } from './modules/discovery/feed.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { ServerConfig } from './config.js';
@@ -52,6 +55,7 @@ export interface AppDependencies {
    * exercise the VIP and unlocked branches of `viewerAccess`.
    */
   readonly viewerResolver?: ViewerResolver;
+  readonly continueWatching?: ContinueWatchingSource;
   readonly now?: () => number;
 }
 
@@ -115,6 +119,12 @@ export async function buildApp(
   const viewerResolver = dependencies.viewerResolver ?? createAnonymousViewerResolver();
 
   await app.register(catalogRoutes, { store: catalogStore, viewerResolver });
+
+  await app.register(discoveryRoutes, {
+    store: catalogStore,
+    viewerResolver,
+    continueWatching: dependencies.continueWatching ?? createEmptyContinueWatchingSource(),
+  });
 
   await app.register(identityRoutes, {
     identityPort: dependencies.identityPort ?? createTiktokIdentityPort(credentials),
