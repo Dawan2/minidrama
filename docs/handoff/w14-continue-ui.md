@@ -27,8 +27,8 @@ tempted to fetch watch-history as a second source.
 | Heartbeats / session resume / VePlayer seek | on `main` |
 | HOME feed continue-watching **source** | on `main` at `546dfe6` |
 | **HOME continue-watching **rail** (this slot)** | client projection of that mix |
-| G2.3 Playwright | in flight (`bc-9578758f`). Not this slot |
-| Cycle-4 verify docs | in flight (`bc-caaa9d68`). Not this slot |
+| G2.3 Playwright | in flight at pick (`bc-9578758f`); **landed as** `5ab02d1` |
+| Cycle-4 verify docs | in flight at pick (`bc-caaa9d68`); **landed** |
 | C4-03 T14 Postgres | do not fake |
 | C4-07 VIP | no contract; do not invent |
 
