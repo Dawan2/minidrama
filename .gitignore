@@ -24,3 +24,6 @@ data/
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Local CodeQL database from `pnpm check:codeql`
+.codeql-database/

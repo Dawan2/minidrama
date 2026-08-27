@@ -1,0 +1,19 @@
+# G2.4 CodeQL half (`docs/14-quality-gates.md` §4, `docs/03-stack-decision.md` D13).
+# Semgrep owns the 14-security §2.1 custom rules. This config is the standard
+# javascript-typescript security-extended suite: XSS, injection, and the rest of
+# the pack. Thinning it to an empty queries list is a red gate, not a pass.
+#
+# `disable-default-queries` is not set. A later edit that turns it on without
+# keeping `security-extended` fails the preflight in `codeql.ts`.
+
+name: minidrama-g24-codeql
+
+queries:
+  - uses: security-extended
+
+paths-ignore:
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/coverage/**'
+  - '**/*.test.ts'
+  - '**/*.test.tsx'

@@ -26,6 +26,7 @@
     "check:integration": "pnpm --filter @minidrama/server run check:integration",
     "check:artifact": "pnpm --filter @minidrama/app run check:artifact",
     "check:sast": "pnpm --filter @minidrama/quality run check:sast",
+    "check:codeql": "pnpm --filter @minidrama/quality run check:codeql",
     "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
   },
   "pnpm": {
