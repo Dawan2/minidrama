@@ -105,11 +105,21 @@
 集的**有效解锁策略**按以下优先级归一：
 
 1. 集自身 `unlockPolicy = FREE` → 免费。
-2. `episodeNumber ≤ drama.freeEpisodes` → 免费（剧级前 N 集免费覆盖集级付费设置）。
+2. `globalEpisodeNumber ≤ drama.freeEpisodes` → 免费（剧级前 N 集免费覆盖集级付费设置）。
 3. 否则按集 `unlockPolicy` 执行：
    - `COIN`：仅可用虚拟币解锁；
    - `VIP_ONLY`：仅 VIP 可看，不可用币解锁；
    - `COIN_OR_VIP`：VIP 直接可看，非 VIP 可用币解锁（**默认推荐值**）。
+
+> **修订（Wave 2 · 工作槽 W2F，缺陷 DM-1）**：规则 2 原文写作 `episodeNumber ≤ drama.freeEpisodes`。
+> `episodeNumber` 是**季内**序号（§3.2，每季从 1 重新计数），而 `freeEpisodes` 是**剧级**策略（§3.1）；
+> 两者相比会让每一季的前 N 集都免费——`freeEpisodes = 5` 的两季剧会白送 5 集付费内容。免费窗口一律以
+> **剧内全局集序** `globalEpisodeNumber`（跨季连续计数，1 起）判定，不得回退到季内序号。
+> 实现与测试见 `server/src/modules/entitlement/access.ts` 与 `docs/handoff/w2-work-f.md` §1.1。
+
+**判定顺序（Wave 2 · 工作槽 W2F，缺陷 DM-3）**：已购权益（`Unlock.method ∈ {COIN, AD, GRANT}`）必须在
+VIP 之前判定，且 `Unlock(method=VIP)` 只是**观看凭证、不是购买凭证**（回答 §12 开放问题 3）——否则 VIP
+到期会连带撤销用户单独付费购买的集。完整判定阶梯见 `docs/handoff/w2-work-f.md` §2.1。
 
 服务端在返回集详情时计算并附带 `viewerAccess` 视图（见契约 §3.3），客户端**不得**自行推导可看性。
 
@@ -316,6 +326,9 @@ erDiagram
 
 1. 剧下架后已解锁用户是否保留回看权（当前默认不可看，建议产品复核）。
 2. 激励视频广告解锁（`method=AD`）的次数上限与风控策略。
-3. VIP 观看付费集是否落 `Unlock(method=VIP)` 凭证（影响"VIP 到期后是否保留已看集权限"）。
+3. ~~VIP 观看付费集是否落 `Unlock(method=VIP)` 凭证（影响"VIP 到期后是否保留已看集权限"）。~~
+   **已决（W2F，缺陷 DM-3）**：可落，但 `method=VIP` 的记录仅作观看凭证，本身不授予任何权限；VIP 到期后
+   该集回落为 `NEED_VIP`/`NEED_UNLOCK`。用币/广告/赠送获得的记录（`COIN`/`AD`/`GRANT`）为永久权益，
+   不受 VIP 到期影响。见 `server/src/modules/entitlement/access.ts`。
 4. 评论是否开放剧维度独立评论区。
 5. 多端进度冲突是否需要比 LWW 更细的策略（如"取更大 positionSec"）。
