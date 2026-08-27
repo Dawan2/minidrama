@@ -26,9 +26,11 @@ import {
   vipPlaybackFailure,
 } from '../testing/playback-fixtures';
 import { stubProgressApi } from '../testing/progress-fixtures';
+import { favoritesHttpFailure, stubFavoritesApi } from '../testing/favorites-fixtures';
 import { renderSurface } from '../testing/render';
 import type { EpisodeItem } from '@minidrama/shared';
 import type { CatalogApi } from '../data/catalog-api';
+import type { FavoritesApi } from '../data/favorites-api';
 import type { PlaybackApi } from '../data/playback-api';
 import type { ProgressApi } from '../data/progress-api';
 
@@ -58,6 +60,7 @@ function renderPlayer(options: {
   readonly api?: CatalogApi;
   readonly playbackApi?: PlaybackApi;
   readonly progressApi?: ProgressApi;
+  readonly favoritesApi?: FavoritesApi;
 }) {
   const episodeId = options.episodeId ?? 'ep_test_0001';
   return renderSurface(
@@ -68,6 +71,7 @@ function renderPlayer(options: {
       api: options.api ?? playCatalog([episodeItem()]),
       playbackApi: options.playbackApi ?? stubPlaybackApi(),
       ...(options.progressApi === undefined ? {} : { progressApi: options.progressApi }),
+      ...(options.favoritesApi === undefined ? {} : { favoritesApi: options.favoritesApi }),
       path: `/play/${episodeId}`,
     },
   );
@@ -581,6 +585,71 @@ describe('autoplay on ended and swipe 切集', () => {
     expect((await player()).config.episodeId).toBe(first.id);
     expect((await player()).playNextCount).toBe(0);
     expect((await player()).config.vid).not.toMatch(/vid_demo_/);
+  });
+});
+
+describe('double-tap 点赞 follows the current drama', () => {
+  it('PUTs the catalogue drama and does not invent a like API', async () => {
+    const favoritesApi = stubFavoritesApi();
+    renderPlayer({
+      bridge: await readyBridge(),
+      favoritesApi,
+    });
+    await player();
+    const surface = screen.getByTestId('player-surface');
+
+    fireEvent.doubleClick(surface);
+
+    await waitFor(() => {
+      expect(favoritesApi.addCalls).toEqual(['drm_test_0001']);
+    });
+    expect(screen.getByTestId('player-liked').textContent).toBe('Added to favourites');
+    expect(favoritesApi.removeCalls).toEqual([]);
+  });
+
+  it('does not flash liked when the session is missing', async () => {
+    const favoritesApi = stubFavoritesApi({
+      add: () => err(favoritesHttpFailure(401)),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      favoritesApi,
+    });
+    await player();
+
+    fireEvent.doubleClick(screen.getByTestId('player-surface'));
+
+    await waitFor(() => {
+      expect(favoritesApi.addCalls).toEqual(['drm_test_0001']);
+    });
+    expect(screen.queryByTestId('player-liked')).toBeNull();
+  });
+
+  it('does not follow on a 切集 swipe', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const second = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const favoritesApi = stubFavoritesApi();
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: first.id,
+      api: playCatalog([first, second]),
+      favoritesApi,
+    });
+    await player();
+    const surface = screen.getByTestId('player-surface');
+
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientX: 40, clientY: 280 }],
+      touches: [{ clientX: 40, clientY: 280 }],
+    });
+    fireEvent.touchEnd(surface, {
+      changedTouches: [{ clientX: 40, clientY: 200 }],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(second.id);
+    });
+    expect(favoritesApi.addCalls).toEqual([]);
   });
 });
 

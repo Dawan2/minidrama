@@ -3,6 +3,7 @@ import { ok, type PlaybackDescriptor } from '@minidrama/shared';
 import { createPlayerFacade } from './player-facade';
 import { createProgressHeartbeat } from './progress-heartbeat';
 import { verticalSwipe } from './episode-swipe';
+import { isDoubleTap, type TapPoint } from './episode-double-tap';
 import { translate } from '../core/i18n';
 import type { PlatformBridge } from '../platform/types';
 import type { PlayerFacade } from './player-facade';
@@ -35,6 +36,11 @@ export interface PlayerSurfaceProps {
   readonly onSwipeNext?: () => void;
   /** Finger-down 切集. `playNext` cannot go backwards; PlayPage rebuilds. */
   readonly onSwipePrevious?: () => void;
+  /**
+   * Double-tap 点赞. A single tap is still VePlayer's (`AC-PL-6`). PlayPage owns the write
+   * (idempotent follow). Ignored when omitted.
+   */
+  readonly onDoubleTap?: () => void;
 }
 
 export interface PlayerSurfaceHandle {
@@ -61,7 +67,7 @@ type SurfaceState = 'loading' | 'playing' | 'unavailable';
  */
 export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>(
   function PlayerSurface(
-    { bridge, playlist, episodeId, progress, onEnded, onSwipeNext, onSwipePrevious },
+    { bridge, playlist, episodeId, progress, onEnded, onSwipeNext, onSwipePrevious, onDoubleTap },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -75,7 +81,10 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
     onSwipeNextRef.current = onSwipeNext;
     const onSwipePreviousRef = useRef(onSwipePrevious);
     onSwipePreviousRef.current = onSwipePrevious;
-    const swipeOriginY = useRef<number | null>(null);
+    const onDoubleTapRef = useRef(onDoubleTap);
+    onDoubleTapRef.current = onDoubleTap;
+    const pointerOrigin = useRef<{ x: number; y: number } | null>(null);
+    const lastTap = useRef<TapPoint | null>(null);
     const playlistRef = useRef(playlist);
     playlistRef.current = playlist;
     const pendingNextRef = useRef<PlaybackDescriptor | null>(null);
@@ -220,26 +229,42 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         data-testid="player-surface"
         data-state={state}
         data-episode-id={episodeId}
+        onDoubleClick={() => {
+          lastTap.current = null;
+          onDoubleTapRef.current?.();
+        }}
         onTouchStart={(event) => {
           const touch = event.changedTouches[0];
-          swipeOriginY.current = touch === undefined ? null : touch.clientY;
+          pointerOrigin.current =
+            touch === undefined ? null : { x: touch.clientX, y: touch.clientY };
         }}
         onTouchEnd={(event) => {
-          const startY = swipeOriginY.current;
-          swipeOriginY.current = null;
-          if (startY === null) {
+          const origin = pointerOrigin.current;
+          pointerOrigin.current = null;
+          if (origin === null) {
             return;
           }
           const touch = event.changedTouches[0];
           if (touch === undefined) {
             return;
           }
-          const direction = verticalSwipe(startY, touch.clientY);
+          const direction = verticalSwipe(origin.y, touch.clientY);
           if (direction === 'up') {
+            lastTap.current = null;
             onSwipeNextRef.current?.();
+            return;
           }
           if (direction === 'down') {
+            lastTap.current = null;
             onSwipePreviousRef.current?.();
+            return;
+          }
+          const point: TapPoint = { x: touch.clientX, y: touch.clientY, atMs: Date.now() };
+          const previous = lastTap.current;
+          lastTap.current = point;
+          if (previous !== null && isDoubleTap(previous, point)) {
+            lastTap.current = null;
+            onDoubleTapRef.current?.();
           }
         }}
       >
