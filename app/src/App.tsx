@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router';
 
+import { Chrome } from './chrome/Chrome';
 import { DramaPage } from './routes/DramaPage';
 import { FallbackPage } from './routes/FallbackPage';
 import { FavoritesPage } from './routes/FavoritesPage';
@@ -10,6 +11,7 @@ import { ProfilePage } from './routes/ProfilePage';
 import { SearchPage } from './routes/SearchPage';
 import { WalletPage } from './routes/WalletPage';
 import { ROUTES, fallbackPath } from './routes/routes';
+import { BridgeProvider } from './platform/bridge-context';
 import type { PlatformBridge } from './platform/types';
 
 export interface AppProps {
@@ -18,22 +20,26 @@ export interface AppProps {
 
 export function App({ bridge }: AppProps): React.JSX.Element {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to={ROUTES.home} replace />} />
-      <Route path={ROUTES.home} element={<HomePage />} />
-      <Route path={ROUTES.search} element={<SearchPage />} />
-      <Route path={ROUTES.drama} element={<DramaPage bridge={bridge} />} />
-      <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
-      <Route path={ROUTES.me} element={<ProfilePage />} />
-      <Route path={ROUTES.history} element={<HistoryPage />} />
-      <Route path={ROUTES.favorites} element={<FavoritesPage />} />
-      <Route path={ROUTES.wallet} element={<WalletPage />} />
-      <Route path={ROUTES.fallback} element={<FallbackPage />} />
-      {/*
-        A static ZIP has no server to answer 404, so an unmatched path is resolved here and given
-        the reason the fallback screen needs to explain itself (IA §5).
-      */}
-      <Route path="*" element={<Navigate to={fallbackPath('NOT_FOUND')} replace />} />
-    </Routes>
+    <BridgeProvider bridge={bridge}>
+      <Chrome>
+        <Routes>
+          <Route path="/" element={<Navigate to={ROUTES.home} replace />} />
+          <Route path={ROUTES.home} element={<HomePage />} />
+          <Route path={ROUTES.search} element={<SearchPage />} />
+          <Route path={ROUTES.drama} element={<DramaPage bridge={bridge} />} />
+          <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
+          <Route path={ROUTES.me} element={<ProfilePage />} />
+          <Route path={ROUTES.history} element={<HistoryPage />} />
+          <Route path={ROUTES.favorites} element={<FavoritesPage />} />
+          <Route path={ROUTES.wallet} element={<WalletPage />} />
+          <Route path={ROUTES.fallback} element={<FallbackPage />} />
+          {/*
+            A static ZIP has no server to answer 404, so an unmatched path is resolved here and given
+            the reason the fallback screen needs to explain itself (IA §5).
+          */}
+          <Route path="*" element={<Navigate to={fallbackPath('NOT_FOUND')} replace />} />
+        </Routes>
+      </Chrome>
+    </BridgeProvider>
   );
 }

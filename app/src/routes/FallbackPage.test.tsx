@@ -45,4 +45,9 @@ describe('the fallback screen', () => {
     renderAt('/fallback?reason=MAINTENANCE');
     expect(screen.getByRole('link').getAttribute('href')).toBe(ROUTES.home);
   });
+
+  it('keeps the heading clear of the capsule', () => {
+    renderAt('/fallback');
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('page__heading');
+  });
 });
