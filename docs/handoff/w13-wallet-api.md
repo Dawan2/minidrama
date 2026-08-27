@@ -146,3 +146,6 @@ New server tests: 2 (port) + 11 (view) + 14 (routes) + 2 (app) + 1 (`contract.te
 - **C3-09.** Still a missing business input. No rate was written.
 
 Observability (`bc-dd5c69d1`) and CI L2 (`bc-0cbc44ca`) were running and were not touched.
+L2 landed on `main` as `18fa6d4` while this slot verified (`.github/workflows/l2.yml`,
+`packages/quality/`). This branch has taken it; the files do not overlap. `pnpm verify` after
+that merge: still green, plus the 37 quality tests L2 added (total 2,384).
