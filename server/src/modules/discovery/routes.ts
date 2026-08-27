@@ -1,9 +1,16 @@
-import type { DramaSearchResults, FavoriteState } from '@minidrama/shared';
+import type { DramaSearchResults, FavoriteList, FavoriteState } from '@minidrama/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { encodeFavoritesCursor } from './favorites-cursor.js';
 import { errorBody } from '../../core/errors.js';
 import { findMatches } from './search.js';
-import { parseSearchLimit, validateDramaId, validateSearchQuery } from './validation.js';
+import {
+  parseFavoritesCursor,
+  parseFavoritesLimit,
+  parseSearchLimit,
+  validateDramaId,
+  validateSearchQuery,
+} from './validation.js';
 import type { DramaDirectory } from './dramas.js';
 import type { FavoriteRecord, FavoritesStore } from './favorites.js';
 import type { FieldFailure } from './validation.js';
@@ -17,6 +24,7 @@ import type { ViewerResolutionFailure, ViewerResolver } from '../progress/viewer
  * GET    /v1/dramas/{dramaId}/favorite     -> 200   per viewer
  * PUT    /v1/dramas/{dramaId}/favorite     -> 204   per viewer, idempotent
  * DELETE /v1/dramas/{dramaId}/favorite     -> 204   per viewer, idempotent
+ * GET    /v1/users/me/favorites?cursor=&limit=  -> 200   per viewer, paged
  * ```
  *
  * The two halves of `U4` (`docs/01-product-scope.md` §3) share a module because they share the
@@ -37,9 +45,12 @@ import type { ViewerResolutionFailure, ViewerResolver } from '../progress/viewer
  * which is why the 剧场 tab's search entry is built but hidden). It does not close W18: this is
  * keyword matching over a seed, not a search engine.
  *
- * Deliberately not here: `GET /users/me/favorites`. The favourites screen (SCR-08) lists
- * `DramaSummary` pages, which is a catalogue view object this branch does not have — see §4 of the
- * handoff.
+ * The favourites *list* is the third kind of endpoint here, and the reason it exists is that without
+ * it a client wanting to show SCR-08 has to know the ids already: the per-drama `GET` answers "do I
+ * follow *this*", so a favourites screen built on it alone fans out one request per candidate drama
+ * and still cannot discover a favourite it did not think to ask about. It ships returning drama ids
+ * rather than the `DramaSummary` pages `docs/12-api-contracts.md` §4.3 specifies — see
+ * `docs/handoff/w8-work-favorites-list.md` §3, decision S60.
  */
 
 export interface DiscoveryRouteOptions {
@@ -50,6 +61,7 @@ export interface DiscoveryRouteOptions {
 }
 
 const FAVORITE_PATH = '/v1/dramas/:dramaId/favorite';
+const FAVORITES_LIST_PATH = '/v1/users/me/favorites';
 
 interface DramaParams {
   readonly dramaId?: string;
@@ -57,6 +69,11 @@ interface DramaParams {
 
 interface SearchQuery {
   readonly q?: unknown;
+  readonly limit?: unknown;
+}
+
+interface FavoritesListQuery {
+  readonly cursor?: unknown;
   readonly limit?: unknown;
 }
 
@@ -182,6 +199,58 @@ export async function discoveryRoutes(
     );
 
     return reply.status(204).send();
+  });
+
+  app.get(FAVORITES_LIST_PATH, async (request, reply) => {
+    const viewer = viewerResolver.resolve(request.headers.authorization);
+    // Before the query string is even looked at. An anonymous caller must get the same answer for a
+    // well-formed request and a malformed one, or the validation error becomes a way to probe the
+    // endpoint without a credential.
+    if (!viewer.ok) return refuse(request, reply, viewer.error);
+
+    const raw = request.query as FavoritesListQuery | undefined;
+
+    const limit = parseFavoritesLimit(raw?.limit);
+    if (!limit.ok) {
+      return reply.status(400).send(validationErrorBody(limit.error, request.id));
+    }
+
+    const cursor = parseFavoritesCursor(raw?.cursor);
+    if (!cursor.ok) {
+      return reply.status(400).send(validationErrorBody(cursor.error, request.id));
+    }
+
+    // No catalogue lookup, for the reason the per-drama read does not do one either — and here it
+    // is also a paging property: dropping delisted rows after the store has counted them would
+    // return a page shorter than `limit` while `hasMore` still described the unfiltered query, so
+    // the two halves of the answer would disagree. Resolving ids to dramas is the client's step,
+    // and it is where a withdrawn drama gets whatever treatment SCR-08 decides it gets.
+    const page = await favorites.list(viewer.value.userId, {
+      limit: limit.value,
+      ...(cursor.value === undefined ? {} : { after: cursor.value }),
+    });
+
+    const last = page.rows.at(-1);
+
+    const body: FavoriteList = {
+      items: page.rows.map((row) => ({
+        dramaId: row.dramaId,
+        favoritedAt: new Date(row.favoritedAtMs).toISOString(),
+      })),
+      pageInfo: {
+        // `hasMore` and a non-null `nextCursor` are one fact, so the cursor is derived from
+        // `hasMore` rather than emitted whenever a last row exists. A cursor on the final page
+        // invites a client to fetch an empty page to discover it has finished.
+        nextCursor: page.hasMore && last !== undefined ? encodeFavoritesCursor(last) : null,
+        hasMore: page.hasMore,
+      },
+    };
+
+    request.log.debug({ returned: body.items.length, hasMore: page.hasMore }, 'favourites listed');
+
+    // Per viewer, so the same rule as the per-drama read: a shared cache holding this is a
+    // cross-user leak waiting for a misconfigured proxy.
+    return reply.header('cache-control', 'private, no-store').status(200).send(body);
   });
 
   app.delete(FAVORITE_PATH, async (request, reply) => {

@@ -227,6 +227,76 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/users/me/favorites:
+    get:
+      operationId: listMyFavorites
+      summary: The dramas this viewer follows
+      description: |
+        The favourites screen's own endpoint (`docs/02-screen-inventory.md` SCR-08). It exists
+        because `GET /v1/dramas/{dramaId}/favorite` answers "do I follow *this*", so a client built
+        on that alone has to fan out one request per candidate drama and still cannot discover a
+        favourite it did not think to ask about.
+
+        Returns drama identifiers, not the `DramaSummary` pages `docs/12-api-contracts.md` §4.3
+        specifies. `DramaSummary` is a catalogue view object that does not exist on this branch, and
+        a partial copy of it here is the duplication `DramaSearchHit` already refuses. `items[]`
+        gains `drama` when the catalogue lands; nothing about the paging changes.
+
+        Ordered most recently followed first, with the drama id as a tiebreak, which makes the order
+        total — a page boundary between two favourites recorded in the same millisecond would
+        otherwise drop or repeat a row.
+
+        No publication check. A viewer sees their own row for a drama that has since been delisted,
+        for the same reason the per-drama read does; filtering here would also make the page shorter
+        than `limit` while `hasMore` still described the unfiltered query.
+
+        `private, no-store`: the answer is per viewer.
+      tags: [discovery]
+      security:
+        - bearerSession: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: |
+            Opaque; echoed back from `pageInfo.nextCursor` verbatim. Omit it for the first page. A
+            cursor this server cannot read is a `400` rather than a silent first page, which would
+            leave a client looping over page one with nothing in its logs to say so.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - name: limit
+          in: query
+          required: false
+          description: |
+            Refused rather than clamped when out of range: a short page is the obvious end-of-list
+            signal, so a silently reduced limit would stop a client paging.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: |
+            A page of this viewer's favourites. A viewer who follows nothing gets `200` with
+            `items: []` — the empty state of SCR-08, and never confused with a refusal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteList'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: |
+            No verifiable session. Decided before the query string is read, so a malformed request
+            without a credential cannot be told from a well-formed one.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/progress/episodes/{episodeId}:
     parameters:
       - name: episodeId
@@ -522,6 +592,52 @@ components:
             Server time when the favourite was *first* recorded. Absent when `favorited` is false,
             and unchanged by a repeated `PUT`: "following since" is a fact about the viewer's
             history, not about their most recent tap.
+
+    PageInfo:
+      type: object
+      required: [nextCursor, hasMore]
+      description: |
+        The cursor-pagination envelope from `docs/12-api-contracts.md` §2.3, shared by every list
+        endpoint. Named for the envelope rather than for favourites so the next list endpoint reuses
+        it instead of defining a second shape that agrees by coincidence.
+      properties:
+        nextCursor:
+          type: [string, 'null']
+          description: |
+            Opaque: a client stores it and sends it back verbatim. `null`, and not absent, when
+            `hasMore` is false, so reading it unconditionally yields an explicit end.
+        hasMore:
+          type: boolean
+          description: |
+            A fact about the query rather than an inference from `items.length`. A client that
+            treated a short page as the end would stop early against any server that filters rows
+            after fetching them.
+
+    FavoriteListItem:
+      type: object
+      required: [dramaId, favoritedAt]
+      properties:
+        dramaId:
+          type: string
+        favoritedAt:
+          type: string
+          format: date-time
+          description: |
+            Server time when the favourite was first recorded. Always present — the row exists
+            because it was recorded — and it is the sort key, so "followed on" needs no second
+            request.
+
+    FavoriteList:
+      type: object
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FavoriteListItem'
+          description: Most recently followed first. Empty for a viewer who follows nothing.
+        pageInfo:
+          $ref: '#/components/schemas/PageInfo'
 
     WatchProgressReport:
       type: object
