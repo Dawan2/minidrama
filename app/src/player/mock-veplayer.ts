@@ -115,6 +115,14 @@ export class MockVePlayer implements VePlayerInstance {
     this.#emit(event, payload);
   }
 
+  /**
+   * A playing tick with both a position and a duration. `timeupdate` with only `currentTime` is
+   * still the fail-closed case: the heartbeat must not invent a duration for that.
+   */
+  tick(positionSec: number, durationSec: number): void {
+    this.#emit('timeupdate', { currentTime: positionSec, duration: durationSec });
+  }
+
   #render(albumId: string, episodeId: string, vid: string): void {
     this.#surface.dataset['vid'] = vid;
     this.#surface.dataset['episodeId'] = episodeId;

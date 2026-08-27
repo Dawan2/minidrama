@@ -331,6 +331,23 @@ describe('an idempotent write', () => {
     expect(json).not.toHaveBeenCalled();
   });
 
+  it('puts a JSON body on watch-progress writes and still does not parse a 204', async () => {
+    const json = vi.fn(() => Promise.reject(new Error('Unexpected end of JSON input')));
+    const fetchImpl = vi.fn<FetchLike>(() =>
+      Promise.resolve({ ok: true, status: 204, json }),
+    );
+    const body = { positionSec: 12, durationSec: 90, clientUpdatedAt: '2026-08-27T22:00:00.000Z' };
+
+    const result = await client(fetchImpl).send('PUT', '/v1/progress/episodes/ep_1', { body });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(json).not.toHaveBeenCalled();
+    const init = fetchImpl.mock.calls[0]![1];
+    expect(init.method).toBe('PUT');
+    expect(init.body).toBe(JSON.stringify(body));
+    expect(init.headers['Content-Type']).toBe('application/json');
+  });
+
   // A failed write is the half a surface has to render, and its envelope is JSON like any other.
   it('reads the error envelope when the write is refused', async () => {
     const result = await client(() =>

@@ -12,8 +12,11 @@ import { translate } from '../core/i18n';
 import { UnlockPanel } from '../unlock/UnlockPanel';
 import { isPlaybackLock } from '../data/playback-api';
 import { useCatalogApi } from '../data/catalog-api-context';
+import { useClientConfig } from '../config/client-config-context';
 import { usePlaybackApi } from '../data/playback-api-context';
+import { useProgressApi } from '../data/progress-api-context';
 import { useResource } from '../data/use-resource';
+import type { ProgressHeartbeatReport } from '../player/progress-heartbeat';
 import type { PlatformBridge } from '../platform/types';
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
 import type { Resource } from '../data/use-resource';
@@ -32,6 +35,10 @@ import type { AdPlacement } from '../data/unlock-api';
  * The descriptor comes only from `POST /v1/playback/sessions`. There is no client-built playlist:
  * a demo album would play a catalogue id the server had refused. Fail-closed: a session that does
  * not issue a descriptor does not start VePlayer.
+ *
+ * Watch progress is a heartbeat on that same instance (`PUT /v1/progress/episodes/{episodeId}`),
+ * throttled to `GET /v1/config`'s `progressHeartbeatSec`, flushed on pause / hide / unmount, and
+ * never a client-computed `completed` or a guessed 0 when the player has not spoken.
  */
 
 const EMPTY_EPISODES: Page<EpisodeItem> = {
@@ -56,6 +63,8 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
   const navigate = useNavigate();
   const playbackApi = usePlaybackApi();
   const catalogApi = useCatalogApi();
+  const progressApi = useProgressApi();
+  const config = useClientConfig();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [unlockDismissed, setUnlockDismissed] = useState(false);
   const [advanceUnlock, setAdvanceUnlock] = useState<EpisodeItem | null>(null);
@@ -156,6 +165,10 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
           catalog.reload();
         }}
         playlist={playlist}
+        progress={{
+          report: (id, report) => progressApi.reportEpisodeProgress(id, report),
+          intervalSec: config.playback.progressHeartbeatSec,
+        }}
         session={session.resource}
       />
       {catalogEpisode === null ? null : (
@@ -263,6 +276,7 @@ function Attempt({
   locked,
   onRetry,
   playlist,
+  progress,
   session,
 }: {
   readonly bridge: PlatformBridge;
@@ -270,6 +284,10 @@ function Attempt({
   readonly locked: boolean;
   readonly onRetry: () => void;
   readonly playlist: readonly PlaybackDescriptor[];
+  readonly progress: {
+    readonly report: ProgressHeartbeatReport;
+    readonly intervalSec: number;
+  };
   readonly session: Resource<PlaybackDescriptor>;
 }): React.JSX.Element {
   if (session.status === 'loading') {
@@ -277,7 +295,14 @@ function Attempt({
   }
 
   if (session.status === 'ready') {
-    return <PlayerSurface bridge={bridge} playlist={playlist} episodeId={session.data.episodeId} />;
+    return (
+      <PlayerSurface
+        bridge={bridge}
+        episodeId={session.data.episodeId}
+        playlist={playlist}
+        progress={progress}
+      />
+    );
   }
 
   if (locked) {

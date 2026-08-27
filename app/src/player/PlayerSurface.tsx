@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PlaybackDescriptor } from '@minidrama/shared';
-
+import { ok, type PlaybackDescriptor } from '@minidrama/shared';
 import { createPlayerFacade } from './player-facade';
+import { createProgressHeartbeat } from './progress-heartbeat';
 import { translate } from '../core/i18n';
 import type { PlatformBridge } from '../platform/types';
 import type { PlayerFacade } from './player-facade';
+import type { ProgressHeartbeat, ProgressHeartbeatReport } from './progress-heartbeat';
 
 export interface PlayerSurfaceProps {
   readonly bridge: PlatformBridge;
@@ -15,6 +16,15 @@ export interface PlayerSurfaceProps {
   readonly playlist: readonly PlaybackDescriptor[];
   /** Which entry is on screen. A change here is an episode switch, not a new player. */
   readonly episodeId: string;
+  /**
+   * Watch-progress write. Absent in tests that only care about construction. PlayPage always
+   * passes it: the interval is `GET /v1/config`'s `progressHeartbeatSec`, the write is
+   * `PUT /v1/progress/episodes/{episodeId}`. A missing reporter is not a guessed 0 position.
+   */
+  readonly progress?: {
+    readonly report: ProgressHeartbeatReport;
+    readonly intervalSec: number;
+  };
 }
 
 type SurfaceState = 'loading' | 'playing' | 'unavailable';
@@ -36,9 +46,13 @@ export function PlayerSurface({
   bridge,
   playlist,
   episodeId,
+  progress,
 }: PlayerSurfaceProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const facadeRef = useRef<PlayerFacade | null>(null);
+  const heartbeatRef = useRef<ProgressHeartbeat | null>(null);
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
   /** The episode the route wants, readable from the create effect without becoming a dependency. */
   const wantedEpisodeRef = useRef(episodeId);
   const [state, setState] = useState<SurfaceState>('loading');
@@ -61,11 +75,50 @@ export function PlayerSurface({
 
     let facade: PlayerFacade | null = null;
     let cancelled = false;
+    const progressOptions = progressRef.current;
+    const heartbeat =
+      progressOptions === undefined
+        ? null
+        : createProgressHeartbeat({
+            episodeId: wantedEpisodeRef.current,
+            intervalSec: progressOptions.intervalSec,
+            report: (id, report) => {
+              const current = progressRef.current;
+              // The surface unmounted or a test dropped the reporter. Not a guessed 0 position.
+              return current === undefined
+                ? Promise.resolve(ok(undefined))
+                : current.report(id, report);
+            },
+            subscribeHidden: (flush) => {
+              const onHidden = (): void => {
+                if (document.visibilityState === 'hidden') {
+                  flush();
+                }
+              };
+              const onPageHide = (): void => {
+                flush();
+              };
+              document.addEventListener('visibilitychange', onHidden);
+              window.addEventListener('pagehide', onPageHide);
+              return () => {
+                document.removeEventListener('visibilitychange', onHidden);
+                window.removeEventListener('pagehide', onPageHide);
+              };
+            },
+          });
+    heartbeatRef.current = heartbeat;
 
     void createPlayerFacade(bridge, {
       container,
       descriptor,
       upNext: playlist.slice((startIndex === -1 ? 0 : startIndex) + 1),
+      ...(heartbeat === null
+        ? {}
+        : {
+            onEvent: (event, payload) => {
+              heartbeat.observe(event, payload);
+            },
+          }),
     }).then((result) => {
       if (cancelled) {
         // The effect was cleaned up while the player was being constructed. Destroy immediately,
@@ -76,6 +129,7 @@ export function PlayerSurface({
         return;
       }
       if (!result.ok) {
+        heartbeat?.dispose();
         setState('unavailable');
         return;
       }
@@ -91,6 +145,10 @@ export function PlayerSurface({
 
     return () => {
       cancelled = true;
+      heartbeat?.dispose();
+      if (heartbeatRef.current === heartbeat) {
+        heartbeatRef.current = null;
+      }
       facade?.destroy();
       facade = null;
       facadeRef.current = null;
@@ -99,6 +157,7 @@ export function PlayerSurface({
 
   useEffect(() => {
     wantedEpisodeRef.current = episodeId;
+    heartbeatRef.current?.setEpisode(episodeId);
     const facade = facadeRef.current;
     if (facade === null) {
       return;
