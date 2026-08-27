@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { catalogRoutes } from './modules/catalog/routes.js';
+import { createAnonymousViewerResolver } from './modules/catalog/viewer.js';
+import { createInMemoryCatalogStore } from './modules/catalog/store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createSessionIssuer } from './modules/identity/session.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
@@ -12,11 +15,13 @@ import { loadConfig } from './config.js';
 import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
+import type { CatalogStore } from './modules/catalog/store.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { ServerConfig } from './config.js';
 import type { SessionIssuer } from './modules/identity/session.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
+import type { ViewerResolver } from './modules/catalog/viewer.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
 
 /**
@@ -40,6 +45,13 @@ export interface AppDependencies {
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
   readonly sessionIssuer?: SessionIssuer;
+  readonly catalogStore?: CatalogStore;
+  /**
+   * How a request becomes a viewer. The default resolves everyone to the anonymous viewer, which is
+   * what keeps entitlement from being grantable by an unverified header; tests inject a resolver to
+   * exercise the VIP and unlocked branches of `viewerAccess`.
+   */
+  readonly viewerResolver?: ViewerResolver;
   readonly now?: () => number;
 }
 
@@ -98,6 +110,11 @@ export async function buildApp(
 
   await app.register(healthRoutes);
   await app.register(playbackRoutes);
+
+  const catalogStore = dependencies.catalogStore ?? createInMemoryCatalogStore();
+  const viewerResolver = dependencies.viewerResolver ?? createAnonymousViewerResolver();
+
+  await app.register(catalogRoutes, { store: catalogStore, viewerResolver });
 
   await app.register(identityRoutes, {
     identityPort: dependencies.identityPort ?? createTiktokIdentityPort(credentials),
