@@ -15,6 +15,7 @@ import { createPlatformCredentials } from '../platform-tiktok/credentials.js';
 import { loadConfig } from '../../config.js';
 import type { CountingTradeOrderPort } from './fixtures.js';
 import type { EntitlementFactsPort, EpisodeAccessFactsQuery } from '../entitlement/facts-port.js';
+import type { IdentityHttpClient } from '../platform-tiktok/identity-port.js';
 import type { SessionStore } from '../identity/session-store.js';
 import type { UnlockOrderStore } from './order-store.js';
 
@@ -45,6 +46,15 @@ import type { UnlockOrderStore } from './order-store.js';
 const SECRET = 'client-secret-for-tests';
 const CLIENT_KEY = 'awtest';
 const SESSION_TTL_SEC = 3600;
+
+/**
+ * Webhook tests need a signing secret. Login tests in this file must not call the live OpenAPI
+ * just because that secret is present — inject a throwing transport so an unmocked exchange is
+ * `PROVIDER_UNAVAILABLE` rather than a real `fetch`.
+ */
+const unreachableIdentityHttp: IdentityHttpClient = async () => {
+  throw new Error('session-orders tests must not call the live OpenAPI');
+};
 
 /** A viewer who owns nothing, and a live subscriber, so the two answers are visibly different. */
 const BUYER = 'usr_fx_newcomer';
@@ -97,6 +107,7 @@ async function startApp(env: NodeJS.ProcessEnv = {}): Promise<void> {
     { ...loadConfig(env), logLevel: 'silent' },
     {
       platformCredentials: createPlatformCredentials(CLIENT_KEY, SECRET),
+      identityHttp: unreachableIdentityHttp,
       entitlementFactsPort: facts,
       playbackMediaPort: createFixturePlaybackMediaPort(),
       sessionStore,
@@ -520,8 +531,9 @@ describe('login, order, pay', () => {
 });
 
 /**
- * Production is unchanged by any of this. The real code exchange still does not exist, so the only
- * deployment that can issue a session is one that asked for the mock path twice, in two variables.
+ * Production still cannot mint a session without a platform `open_id`. The real exchange is built
+ * and stubbed; without the mock path (and without a transport that names a user) login refuses, so
+ * the only deployment that can issue a session here is one that asked for the mock path twice.
  */
 describe('a deployment without the mock path has no session to sell against', () => {
   beforeEach(async () => {

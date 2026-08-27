@@ -16,11 +16,11 @@ import type { SessionStore } from './session-store.js';
  * server (U-03). The code is single-use and is treated as a credential: it is not logged, not echoed
  * and not stored.
  *
- * The route ships the contract, the validation and the deny path. The exchange itself is refused by
- * `platform-tiktok`'s identity port until the real HTTP call lands, so no session can be issued
- * without a genuine platform response — see `createUnavailableIdentityPort`. The one exception is
- * the mock port in `test-login.ts`, which `buildApp` can only select under an explicit
- * non-production gate.
+ * The route ships the contract, the validation and the deny path. The exchange itself lives in
+ * `platform-tiktok`'s identity port (`POST /v2/oauth/token/`). No session is issued without an
+ * `open_id` the platform named — a missing secret, a rejected code, or a 200 with no user all
+ * refuse. The one exception is the mock port in `test-login.ts`, which `buildApp` can only select
+ * under an explicit non-production gate.
  *
  * What changed in W3 slot L: the issued token is now **bound** to the user it was issued for, in
  * the same store the viewer resolver reads. Before, a session was a token nobody could resolve, so
