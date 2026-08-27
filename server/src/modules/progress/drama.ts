@@ -1,5 +1,10 @@
 import { err, ok } from '@minidrama/shared';
-import type { DramaLastWatched, DramaProgressItem, DramaProgressView, Result } from '@minidrama/shared';
+import type {
+  DramaLastWatched,
+  DramaProgressItem,
+  DramaProgressView,
+  Result,
+} from '@minidrama/shared';
 
 import type { DramaEpisodeRef } from './drama-catalog-port.js';
 import type { WatchProgressRecord } from './progress.js';

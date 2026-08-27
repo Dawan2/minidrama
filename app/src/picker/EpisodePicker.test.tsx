@@ -12,7 +12,11 @@ import {
   stubCatalogApi,
   viewerAccess,
 } from '../testing/catalog-fixtures';
-import { dramaProgressItem, dramaProgressView, stubProgressApi } from '../testing/progress-fixtures';
+import {
+  dramaProgressItem,
+  dramaProgressView,
+  stubProgressApi,
+} from '../testing/progress-fixtures';
 import { EpisodePicker } from './EpisodePicker';
 import { ROUTES } from '../routes/routes';
 import { renderSurface } from '../testing/render';

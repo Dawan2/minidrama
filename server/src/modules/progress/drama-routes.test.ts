@@ -137,12 +137,12 @@ describe('GET /v1/progress/dramas/:dramaId — signed in', () => {
   it('returns the stored rows, numbered by catalog, after the per-episode write', async () => {
     await startApp();
 
-    expect((await putEpisode('ep_revenge_e01', 45, '2026-08-27T12:00:00.000Z', 'tok_a')).statusCode).toBe(
-      204,
-    );
-    expect((await putEpisode('ep_revenge_e02', 90, '2026-08-27T12:01:00.000Z', 'tok_a')).statusCode).toBe(
-      204,
-    );
+    expect(
+      (await putEpisode('ep_revenge_e01', 45, '2026-08-27T12:00:00.000Z', 'tok_a')).statusCode,
+    ).toBe(204);
+    expect(
+      (await putEpisode('ep_revenge_e02', 90, '2026-08-27T12:01:00.000Z', 'tok_a')).statusCode,
+    ).toBe(204);
 
     const response = await getDrama('drm_revenge_0001', 'tok_a');
 
@@ -272,8 +272,9 @@ describe('GET /v1/progress/dramas/:dramaId — the seed adapter', () => {
     });
     const progress = await getDrama('drm_dynasty_0002', 'tok_a');
 
-    const episodes = listed.json<{ items: readonly { id: string; globalEpisodeNumber: number }[] }>()
-      .items;
+    const episodes = listed.json<{
+      items: readonly { id: string; globalEpisodeNumber: number }[];
+    }>().items;
     const seasonTwo = episodes.find((episode) => episode.id === 'ep_dynasty_s2e01');
 
     expect(seasonTwo?.globalEpisodeNumber).toBe(4);

@@ -10,7 +10,9 @@ describe('createCatalogDramaProgressPort', () => {
     const listed = await port.listDramaEpisodes('drm_dynasty_0002');
     if (!listed.ok) throw new Error('the seed catalogue refused');
 
-    const seasonTwoOpener = listed.value.find((episode) => episode.episodeId === 'ep_dynasty_s2e01');
+    const seasonTwoOpener = listed.value.find(
+      (episode) => episode.episodeId === 'ep_dynasty_s2e01',
+    );
 
     expect(seasonTwoOpener?.globalEpisodeNumber).toBe(4);
   });

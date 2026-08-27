@@ -194,7 +194,9 @@ function EpisodeGrid({
   const { appendError, appending, error, items, loadMore, nextCursor, reload, status } = episodes;
   const [groupOverride, setGroupOverride] = useState<number | null>(null);
   const watched =
-    progress.resource.status === 'ready' ? watchedEpisodeIds(progress.resource.data) : EMPTY_WATCHED;
+    progress.resource.status === 'ready'
+      ? watchedEpisodeIds(progress.resource.data)
+      : EMPTY_WATCHED;
 
   /**
    * Walk the remaining pages so an 80-episode drama is one grid, not a "load more" buried under

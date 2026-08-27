@@ -14,9 +14,7 @@ import type { ProgressApi } from '../data/progress-api';
  * not mention progress should see: lock marks from `viewerAccess`, no watched marks.
  */
 
-export function dramaProgressItem(
-  overrides: Partial<DramaProgressItem> = {},
-): DramaProgressItem {
+export function dramaProgressItem(overrides: Partial<DramaProgressItem> = {}): DramaProgressItem {
   return {
     episodeId: 'ep_test_0001',
     episodeNumber: 1,
@@ -26,9 +24,7 @@ export function dramaProgressItem(
   };
 }
 
-export function dramaProgressView(
-  overrides: Partial<DramaProgressView> = {},
-): DramaProgressView {
+export function dramaProgressView(overrides: Partial<DramaProgressView> = {}): DramaProgressView {
   return {
     items: [],
     lastWatched: null,
@@ -49,8 +45,7 @@ export interface StubProgressApi extends ProgressApi {
 
 export function stubProgressApi(script: StubProgressApiScript = {}): StubProgressApi {
   const dramaProgressCalls: string[] = [];
-  const dramaProgress =
-    script.dramaProgress ?? ((_dramaId: string) => ok(dramaProgressView()));
+  const dramaProgress = script.dramaProgress ?? ((_dramaId: string) => ok(dramaProgressView()));
 
   return {
     dramaProgressCalls,
