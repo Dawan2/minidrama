@@ -131,9 +131,9 @@ Guardrails passed against `app/dist`. Bundle `index-Da9f2iuu.js` 327.17 kB (gzip
 
 ## 7. Left open
 
-- **The other four stores.** Favourites, progress, catalogue, search directory. Payment severity
-  is done for the three C3-06 named as severe (unlocks, orders, webhook events). Sessions already
-  persist.
+- **The other three stores.** Favourites, catalogue, search directory. Payment severity is done
+  for the three C3-06 named as severe (unlocks, orders, webhook events). Sessions and watch
+  progress already persist.
 - **PostgreSQL / Drizzle (T14 / T16).** The order interface was already async. Do not rewrite
   `DATABASE_URL` to a file to make the swap look done.
 - **Redis (T15).** Not read. Do not add it as a no-op client.
