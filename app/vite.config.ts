@@ -12,7 +12,9 @@ export default defineConfig({
     target: 'es2020',
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: true,
+    // G2.6 strips debug symbols from the hosted ZIP. Shipping `*.map` is how a later slot thinks
+    // stripping happened because minify was on (`docs/14-quality-gates.md` §4).
+    sourcemap: false,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
