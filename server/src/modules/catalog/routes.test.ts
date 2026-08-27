@@ -5,6 +5,8 @@ import type { FastifyInstance } from 'fastify';
 
 import { SEED_CATALOG, createInMemoryCatalogStore } from './store.js';
 import { buildApp } from '../../app.js';
+import { createFakeSessionResolver } from '../progress/test-sessions.js';
+import { createInMemoryFavoritesStore } from '../search/favorites.js';
 import { loadConfig } from '../../config.js';
 import type { AppDependencies } from '../../app.js';
 import type { SeedCatalog } from './store.js';
@@ -175,7 +177,7 @@ describe('GET /v1/dramas/:dramaId', () => {
   });
 
   // `favorited: false` would be rendered as a confirmed empty heart. Null says "not known".
-  it('reports viewer state as unknown while favourites and progress do not exist', async () => {
+  it('reports viewer state as unknown for an anonymous request', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/dramas/drm_revenge_0001' });
     expect(response.json<DramaDetail>().viewer).toBeNull();
   });
@@ -197,6 +199,69 @@ describe('GET /v1/dramas/:dramaId', () => {
     expect(response.statusCode).toBe(410);
     expect(body.error.code).toBe('CONTENT_OFFLINE');
     expect(body.error.details.resourceType).toBe('DRAMA');
+  });
+});
+
+describe('GET /v1/dramas/:dramaId — viewer.favorited from the favourites store', () => {
+  const NOW = Date.parse('2026-08-27T12:00:00.000Z');
+
+  async function signedInApp(favorited: boolean): Promise<FastifyInstance> {
+    const favorites = createInMemoryFavoritesStore();
+    if (favorited) {
+      await favorites.add('user_a', 'drm_revenge_0001', NOW);
+    }
+
+    return buildTestApp({
+      favoritesStore: favorites,
+      viewerResolver: createFakeSessionResolver(),
+      now: () => NOW,
+    });
+  }
+
+  it('reads the same store the favourite verbs write', async () => {
+    const instance = await signedInApp(true);
+
+    const response = await instance.inject({
+      method: 'GET',
+      url: '/v1/dramas/drm_revenge_0001',
+      headers: { authorization: 'Bearer tok_a' },
+    });
+
+    expect(response.json<DramaDetail>().viewer).toEqual({
+      favorited: true,
+      lastWatched: null,
+    });
+    await instance.close();
+  });
+
+  it('says not-followed for a signed-in viewer with no row, rather than unknown', async () => {
+    const instance = await signedInApp(false);
+
+    const response = await instance.inject({
+      method: 'GET',
+      url: '/v1/dramas/drm_revenge_0001',
+      headers: { authorization: 'Bearer tok_a' },
+    });
+
+    expect(response.json<DramaDetail>().viewer).toEqual({
+      favorited: false,
+      lastWatched: null,
+    });
+    await instance.close();
+  });
+
+  it('does not 401 a public read over a bad token — it stays anonymous', async () => {
+    const instance = await signedInApp(true);
+
+    const response = await instance.inject({
+      method: 'GET',
+      url: '/v1/dramas/drm_revenge_0001',
+      headers: { authorization: 'Bearer tok_forged' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<DramaDetail>().viewer).toBeNull();
+    await instance.close();
   });
 });
 

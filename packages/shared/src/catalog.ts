@@ -115,7 +115,12 @@ export interface DramaDetail extends DramaSummary {
   /** Nullable for the same two reasons as `coverUrl`: never set, or set to an untrusted host. */
   readonly horizontalCoverUrl: string | null;
   readonly seasons: readonly SeasonSummary[];
-  /** `null` for an anonymous viewer, and while favourites and progress do not exist yet. */
+  /**
+   * `null` for an anonymous viewer, and when the signed-in viewer's favourite/progress facts
+   * cannot be resolved. A signed-in viewer gets a real object: `favorited` is read from the
+   * same store the favourite verbs use (W8-c), and `lastWatched` stays `null` until progress
+   * is folded in the same way.
+   */
   readonly viewer: DramaViewerState | null;
 }
 

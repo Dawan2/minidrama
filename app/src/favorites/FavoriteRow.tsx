@@ -28,10 +28,10 @@ import type { TranslationKey } from '../core/i18n';
  * into the page would mean one failure state for twenty rows, which is exactly how "something went
  * wrong" ends up on a screen where nineteen things went right.
  *
- * **A row whose drama the catalogue did not resolve is still a row.** The favourites list is ids and
- * follow dates (`favorite-collection.ts`), so a delisted drama — or one whose read failed — has no
- * title, no cover and nowhere to tap. It keeps its place and its un-follow button anyway: the server
- * leaves a delisted favourite in the list precisely so the viewer can clear it
+ * **A row whose drama the catalogue did not project is still a row.** A delisted drama — or one
+ * whose id the store no longer has — arrives with `drama: null`, so it has no title, no cover and
+ * nowhere to tap. It keeps its place and its un-follow button anyway: the server leaves a delisted
+ * favourite in the list precisely so the viewer can clear it
  * (`docs/handoff/w8-work-favorites-list.md` S68), and a row that were hidden here would be a
  * favourite they can neither see nor remove.
  *

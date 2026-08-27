@@ -185,3 +185,25 @@ describe('getDrama and getEpisode', () => {
     expect(await store.getEpisode('ep_nonexistent')).toBeUndefined();
   });
 });
+
+describe('getDramas', () => {
+  it('returns every requested record in one map, including unpublished ones', async () => {
+    const found = await store.getDramas([
+      'drm_revenge_0001',
+      'drm_offline_0007',
+      'drm_draft_0008',
+      'drm_missing',
+    ]);
+
+    expect([...found.keys()]).toEqual(['drm_revenge_0001', 'drm_offline_0007', 'drm_draft_0008']);
+    expect(found.get('drm_revenge_0001')?.status).toBe('PUBLISHED');
+    expect(found.get('drm_offline_0007')?.status).toBe('OFFLINE');
+    expect(found.get('drm_draft_0008')?.status).toBe('DRAFT');
+    expect(found.has('drm_missing')).toBe(false);
+  });
+
+  it('does not scan the catalogue when asked for nothing', async () => {
+    const found = await store.getDramas([]);
+    expect(found.size).toBe(0);
+  });
+});

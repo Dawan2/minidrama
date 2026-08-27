@@ -2,7 +2,7 @@ import { ok } from '@minidrama/shared';
 import type { Result } from '@minidrama/shared';
 
 import { apiFailure } from '../data/failure';
-import { page } from './catalog-fixtures';
+import { dramaSummary, page } from './catalog-fixtures';
 import type { ApiFailure } from '../data/failure';
 import type {
   FavoriteList,
@@ -33,12 +33,12 @@ export function unfollowedState(dramaId: string): FavoriteState {
   return { dramaId, favorited: false };
 }
 
-/** One row of the list endpoint's answer: an id and a follow date, and nothing about the drama. */
 export function favoriteListItem(
   dramaId: string,
   favoritedAt: string | null = null,
+  drama: FavoriteListItem['drama'] = dramaSummary({ id: dramaId, title: dramaId }),
 ): FavoriteListItem {
-  return { dramaId, favoritedAt };
+  return { dramaId, favoritedAt, drama };
 }
 
 /** A page of the list endpoint's answer, in the order the server sent it. */

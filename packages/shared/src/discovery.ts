@@ -8,8 +8,9 @@
  * The one field that is deliberately *absent* from a search hit is cover art. A hit here carries
  * what search itself knows — which drama matched, and on what — and nothing that belongs to the
  * catalogue's `DramaSummary`. Copying half of a summary into a second shape is how two shapes of
- * the same thing start disagreeing about `totalEpisodes`; the handoff records the exact change
- * (`items[].drama`) that folds the real summary in when `catalog` lands.
+ * the same thing start disagreeing about `totalEpisodes`. The favourites list is the other half of
+ * that rule: it carries `items[].drama` as the catalogue's own summary, or `null`, rather than a
+ * partial copy.
  *
  * The favourites list pages with `catalog.ts`'s `PageInfo` rather than an envelope of its own. This
  * slot wrote one here when it was the first list endpoint to ship and said so in the comment: the
@@ -17,7 +18,7 @@
  * coincidence. `GET /v1/dramas` landed first, so this is that reuse.
  */
 
-import type { PageInfo } from './catalog.js';
+import type { DramaSummary, PageInfo } from './catalog.js';
 
 /**
  * Which field a hit matched on. It is display information — a client may label a tag match
@@ -78,12 +79,15 @@ export interface FavoriteState {
 /**
  * One row of the viewer's favourites list. `GET /v1/users/me/favorites`.
  *
- * It carries the drama *identifier* and nothing about the drama. `docs/12-api-contracts.md` §4.3
- * specifies this endpoint as a `DramaSummary` page, and it will become one — but `DramaSummary` is
- * a catalogue view object, and inventing a partial copy of it here is exactly the duplication
- * `DramaSearchHit` already refuses (see the note at the top of this file). What the favourites
- * store knows is which dramas this viewer follows and when they started; that is what this shape
- * says, and a client resolves the ids through the catalogue.
+ * The row is still the favourite — which drama, and when it was first followed — and the drama
+ * itself is the catalogue's `DramaSummary`, not a partial copy assembled here. That is S60's
+ * remaining half, landed: a second shape that agreed about `title` and disagreed about
+ * `totalEpisodes` is how two screens of one drama drift. `null` is a value, not an omission: a
+ * delisted or deleted drama stays in the list so the viewer can still un-follow it (S68, W8-a).
+ *
+ * `favoritedAt` is required on the wire. The client that reads this row may widen the field at its
+ * own boundary — rejecting a page over a timestamp nothing displays would cost the viewer their
+ * list — but the server always sends it, because a row only exists because it was recorded.
  */
 export interface FavoriteListItem {
   readonly dramaId: string;
@@ -93,6 +97,11 @@ export interface FavoriteListItem {
    * on" without a second request.
    */
   readonly favoritedAt: string;
+  /**
+   * The catalogue's summary for this id, or `null` when that id is unpublished, deleted, or
+   * otherwise not a listed summary. The favourite row is still present either way.
+   */
+  readonly drama: DramaSummary | null;
 }
 
 /**

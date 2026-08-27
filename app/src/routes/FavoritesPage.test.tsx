@@ -3,13 +3,9 @@ import { err, ok } from '@minidrama/shared';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { FavoritesPage } from './FavoritesPage';
+import { offlineFailure, stubCatalogApi } from '../testing/catalog-fixtures';
 import {
-  dramaDetail,
-  httpFailure,
-  offlineFailure,
-  stubCatalogApi,
-} from '../testing/catalog-fixtures';
-import {
+  favoriteListItem,
   favoritesHttpFailure,
   favoritesPage,
   stubFavoritesApi,
@@ -17,20 +13,13 @@ import {
 import { renderSurface, settle } from '../testing/render';
 import { stubSession } from '../testing/history-fixtures';
 
-/** The catalogue, resolving whatever the list names. A row needs a title before it can be drawn. */
-function resolvingCatalog() {
-  return stubCatalogApi({
-    drama: (dramaId) => ok(dramaDetail({ id: dramaId, title: dramaId })),
-  });
-}
-
 /** The list endpoint answering with these dramas, in this order. */
 function following(...dramaIds: readonly string[]) {
   return stubFavoritesApi({ list: () => ok(favoritesPage(dramaIds)) });
 }
 
 function renderFavorites(options: Parameters<typeof renderSurface>[1] = {}) {
-  return renderSurface(<FavoritesPage />, { api: resolvingCatalog(), ...options });
+  return renderSurface(<FavoritesPage />, options);
 }
 
 /**
@@ -47,7 +36,7 @@ describe('the favourites screen', () => {
    */
   it('reads the viewer’s list rather than probing the dramas it can see', async () => {
     const favoritesApi = following('drm_1', 'drm_2');
-    const api = resolvingCatalog();
+    const api = stubCatalogApi();
     renderFavorites({ api, favoritesApi });
 
     await waitFor(() => {
@@ -56,6 +45,7 @@ describe('the favourites screen', () => {
     expect(favoritesApi.listCalls).toHaveLength(1);
     expect(favoritesApi.readCalls).toEqual([]);
     expect(api.feedCalls).toEqual([]);
+    expect(api.dramaCalls).toEqual([]);
   });
 
   it('shows a skeleton while the read is in flight', () => {
@@ -254,16 +244,20 @@ describe('failures that are neither', () => {
 });
 
 /**
- * The list names dramas; the catalogue turns them into cards. A card that cannot be drawn must not
- * remove a favourite from the list, because that is the hole the fan-out was deleted for.
+ * The list names dramas; the catalogue's summary on each row turns them into cards. A card that
+ * cannot be drawn must not remove a favourite from the list, because that is the hole the fan-out
+ * was deleted for.
  */
 describe('a favourite the catalogue could not resolve', () => {
   it('keeps the row and marks the screen as incomplete', async () => {
-    const api = stubCatalogApi({
-      drama: (dramaId) =>
-        dramaId === 'drm_gone' ? err(httpFailure(410)) : ok(dramaDetail({ id: dramaId })),
+    const favoritesApi = stubFavoritesApi({
+      list: () =>
+        ok({
+          items: [favoriteListItem('drm_1'), favoriteListItem('drm_gone', null, null)],
+          pageInfo: { nextCursor: null, hasMore: false },
+        }),
     });
-    renderFavorites({ api, favoritesApi: following('drm_1', 'drm_gone') });
+    renderFavorites({ favoritesApi });
 
     await waitFor(() => {
       expect(screen.getAllByTestId('favorite-row')).toHaveLength(2);
@@ -274,8 +268,14 @@ describe('a favourite the catalogue could not resolve', () => {
 
   // A list of rows we could not draw is still the viewer's list, and it is not an error screen.
   it('is not an error and is not an empty list', async () => {
-    const api = stubCatalogApi({ drama: () => err(offlineFailure()) });
-    renderFavorites({ api, favoritesApi: following('drm_1') });
+    const favoritesApi = stubFavoritesApi({
+      list: () =>
+        ok({
+          items: [favoriteListItem('drm_1', null, null)],
+          pageInfo: { nextCursor: null, hasMore: false },
+        }),
+    });
+    renderFavorites({ favoritesApi });
 
     await waitFor(() => {
       expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);

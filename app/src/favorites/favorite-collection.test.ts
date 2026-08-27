@@ -1,28 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@minidrama/shared';
-import type { DramaSummary, Result } from '@minidrama/shared';
 
-import {
-  FAVORITES_PAGE_LIMIT,
-  loadFavoritesPage,
-  resolveFavoriteEntries,
-} from './favorite-collection';
-import { dramaSummary, httpFailure, offlineFailure } from '../testing/catalog-fixtures';
+import { FAVORITES_PAGE_LIMIT, loadFavoritesPage } from './favorite-collection';
+import { dramaSummary, httpFailure } from '../testing/catalog-fixtures';
 import { favoriteListItem, favoritesPage } from '../testing/favorites-fixtures';
-import type { ApiFailure } from '../data/failure';
 import type { FavoritesPageSource } from './favorite-collection';
 
 const AUGUST_1 = '2026-08-01T00:00:00.000Z';
 
-/** Resolves every drama asked about, so a test can be about something else. */
-function resolvesEverything(dramaId: string): Promise<Result<DramaSummary, ApiFailure>> {
-  return Promise.resolve(ok(dramaSummary({ id: dramaId, title: dramaId })));
-}
-
 function source(overrides: Partial<FavoritesPageSource> = {}): FavoritesPageSource {
   return {
     listFavorites: () => Promise.resolve(ok(favoritesPage([]))),
-    fetchDrama: resolvesEverything,
     ...overrides,
   };
 }
@@ -123,36 +111,34 @@ describe('loading a page of favourites', () => {
   });
 
   it('resolves no drama at all for an empty list', async () => {
-    const fetchDrama = vi.fn(resolvesEverything);
-
-    const result = await loadFavoritesPage(source({ fetchDrama }), undefined);
+    const result = await loadFavoritesPage(source(), undefined);
 
     expect(result.ok ? result.value.items : null).toEqual([]);
-    expect(fetchDrama).not.toHaveBeenCalled();
   });
 });
 
 /**
- * The list carries ids, so a row is resolved through the catalogue before it can be drawn. What must
- * not happen is for that step to decide *which* favourites the viewer has: resolving is a rendering
- * step, and a drama that will not resolve subtracts a card and never a row.
+ * The list now carries the catalogue's summary on each row. What must not happen is for a missing
+ * summary to decide *which* favourites the viewer has: `drama: null` subtracts a card and never a
+ * row (W8-a).
  */
-describe('resolving the rows of a page', () => {
-  it('asks the catalogue about each row in the list’s order', async () => {
-    const fetchDrama = vi.fn(resolvesEverything);
-
-    await resolveFavoriteEntries(
-      [favoriteListItem('drm_1'), favoriteListItem('drm_2'), favoriteListItem('drm_3')],
-      fetchDrama,
+describe('the projected drama on each row', () => {
+  it('attaches the summary the list already carried', async () => {
+    const summary = dramaSummary({ id: 'drm_1', title: 'The Heiress Returns' });
+    const result = await loadFavoritesPage(
+      source({
+        listFavorites: () =>
+          Promise.resolve(
+            ok({
+              items: [favoriteListItem('drm_1', AUGUST_1, summary)],
+              pageInfo: { nextCursor: null, hasMore: false },
+            }),
+          ),
+      }),
+      undefined,
     );
 
-    expect(fetchDrama.mock.calls.map(([id]) => id)).toEqual(['drm_1', 'drm_2', 'drm_3']);
-  });
-
-  it('attaches the drama the catalogue answered with', async () => {
-    const entries = await resolveFavoriteEntries([favoriteListItem('drm_1')], resolvesEverything);
-
-    expect(entries[0]?.drama?.id).toBe('drm_1');
+    expect(result.ok ? result.value.items[0]?.drama : null).toEqual(summary);
   });
 
   /**
@@ -160,77 +146,29 @@ describe('resolving the rows of a page', () => {
    * on purpose — the row is why the drama is on the viewer's screen — and dropping it here would put
    * back exactly the hole the fan-out was deleted for.
    */
-  it('keeps a row whose drama the catalogue could not resolve', async () => {
-    const entries = await resolveFavoriteEntries(
-      [favoriteListItem('drm_1'), favoriteListItem('drm_gone'), favoriteListItem('drm_2')],
-      (dramaId) =>
-        dramaId === 'drm_gone'
-          ? Promise.resolve(err(httpFailure(410)))
-          : resolvesEverything(dramaId),
+  it('keeps a row whose drama the catalogue could not project', async () => {
+    const result = await loadFavoritesPage(
+      source({
+        listFavorites: () =>
+          Promise.resolve(
+            ok({
+              items: [
+                favoriteListItem('drm_1'),
+                favoriteListItem('drm_gone', null, null),
+                favoriteListItem('drm_2'),
+              ],
+              pageInfo: { nextCursor: null, hasMore: false },
+            }),
+          ),
+      }),
+      undefined,
     );
 
-    expect(entries.map((entry) => entry.dramaId)).toEqual(['drm_1', 'drm_gone', 'drm_2']);
-    expect(entries[1]?.drama).toBeNull();
-  });
-
-  it('keeps a row whose drama read merely failed, for the same reason', async () => {
-    const entries = await resolveFavoriteEntries([favoriteListItem('drm_1')], () =>
-      Promise.resolve(err(offlineFailure())),
-    );
-
-    expect(entries).toEqual([{ dramaId: 'drm_1', drama: null, favoritedAt: null }]);
-  });
-
-  /**
-   * A WebView holds around six connections per host, and the client's 10s timeout starts when the
-   * request is made rather than when it is sent — so a whole page requested at once means the tail can
-   * time out having never left the device.
-   */
-  it('bounds the number of drama reads in flight', async () => {
-    let inFlight = 0;
-    let peak = 0;
-
-    await resolveFavoriteEntries(
-      ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => favoriteListItem(id)),
-      async (dramaId) => {
-        inFlight += 1;
-        peak = Math.max(peak, inFlight);
-        await Promise.resolve();
-        inFlight -= 1;
-        return ok(dramaSummary({ id: dramaId }));
-      },
-      3,
-    );
-
-    expect(peak).toBe(3);
-  });
-
-  /**
-   * Rows are collected in the list's order and not in the order the reads resolve. A list that
-   * reorders itself according to which drama came back first moves a row out from under the viewer's
-   * finger.
-   */
-  it('keeps the order of the rows when a later read resolves first', async () => {
-    const entries = await resolveFavoriteEntries(
-      [favoriteListItem('drm_slow'), favoriteListItem('drm_fast')],
-      async (dramaId) => {
-        if (dramaId === 'drm_slow') {
-          await Promise.resolve();
-          await Promise.resolve();
-        }
-        return ok(dramaSummary({ id: dramaId }));
-      },
-    );
-
-    expect(entries.map((entry) => entry.dramaId)).toEqual(['drm_slow', 'drm_fast']);
-  });
-
-  it('carries each row’s follow date onto its entry', async () => {
-    const entries = await resolveFavoriteEntries(
-      [favoriteListItem('drm_1', AUGUST_1), favoriteListItem('drm_2')],
-      resolvesEverything,
-    );
-
-    expect(entries.map((entry) => entry.favoritedAt)).toEqual([AUGUST_1, null]);
+    expect(result.ok ? result.value.items.map((entry) => entry.dramaId) : null).toEqual([
+      'drm_1',
+      'drm_gone',
+      'drm_2',
+    ]);
+    expect(result.ok ? result.value.items[1]?.drama : undefined).toBeNull();
   });
 });

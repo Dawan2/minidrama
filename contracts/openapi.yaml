@@ -939,18 +939,19 @@ paths:
         on that alone has to fan out one request per candidate drama and still cannot discover a
         favourite it did not think to ask about.
 
-        Returns drama identifiers, not the `DramaSummary` pages `docs/12-api-contracts.md` §4.3
-        specifies. `DramaSummary` is a catalogue view object that does not exist on this branch, and
-        a partial copy of it here is the duplication `DramaSearchHit` already refuses. `items[]`
-        gains `drama` when the catalogue lands; nothing about the paging changes.
+        Returns a page of favourite rows. Each row carries the drama id, the follow timestamp,
+        and the catalogue's `DramaSummary` for that id — or `null` when the drama is unpublished,
+        deleted, or otherwise not a listed summary. `null` is a value: a delisted favourite stays
+        in the list so the viewer can still un-follow it. The summary is the catalogue's own view
+        object, not a partial copy assembled here.
 
         Ordered most recently followed first, with the drama id as a tiebreak, which makes the order
         total — a page boundary between two favourites recorded in the same millisecond would
         otherwise drop or repeat a row.
 
-        No publication check. A viewer sees their own row for a drama that has since been delisted,
-        for the same reason the per-drama read does; filtering here would also make the page shorter
-        than `limit` while `hasMore` still described the unfiltered query.
+        No publication *filter*. A viewer sees their own row for a drama that has since been
+        delisted, for the same reason the per-drama read does; dropping those rows here would also
+        make the page shorter than `limit` while `hasMore` still described the unfiltered query.
 
         `private, no-store`: the answer is per viewer.
       tags: [discovery]
@@ -1234,7 +1235,9 @@ components:
             viewer:
               type: [object, 'null']
               description: |
-                `null` for an anonymous viewer, and while favourites and progress are unimplemented.
+                `null` for an anonymous viewer. A signed-in viewer gets `{ favorited, lastWatched }`,
+                with `favorited` read from the same store as `GET /v1/dramas/{dramaId}/favorite`.
+                `lastWatched` is `null` until progress is folded the same way.
               properties:
                 favorited:
                   type: boolean
@@ -1587,7 +1590,7 @@ components:
 
     FavoriteListItem:
       type: object
-      required: [dramaId, favoritedAt]
+      required: [dramaId, favoritedAt, drama]
       properties:
         dramaId:
           type: string
@@ -1598,6 +1601,15 @@ components:
             Server time when the favourite was first recorded. Always present — the row exists
             because it was recorded — and it is the sort key, so "followed on" needs no second
             request.
+        drama:
+          description: |
+            The catalogue's `DramaSummary` for this id, or `null` when the drama is unpublished,
+            deleted, or otherwise not a listed summary. The favourite row is still present either
+            way: hiding a delisted title would leave a favourite the viewer can neither see nor
+            clear.
+          oneOf:
+            - $ref: '#/components/schemas/DramaSummary'
+            - type: 'null'
 
     FavoriteList:
       type: object
