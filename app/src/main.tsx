@@ -8,6 +8,8 @@ import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
 import { createHttpClient } from './data/http';
+import { createSearchApi } from './data/search-api';
+import { SearchApiProvider } from './data/search-api-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
 
 /**
@@ -44,12 +46,15 @@ async function boot(): Promise<void> {
    * because an environment variable is absent is a white screen, and the retryable error state is
    * a screen with a button on it.
    */
-  const api = createCatalogApi(
-    createHttpClient({
-      baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
-      fetch: (url, init) => fetch(url, init),
-    }),
-  );
+  const http = createHttpClient({
+    baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
+    fetch: (url, init) => fetch(url, init),
+  });
+
+  // Two clients over one transport. The timeout, the single retry and the envelope parsing are
+  // properties of talking to this API, not of talking to the catalogue, so they are configured once.
+  const api = createCatalogApi(http);
+  const search = createSearchApi(http);
 
   document.documentElement.lang = DEFAULT_LOCALE;
   document.documentElement.dir = isRtl(DEFAULT_LOCALE) ? 'rtl' : 'ltr';
@@ -57,9 +62,11 @@ async function boot(): Promise<void> {
   createRoot(container).render(
     <StrictMode>
       <CatalogApiProvider api={api}>
-        <HashRouter>
-          <App bridge={bridge} />
-        </HashRouter>
+        <SearchApiProvider api={search}>
+          <HashRouter>
+            <App bridge={bridge} />
+          </HashRouter>
+        </SearchApiProvider>
       </CatalogApiProvider>
     </StrictMode>,
   );

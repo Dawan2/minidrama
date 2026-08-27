@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { ROUTES } from '../routes/routes';
 import { translate } from '../core/i18n';
 import type { SurfaceError, TerminalReason } from '../data/failure';
-import type { TranslationKey } from '../core/i18n';
+import type { TranslationKey, TranslationParams } from '../core/i18n';
 
 /**
  * The four non-content states, as components (`docs/02-screen-inventory.md` CMP-03 to CMP-05).
@@ -57,13 +57,23 @@ export type EmptyStateAction =
 
 export interface EmptyStateProps {
   readonly messageKey: TranslationKey;
+  /**
+   * Values for the message's `{placeholders}`. An empty result set that names what was looked for
+   * — "no results for X" — is a different sentence from "there is nothing here", and it is the
+   * difference between the viewer suspecting their query and suspecting the app.
+   */
+  readonly messageParams?: TranslationParams;
   readonly action?: EmptyStateAction;
 }
 
-export function EmptyState({ messageKey, action }: EmptyStateProps): React.JSX.Element {
+export function EmptyState({
+  messageKey,
+  messageParams,
+  action,
+}: EmptyStateProps): React.JSX.Element {
   return (
     <div className="state state--empty" data-testid="empty-state">
-      <p className="state__message">{translate(messageKey)}</p>
+      <p className="state__message">{translate(messageKey, undefined, messageParams)}</p>
       {action === undefined ? null : action.kind === 'link' ? (
         <Link className="state__action" to={action.to}>
           {translate(action.labelKey)}

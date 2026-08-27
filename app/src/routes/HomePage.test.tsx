@@ -29,6 +29,15 @@ describe('the feed', () => {
     expect(api.feedCalls[0]).toMatchObject({ scene: 'HOME' });
   });
 
+  // There is no tab bar yet, so without this the search route is reachable only by deep link.
+  it('offers the only way into search', async () => {
+    const api = stubCatalogApi({ feed: () => ok(page([feedCard()])) });
+    renderSurface(<HomePage />, { api });
+
+    const entry = await screen.findByTestId('search-entry');
+    expect(entry.getAttribute('href')).toBe('/search');
+  });
+
   it('shows a skeleton while the first page is in flight', () => {
     const api = stubCatalogApi({ feed: () => ok(page([])) });
     renderSurface(<HomePage />, { api });

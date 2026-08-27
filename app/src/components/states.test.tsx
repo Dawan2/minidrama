@@ -54,6 +54,23 @@ describe('the empty state', () => {
     renderRouted(<EmptyState messageKey="home.empty" />);
     expect(screen.getByTestId('empty-state').textContent).not.toContain('home.empty');
   });
+
+  // "No results for X" and "there is nothing here" are different sentences, and the difference is
+  // whether the viewer suspects their query or suspects the app.
+  it('can name what was looked for', () => {
+    renderRouted(<EmptyState messageKey="search.noResults" messageParams={{ query: 'zebra' }} />);
+
+    const empty = screen.getByTestId('empty-state');
+    expect(empty.textContent).toContain('zebra');
+    expect(empty.textContent).not.toContain('{query}');
+  });
+
+  // A placeholder left visible is a bug that gets fixed; a blank where a value should be is one
+  // that ships.
+  it('leaves an unfilled placeholder visible rather than blanking it', () => {
+    renderRouted(<EmptyState messageKey="search.noResults" />);
+    expect(screen.getByTestId('empty-state').textContent).toContain('{query}');
+  });
 });
 
 describe('the retryable error state', () => {

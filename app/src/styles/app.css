@@ -155,6 +155,106 @@ a {
   color: var(--text-muted);
 }
 
+/* ---------------------------------------------------------------- search */
+
+.home__search-entry {
+  display: block;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.search-form__input {
+  flex: 1 1 60%;
+  min-width: 0;
+  padding: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 16px; /* Under 16px, iOS zooms the page on focus and never zooms back out. */
+}
+
+.search-form__submit,
+.search-form__clear {
+  padding: 12px 16px;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 14px;
+}
+
+.search-form__clear {
+  color: var(--text-muted);
+  background: var(--surface-raised);
+}
+
+.search-prompt {
+  margin: 32px 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  text-align: center;
+}
+
+.search-results__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-hit {
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.search-hit__link {
+  display: block;
+  padding: 12px;
+}
+
+.search-hit__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.search-hit__matched {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.search-hit__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-results__truncated {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* ---------------------------------------------------------------- covers */
 
 .cover {

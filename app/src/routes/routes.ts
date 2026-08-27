@@ -12,6 +12,7 @@
  */
 export const ROUTES = {
   home: '/home',
+  search: '/search',
   drama: '/drama/:dramaId',
   play: '/play/:episodeId',
   fallback: '/fallback',
@@ -26,6 +27,21 @@ export type FallbackReason = (typeof FALLBACK_REASONS)[number];
 
 export function isFallbackReason(value: string): value is FallbackReason {
   return (FALLBACK_REASONS as readonly string[]).includes(value);
+}
+
+/**
+ * The search term lives in the route, not in component state.
+ *
+ * `docs/02-information-architecture.md` §5 wants list state in the query string so that back and a
+ * shared link both restore the view the viewer was looking at. It is named `q` after the parameter
+ * the endpoint takes, so there is one name for the term from the address bar to the request.
+ */
+export const SEARCH_QUERY_PARAM = 'q';
+
+export function searchPath(query = ''): string {
+  return query === ''
+    ? ROUTES.search
+    : `${ROUTES.search}?${SEARCH_QUERY_PARAM}=${encodeURIComponent(query)}`;
 }
 
 export function dramaPath(dramaId: string): string {

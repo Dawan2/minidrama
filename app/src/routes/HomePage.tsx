@@ -1,7 +1,9 @@
+import { Link } from 'react-router';
 import type { FeedCard } from '@minidrama/shared';
 
 import { EmptyState, RetryableError, Skeleton, TerminalError } from '../components/states';
 import { FeedCardView } from '../catalog/FeedCardView';
+import { ROUTES } from './routes';
 import { translate } from '../core/i18n';
 import { useCatalogApi } from '../data/catalog-api-context';
 import { usePagedResource } from '../data/use-paged-resource';
@@ -41,6 +43,14 @@ export function HomePage(): React.JSX.Element {
   return (
     <main className="page page--home" data-testid="home-page">
       <h1 className="page__heading">{translate('home.heading')}</h1>
+      {/*
+        The only way into search. There is no tab bar yet, so without an entry here the route is
+        reachable only by deep link — which is the state the 剧场 tab's hidden search entry was in
+        for the whole of Wave 2 (`docs/02-information-architecture.md` §10, gap G5).
+      */}
+      <Link className="home__search-entry" data-testid="search-entry" to={ROUTES.search}>
+        {translate('search.entry')}
+      </Link>
       {renderFeed(feed)}
     </main>
   );

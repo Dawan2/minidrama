@@ -1,13 +1,12 @@
-import { MemoryRouter } from 'react-router';
 import { ok } from '@minidrama/shared';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { App } from './App';
-import { CatalogApiProvider } from './data/catalog-api-context';
 import { MockBridge } from './platform/mock-bridge';
 import { MockVePlayer } from './player/mock-veplayer';
 import { dramaDetail, episodeItem, page, stubCatalogApi } from './testing/catalog-fixtures';
+import { renderSurface } from './testing/render';
 
 beforeEach(() => {
   MockVePlayer.reset();
@@ -20,13 +19,7 @@ function renderAt(path: string) {
     episodes: () => ok(page([episodeItem()])),
   });
 
-  return render(
-    <CatalogApiProvider api={api}>
-      <MemoryRouter initialEntries={[path]}>
-        <App bridge={bridge} />
-      </MemoryRouter>
-    </CatalogApiProvider>,
-  );
+  return renderSurface(<App bridge={bridge} />, { api, path });
 }
 
 describe('App routing', () => {
@@ -47,6 +40,12 @@ describe('App routing', () => {
     await waitFor(() => {
       expect(screen.getByTestId('player-surface')).toBeDefined();
     });
+  });
+
+  it('renders the search route, and its term is a route parameter', async () => {
+    renderAt('/search?q=heiress');
+    expect(await screen.findByTestId('search-page')).toBeDefined();
+    expect(screen.getByTestId('search-input').getAttribute('value')).toBe('heiress');
   });
 
   // A static ZIP cannot 404 gracefully, so an unknown path must land somewhere with a way out —

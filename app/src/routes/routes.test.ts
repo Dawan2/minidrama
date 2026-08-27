@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   FALLBACK_REASONS,
   ROUTES,
+  SEARCH_QUERY_PARAM,
   dramaPath,
   fallbackPath,
   isFallbackReason,
   playPath,
+  searchPath,
 } from './routes';
 
 describe('routes', () => {
@@ -38,6 +40,26 @@ describe('routes', () => {
   it('escapes an id that would otherwise break the path', () => {
     expect(playPath('ep/1?x=2')).toBe('/play/ep%2F1%3Fx%3D2');
     expect(dramaPath('drm/1#x')).toBe('/drama/drm%2F1%23x');
+  });
+});
+
+describe('the search route', () => {
+  // Named after the parameter the endpoint takes, so there is one name for the term from the
+  // address bar to the request.
+  it('carries its term in the same parameter the endpoint takes', () => {
+    expect(SEARCH_QUERY_PARAM).toBe('q');
+    expect(searchPath('twin moons')).toBe('/search?q=twin%20moons');
+  });
+
+  // The search screen with nothing searched yet is a state, not a missing parameter, so the bare
+  // path is the one that reaches it.
+  it('is the bare path when there is nothing to search for', () => {
+    expect(searchPath()).toBe('/search');
+    expect(searchPath('')).toBe('/search');
+  });
+
+  it('escapes a term that would otherwise add parameters of its own', () => {
+    expect(searchPath('a&b=c#d')).toBe('/search?q=a%26b%3Dc%23d');
   });
 });
 

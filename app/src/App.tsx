@@ -4,6 +4,7 @@ import { DramaPage } from './routes/DramaPage';
 import { FallbackPage } from './routes/FallbackPage';
 import { HomePage } from './routes/HomePage';
 import { PlayPage } from './routes/PlayPage';
+import { SearchPage } from './routes/SearchPage';
 import { ROUTES, fallbackPath } from './routes/routes';
 import type { PlatformBridge } from './platform/types';
 
@@ -16,6 +17,7 @@ export function App({ bridge }: AppProps): React.JSX.Element {
     <Routes>
       <Route path="/" element={<Navigate to={ROUTES.home} replace />} />
       <Route path={ROUTES.home} element={<HomePage />} />
+      <Route path={ROUTES.search} element={<SearchPage />} />
       <Route path={ROUTES.drama} element={<DramaPage bridge={bridge} />} />
       <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
       <Route path={ROUTES.fallback} element={<FallbackPage />} />
