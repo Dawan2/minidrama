@@ -6,6 +6,7 @@ import { ProfilePage } from './ProfilePage';
 import { offlineFailure } from '../testing/catalog-fixtures';
 import { renderSurface } from '../testing/render';
 import { stubSession } from '../testing/history-fixtures';
+import { meHttpFailure, meView, stubMeApi } from '../testing/me-fixtures';
 import {
   knownBalance,
   stubWalletApi,
@@ -80,6 +81,74 @@ describe('the profile shell', () => {
     const identity = screen.getByTestId('profile-identity');
     expect(identity.textContent).toContain('Guest');
     expect(identity.textContent).not.toContain('profile.guestName');
+    expect(identity.getAttribute('data-me')).toBe('guest');
+  });
+
+  it('does not fetch identity when there is no session', () => {
+    const meApi = stubMeApi();
+    renderSurface(<ProfilePage />, {
+      session: stubSession({ state: { status: 'ANONYMOUS' } }),
+      meApi,
+    });
+
+    expect(meApi.meCalls).toBe(0);
+  });
+});
+
+describe('the signed-in identity', () => {
+  const signedIn = stubSession({ state: { status: 'AUTHENTICATED', openId: 'open_1' } });
+
+  it('stamps the session id from GET /v1/users/me and does not echo it as a nickname', async () => {
+    renderSurface(<ProfilePage />, { session: signedIn });
+
+    const identity = await screen.findByTestId('profile-identity');
+    await waitFor(() => {
+      expect(identity.getAttribute('data-me')).toBe('ready');
+    });
+    expect(identity.getAttribute('data-user-id')).toBe('open_1');
+    expect(identity.textContent).toContain('You');
+    expect(identity.textContent).not.toContain('open_1');
+  });
+
+  it('shows a platform-named nickname and still invents no VIP from the same body', async () => {
+    const meApi = stubMeApi({ me: () => ok(meView({ id: 'open_1', nickname: 'Ada' })) });
+    renderSurface(<ProfilePage />, { session: signedIn, meApi });
+
+    const identity = await screen.findByTestId('profile-identity');
+    await waitFor(() => {
+      expect(identity.getAttribute('data-me')).toBe('ready');
+    });
+    expect(identity.textContent).toContain('Ada');
+    expect(identity.textContent).not.toContain('You');
+
+    const vip = screen.getByTestId('profile-vip');
+    expect(vip.getAttribute('data-status')).toBe('unavailable');
+    expect(vip.textContent).not.toMatch(/active|inactive|expires|ada/i);
+  });
+
+  it('keeps the session placeholder when the me read fails, without blanking the entries', async () => {
+    const meApi = stubMeApi({ me: () => err(offlineFailure()) });
+    renderSurface(<ProfilePage />, { session: signedIn, meApi });
+
+    const identity = await screen.findByTestId('profile-identity');
+    await waitFor(() => {
+      expect(identity.getAttribute('data-me')).toBe('failed');
+    });
+    expect(identity.textContent).toContain('You');
+    expect(identity.getAttribute('data-user-id')).toBeNull();
+    expect(screen.getByTestId('history-entry')).toBeDefined();
+    expect(screen.getByTestId('profile-vip')).toBeDefined();
+  });
+
+  it('does not invent a nickname from a missing endpoint', async () => {
+    const meApi = stubMeApi({ me: () => err(meHttpFailure(404)) });
+    renderSurface(<ProfilePage />, { session: signedIn, meApi });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('profile-identity').getAttribute('data-me')).toBe('failed');
+    });
+    expect(screen.getByTestId('profile-identity').textContent).toContain('You');
+    expect(screen.getByTestId('profile-identity').textContent).not.toContain('open_1');
   });
 });
 
@@ -183,8 +252,12 @@ describe('the profile VIP card', () => {
     expect(screen.queryByTestId('profile-vip')).toBeNull();
   });
 
-  it('quotes no status, because GET /users/me does not exist', () => {
+  it('quotes no status, because GET /v1/users/me carries no vip field', async () => {
     renderSurface(<ProfilePage />, { session: signedIn });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('profile-identity').getAttribute('data-me')).toBe('ready');
+    });
 
     const card = screen.getByTestId('profile-vip');
     expect(card.getAttribute('data-status')).toBe('unavailable');

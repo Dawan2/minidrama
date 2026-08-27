@@ -228,6 +228,36 @@ describe('GET /v1/users/me/watch-history', () => {
   });
 });
 
+describe('GET /v1/users/me', () => {
+  it('refuses a request that carries no session', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/users/me' });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+    expect(response.body).not.toMatch(/"id"|nickname|vip/);
+  });
+
+  it('answers 200 with the session id and no invented VIP or nickname', async () => {
+    const sessionStore = createInMemorySessionStore();
+    const sessionApp = await buildApp({ ...loadConfig({}), logLevel: 'silent' }, { sessionStore });
+    await sessionApp.ready();
+
+    try {
+      const response = await sessionApp.inject({
+        method: 'GET',
+        url: '/v1/users/me',
+        headers: { authorization: `Bearer ${sessionStore.issue('open_abc').accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ id: 'open_abc' });
+      expect(JSON.stringify(response.json())).not.toMatch(/vip|expiresAt|beans|nickname/);
+    } finally {
+      await sessionApp.close();
+    }
+  });
+});
+
 describe('GET /v1/wallet', () => {
   it('refuses a request that carries no session', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/wallet' });

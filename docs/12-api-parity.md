@@ -29,7 +29,7 @@ That gap stays a row. It is not closed by adding WeChat, Beans, or a second unlo
 | `POST /auth/sms-codes` | — | design-only | |
 | `POST /auth/refresh` | — | design-only | |
 | `POST /auth/logout` | — | design-only | |
-| `GET /users/me` | — | design-only | |
+| `GET /users/me` | `GET /v1/users/me` | live | Fail-closed session identity (`id`). No VIP, expiry or Beans |
 | `PATCH /users/me` | — | design-only | |
 | `POST /users/me/bind-phone` | — | design-only | |
 | `GET /dramas` | `GET /v1/dramas` | live | |
