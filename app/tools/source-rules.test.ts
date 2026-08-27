@@ -37,6 +37,36 @@ describe('source tree rules', () => {
     expect(violations[0]?.line).toBe(1);
   });
 
+  /**
+   * The case both first-line defences miss. The ESLint rule reads the AST and the bundle scan
+   * greps the artifact, and each of them matches a literal `'video'`; neither sees a name that was
+   * assembled somewhere else, which produces the blocked element just as effectively.
+   */
+  it('rejects a createElement whose element name is computed', () => {
+    const root = mkdtempSync(join(tmpdir(), 'minidrama-source-rules-'));
+    mkdirSync(join(root, 'src', 'player'), { recursive: true });
+    writeFileSync(
+      join(root, 'src', 'player', 'sneaky.ts'),
+      "const tag = ['vi', 'deo'].join('');\nexport const el = document.createElement(tag);\n",
+    );
+
+    const violations = checkSourceTree(root);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.rule).toBe('createElement must be given a literal element name');
+    expect(violations[0]?.line).toBe(2);
+  });
+
+  it('accepts a createElement with a literal element name', () => {
+    const root = mkdtempSync(join(tmpdir(), 'minidrama-source-rules-'));
+    mkdirSync(join(root, 'src', 'player'), { recursive: true });
+    writeFileSync(
+      join(root, 'src', 'player', 'surface.ts'),
+      "export const el = document.createElement('div');\n",
+    );
+
+    expect(checkSourceTree(root)).toEqual([]);
+  });
+
   it('ignores TTMinis mentioned in a comment', () => {
     const root = mkdtempSync(join(tmpdir(), 'minidrama-source-rules-'));
     mkdirSync(join(root, 'src', 'features'), { recursive: true });
