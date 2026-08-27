@@ -2,13 +2,14 @@
 
 > **Slot:** W16, work slot (`bc-8f301285`). One backlog item, no pull request.
 > **Branch:** `cursor/w16-work-c5-follow-72c4`, cut from `origin/main` at `0cb0504`
-> (PLY-010 playNext+swipe on main, after PRG-001 compose).
+> (PLY-010 playNext+swipe on main, after PRG-001 compose). Merged forward onto `26b3c97`
+> (drama-detail Continue CTA landed while this slot verified; no file overlap).
 > **Item:** `C5-02` / **D-18** / **X-25** — merge the leftover
 > `cursor/w13-work-c3-remain-72c4` ledger (`GET /v1/wallet/transactions`, fail-closed empty
 > page) onto this tree. Not a second implementation. Lockstep: OpenAPI, router, client probe.
 > **Not in scope:** D-17 billing, C4-03 Postgres, C4-07 VIP, C5-01 / D-20 G1.10
-> (`bc-fed59ba3`), a11y (`bc-5d32d64f`), PLY-010 / PRG-001 (already on `main`), Beans,
-> `#/vip`. No pull request.
+> (`bc-fed59ba3`), drama-detail Continue CTA (`bc-5d32d64f`, landed at `26b3c97` while this
+> slot verified), PLY-010 / PRG-001 (already on `main`), Beans, `#/vip`. No pull request.
 
 ---
 
@@ -21,7 +22,7 @@ and C4-07, and after protocol-C4 slices already on `main` or in flight:
 | --- | --- |
 | PLY-010 autoplay / swipe `playNext` | on `main` at `0cb0504` (`bc-2fd6c885`) |
 | PRG-001 cross-end conflict case | on `main` at `8e5c803` (`bc-3c74c2c9`) |
-| Third playback exit (a11y) | in flight (`bc-5d32d64f`) |
+| Third playback exit | **Landed** `26b3c97` as SCR-04 drama-detail Continue (`bc-5d32d64f`) |
 | C5-01 / D-20 G1.10 | in flight (`bc-fed59ba3`, "next C5 after PRG-001") |
 | D-17 / C4-03 / C4-07 | skipped; cannot code-fix, do not fake, no contract |
 | **C5-02 / D-18 wallet transactions** | **this slot** |
@@ -108,7 +109,7 @@ That is C3-09 leaking into the ledger.
 | Who | Overlap |
 |---|---|
 | `bc-fed59ba3` C5-01 / G1.10 | Running. This slot does not touch `.github/` or skip-detection |
-| `bc-5d32d64f` a11y | Running. This slot does not add axe-core |
+| `bc-5d32d64f` third playback | **Landed** as drama-detail Continue CTA (`26b3c97` / `cursor/w16-work-playback-ux3-72c4`). No file overlap. This slot does not add axe-core |
 | `bc-2fd6c885` / `bc-3c74c2c9` | Idle. PLY-010 and PRG-001 already on `main`. Player files not edited |
 
 `docs/plan/cycle-5-backlog.md` is not rewritten. `wave-protocol.md` is not rewritten.
@@ -136,7 +137,7 @@ OpenAPI path count is 24. `GET /v1/wallet/transactions` is documented and routed
 - **A real ledger.** Needs a platform movement API or a ledger this process owns and writes.
   The port is the seam. Do not default it to spend-from-unlocks while waiting.
 - **C5-01 / D-20** G1.10. In flight.
-- **QA-011 / QA-010** a11y. In flight.
+- **QA-011 / QA-010** a11y. Still not started. The third playback sibling took drama-detail Continue, not axe-core.
 - **D-17** GitHub Actions billing. Local verify is not CI.
 - **C4-03 / C4-07**, GATE-7 / GATE-8, Beans. Unchanged.
 - **C5-03 / D-19** P3 writeback of `wave-protocol.md` §6.2.
