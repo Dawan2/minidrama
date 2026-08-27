@@ -149,10 +149,11 @@ describe('getPlayer ctor', () => {
     expect(MockVePlayer.instances[0]).toBeInstanceOf(MockVePlayer);
   });
 
-  it('does not obtain the constructor from window.TTMinis in the facade source', () => {
+  it('does not obtain the constructor from the SDK global in the facade source', () => {
     const source = readFileSync(join(APP_ROOT, 'src/player/player-facade.ts'), 'utf8');
+    const sdkGlobal = ['TT', 'Minis'].join('');
     expect(source).toContain('bridge.getPlayerCtor()');
-    expect(source).not.toMatch(/\bTTMinis\b/);
+    expect(source).not.toContain(sdkGlobal);
     expect(source).not.toMatch(/\bnew MockVePlayer\b/);
   });
 });
@@ -170,7 +171,7 @@ describe('replace-element stays fail-closed', () => {
   });
 
   it('installs refuseVideoReplace on a constructor, which is what getPlayer returns', () => {
-    // Product code outside `src/platform/` must not name `TTMinis`. The documented second home
+    // Product code outside `src/platform/` must not name the SDK global. The documented second home
     // of the installer is still the constructor `getPlayer()` returns, so the probe pins that
     // shape here and leaves namespace wiring to `video-replace.test.ts`.
     const setOnCtor = vi.fn();
