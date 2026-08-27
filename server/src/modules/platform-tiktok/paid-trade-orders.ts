@@ -33,6 +33,10 @@ export interface PaidTradeOrder {
  * The first three are ordinary traffic: a payment recorded, a redelivery of one, and an event for
  * something this module did not sell. `ERROR_OUTCOMES` below is the rest, and every member of it
  * means an authentic payment arrived and somebody's money is now in the wrong place.
+ *
+ * None of them names what was bought — an unlock, a subscription, a coin top-up — because this
+ * module does not know and must not learn. `NOT_FULFILLED` is a sink saying it recorded the payment
+ * and did not deliver whatever the payment was for.
  */
 export type PaidTradeOrderOutcome =
   | 'RECORDED'
@@ -40,9 +44,9 @@ export type PaidTradeOrderOutcome =
   | 'NO_MATCHING_ORDER'
   | 'PAYER_MISMATCH'
   | 'ORDER_NOT_PAYABLE'
-  /** The payment was recorded and what it bought was not granted. The viewer paid for nothing. */
-  | 'UNLOCK_NOT_GRANTED'
-  /** The viewer was charged for something they already owned, on a second order for one episode. */
+  /** The payment was recorded and what it bought was not delivered. The viewer paid for nothing. */
+  | 'NOT_FULFILLED'
+  /** The viewer was charged for something they already owned, on a second order for one thing. */
   | 'DUPLICATE_PURCHASE';
 
 /**
@@ -52,7 +56,7 @@ export type PaidTradeOrderOutcome =
 export const ERROR_OUTCOMES: readonly PaidTradeOrderOutcome[] = [
   'PAYER_MISMATCH',
   'ORDER_NOT_PAYABLE',
-  'UNLOCK_NOT_GRANTED',
+  'NOT_FULFILLED',
   'DUPLICATE_PURCHASE',
 ];
 

@@ -223,7 +223,7 @@ describe('createUnlockOrderPaymentSink — when the grant does not land', () => 
       record: async () => err('UNLOCK_NOT_RECORDED'),
     };
 
-    expect(await sink({ unlockStore: failing }).recordPaid(paid())).toBe('UNLOCK_NOT_GRANTED');
+    expect(await sink({ unlockStore: failing }).recordPaid(paid())).toBe('NOT_FULFILLED');
     // The payment is recorded regardless, which is the direction this must fail in: we know the
     // viewer was charged, and the order is a `PAID` row a replay can finish.
     expect(await orderStore.get(orderId)).toMatchObject({ status: 'PAID', unlockId: null });
@@ -259,9 +259,7 @@ describe('createUnlockOrderPaymentSink — when the grant does not land', () => 
       },
     };
 
-    expect(await sink({ orderStore: failingSecondApply }).recordPaid(paid())).toBe(
-      'UNLOCK_NOT_GRANTED',
-    );
+    expect(await sink({ orderStore: failingSecondApply }).recordPaid(paid())).toBe('NOT_FULFILLED');
     // The receipt exists, so the viewer can watch what they paid for even though the order does not
     // say so. That is the recoverable direction, and it is why the two writes are in this order.
     expect(await unlockStore.findForEpisode('usr_1', 'ep_1')).toBeDefined();

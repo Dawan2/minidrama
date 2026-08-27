@@ -81,7 +81,7 @@ export function createUnlockOrderPaymentSink(
       // here — the status was just advanced — and is mapped in rather than ignored so that a status
       // added to the ladder later reports a missing grant instead of a granted one.
       if (granted.status === 'INCOMPLETE' || granted.status === 'ORDER_NOT_PAID') {
-        return 'UNLOCK_NOT_GRANTED';
+        return 'NOT_FULFILLED';
       }
 
       // The viewer already owned the episode, on a receipt some *other* order paid for. That is two
