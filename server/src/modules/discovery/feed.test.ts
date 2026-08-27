@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { ANONYMOUS_VIEWER } from '../catalog/viewer.js';
 import { composeFeed, createEmptyContinueWatchingSource } from './feed.js';
 import type { DramaRecord } from '../catalog/types.js';
 import type { ResolvedContinueEntry } from './feed.js';
@@ -144,9 +143,9 @@ describe('composeFeed', () => {
   });
 });
 
-describe('the default continue-watching source', () => {
-  it('is empty, because the progress module does not exist yet', async () => {
+describe('the empty continue-watching source', () => {
+  it('is empty for a signed-in viewer, so a test can pin the rail off', async () => {
     const source = createEmptyContinueWatchingSource();
-    expect(await source.forViewer(ANONYMOUS_VIEWER)).toEqual([]);
+    expect(await source.forViewer('user_a')).toEqual([]);
   });
 });
