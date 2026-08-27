@@ -10,11 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "build": "tsc --noEmit",
-    "check:licenses": "tsx src/cli/check-licenses.ts"
+    "check:licenses": "tsx src/cli/check-licenses.ts",
+    "check:coverage": "tsx src/cli/check-coverage.ts"
   },
   "devDependencies": {
     "@types/node": "^22.18.9",
+    "@vitest/coverage-v8": "^3.2.4",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

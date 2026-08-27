@@ -58,10 +58,10 @@ minidrama/
 ├── packages/
 │   ├── shared/                 # Result, error codes, playback descriptor — client and server
 │   ├── config/                 # trusted-domain registry + minis.config.json generator
-│   └── quality/                # G2.8 license whitelist; not bundled
+│   └── quality/                # G2.8 license whitelist and G1.5 coverage gate; not bundled
 ├── contracts/openapi.yaml      # OpenAPI 3.1 — the HTTP surface's source of truth
 ├── docs/                       # architecture, design, plan, engineering (this file)
-├── .github/workflows/ci.yml    # L1: format, lint, types, tests, build, guardrails
+├── .github/workflows/ci.yml    # L1: format, lint, types, tests+coverage, build, guardrails
 └── .github/workflows/l2.yml    # L2: G2.8 license whitelist; does not skip L1
 ```
 
@@ -192,7 +192,7 @@ dropped in a config refactor fails a test instead of silently ceasing to enforce
 
 ```bash
 pnpm install              # Node >= 22, pnpm 10
-pnpm verify               # format:check + lint + typecheck + test + build + guardrails
+pnpm verify               # format:check + lint + typecheck + test:coverage + check:coverage + build + guardrails
 
 pnpm dev                  # not defined at the root; run per package:
 pnpm --filter @minidrama/app dev      # Vite dev server, MockBridge active automatically
@@ -204,6 +204,7 @@ pnpm typecheck
 pnpm build
 pnpm check:guardrails     # requires the build first; a missing app/dist fails the check
 pnpm check:licenses       # G2.8; requires the install; a missing store fails the check
+pnpm check:coverage       # G1.5; requires test:coverage reports; a missing report fails the check
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
