@@ -82,20 +82,38 @@ binary for Semgrep is not this slot.
 
 | Who | Overlap |
 | --- | --- |
-| `bc-dd13f497` (following C4) | Left. Expected G2.5 / C4-04 / remaining L2. This slot does not touch `.github/workflows/` |
-| `bc-e055048b` (another C4) | Left. Same |
-| G2.4 Semgrep | Already on `main` as `38ac2c4`. Not retaken |
+| `cursor/w14-work-c4-follow-72c4` | **Landed C4-08** on `main` as `727592f` while this slot ran. Different files (`rewarded-unlock.ts` / `interstitial.ts` vs this slot's `ad-unlock.ts` / `offer-interstitial.ts`). **Not merged.** A second ad unlock path would be a retake |
+| `cursor/w14-work-c4-cont-72c4` | **Landed G2.5** Trivy as `98e75c6`. `.github/workflows/` — this slot did not touch it |
+| `cursor/w14-work-c4-plus-72c4` | **Landed C4-04** `GET /v1/config` as `2a74748`. Not retaken |
+| `cursor/w14-work-c4-more2-72c4` | **Running.** G2.4 CodeQL remainder. This slot does not touch `l2.yml` |
 
-`git diff origin/main -- .github/workflows/` is empty of this slot's work.
+`git diff origin/main -- .github/workflows/` is empty of this slot's work. This branch was **not** merged onto `main`.
 
 ---
 
 ## 5. Verification
 
-`pnpm verify` on this branch. L1 sequence unchanged: format → lint → typecheck →
-test:coverage → check:coverage → build → guardrails.
+`pnpm verify` green on this branch at `913dbe8` (cut from `38ac2c4`, before the sibling C4-08 merge). L1 sequence unchanged: format → lint → typecheck → test:coverage → check:coverage → build → guardrails.
 
-Coverage and test totals are recorded after the run. Zero skipped. D5/D6 remain `[ ]`.
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 58 |
+| `packages/config` | 45 |
+| `packages/quality` | 102 |
+| `server` | 1,736 |
+| `app` | 1,086 |
+| **Total** | **3,027** |
+
+Zero skipped. Coverage gate:
+
+```
+coverage global lines 93.83% (14168/15100), branches 91.42%, core lines 95.05%, diff lines 90.78% (1083/1193)
+coverage gate passed
+```
+
+Guardrails passed against `app/dist` (`index-DUCt4NiH.js` 350.25 kB / 105.90 kB gzip). Native `<video>` remains absent.
+
+This slot did **not** merge to `main`. Re-fetching `origin/main` after verify showed C4-08 already present (`727592f`). Merging this branch would duplicate the ad unlock surface.
 
 ---
 
@@ -107,5 +125,5 @@ Coverage and test totals are recorded after the run. Zero skipped. D5/D6 remain 
   is the seam; the default trusts the boolean. A wrapper that ignores `isEnded` is the
   regression.
 - **C4-04, C4-07, C4-03.** Splash contract, VIP, Postgres. Not faked.
-- **G2.3, G2.5.** Left for the in-flight siblings. Not faked with a grep.
+- **G2.3.** Playwright smoke. Next remaining L2 slice. `cursor/w14-work-c4-more2-72c4` is CodeQL, not this.
 - **`docs/plan/cycle-4-backlog.md`.** Not rewritten. The document belongs to the plan slot.
