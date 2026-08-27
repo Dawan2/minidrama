@@ -1,4 +1,5 @@
 import { computeViewerAccess, effectivePriceCoins, effectiveUnlockPolicy } from './access.js';
+import { safeCoverUrl } from './covers.js';
 import type { DramaDetail, DramaSummary, EpisodeItem, SeasonSummary } from '@minidrama/shared';
 import type { DramaRecord, PositionedEpisode, SeasonRecord } from './types.js';
 import type { Viewer } from './viewer.js';
@@ -9,13 +10,17 @@ import type { Viewer } from './viewer.js';
  * This is the layer that decides what the client is *not* told, which matters more than what it is.
  * A view carries no publication status, no asset key, no raw per-season policy and no play handle:
  * those are inputs to server decisions, and shipping them invites a client to redo the decision.
+ *
+ * It is also the layer where a stored cover URL becomes a URL the WebView will fetch, so every
+ * cover leaves through `safeCoverUrl` and none leaves as it was stored. See `covers.ts` for why the
+ * check belongs at this boundary rather than at ingestion or in a route.
  */
 
 export function toDramaSummary(drama: DramaRecord): DramaSummary {
   return {
     id: drama.id,
     title: drama.title,
-    coverUrl: drama.coverUrl,
+    coverUrl: safeCoverUrl(drama.coverUrl),
     category: drama.category,
     tags: drama.tags,
     totalEpisodes: drama.totalEpisodes,
@@ -50,7 +55,7 @@ export function toDramaDetail(
   return {
     ...toDramaSummary(drama),
     description: drama.description,
-    horizontalCoverUrl: drama.horizontalCoverUrl,
+    horizontalCoverUrl: safeCoverUrl(drama.horizontalCoverUrl),
     // An offline season is not shown. Its episodes are not listed either, so advertising it would
     // put a season tab in the UI that opens onto nothing.
     seasons: seasons

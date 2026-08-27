@@ -1,10 +1,13 @@
+import { TRUSTED_COVER_HOSTS } from '@minidrama/config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { DramaDetail, EpisodeItem, Page, UnlockMethod } from '@minidrama/shared';
+import type { DramaDetail, DramaSummary, EpisodeItem, Page, UnlockMethod } from '@minidrama/shared';
 import type { FastifyInstance } from 'fastify';
 
+import { SEED_CATALOG, createInMemoryCatalogStore } from './store.js';
 import { buildApp } from '../../app.js';
 import { loadConfig } from '../../config.js';
 import type { AppDependencies } from '../../app.js';
+import type { SeedCatalog } from './store.js';
 import type { Viewer, ViewerResolver } from './viewer.js';
 
 async function buildTestApp(dependencies: AppDependencies = {}): Promise<FastifyInstance> {
@@ -470,5 +473,113 @@ describe('GET /v1/episodes/:episodeId', () => {
   it('puts a trace id on every failure', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/episodes/ep_nope' });
     expect(response.json<{ error: { traceId: string } }>().error.traceId).toMatch(/^req_/);
+  });
+});
+
+/**
+ * The cover gate, observed from outside the process.
+ *
+ * `covers.test.ts` establishes that `safeCoverUrl` refuses the right URLs; these tests establish
+ * the part that unit tests cannot, which is that no catalogue response reaches a client carrying an
+ * untrusted one. That is a claim about every route and every field rather than about one function,
+ * so the decisive assertion here is on the raw response body: the hostile string must not appear
+ * anywhere in it, not merely be absent from the field we thought to look at.
+ */
+const HOSTILE_HOST = 'cdn.evil.example';
+const HOSTILE_HOST_COVER = `https://${HOSTILE_HOST}/covers/stolen.jpg`;
+// eslint-disable-next-line no-script-url -- the scheme the catalogue must refuse to serve
+const SCRIPT_SCHEME = 'javascript:';
+const HOSTILE_SCHEME_COVER = `${SCRIPT_SCHEME}alert(document.domain)`;
+
+/** The seed catalogue with every cover replaced by one the registry refuses. */
+function hostileCatalog(): SeedCatalog {
+  return {
+    ...SEED_CATALOG,
+    dramas: SEED_CATALOG.dramas.map((drama) => ({
+      ...drama,
+      coverUrl: HOSTILE_HOST_COVER,
+      horizontalCoverUrl: HOSTILE_SCHEME_COVER,
+    })),
+  };
+}
+
+describe('catalogue cover URLs', () => {
+  let hostile: FastifyInstance;
+
+  beforeAll(async () => {
+    hostile = await buildTestApp({ catalogStore: createInMemoryCatalogStore(hostileCatalog()) });
+  });
+
+  afterAll(async () => {
+    await hostile.close();
+  });
+
+  it('serves a trusted cover as the parsed URL', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/dramas?limit=1' });
+    const [first] = response.json<Page<DramaSummary>>().items;
+    const host = TRUSTED_COVER_HOSTS[0]?.host as string;
+
+    expect(first?.coverUrl).toBe(`https://${host}/covers/reborn-at-the-banquet.jpg`);
+  });
+
+  it('omits an untrusted cover from the drama list', async () => {
+    const response = await hostile.inject({ method: 'GET', url: '/v1/dramas' });
+    const body = response.json<Page<DramaSummary>>();
+
+    expect(response.statusCode).toBe(200);
+    expect(body.items).not.toHaveLength(0);
+    for (const item of body.items) {
+      expect(item.coverUrl).toBeNull();
+    }
+  });
+
+  it('omits both cover fields from the drama detail', async () => {
+    const response = await hostile.inject({ method: 'GET', url: '/v1/dramas/drm_revenge_0001' });
+    const detail = response.json<DramaDetail>();
+
+    expect(response.statusCode).toBe(200);
+    expect(detail.coverUrl).toBeNull();
+    expect(detail.horizontalCoverUrl).toBeNull();
+  });
+
+  /**
+   * A refused cover must not degrade the response around it. Dropping the whole drama, or answering
+   * 500, would turn a content-data problem into an outage — and an outage is what gets the check
+   * disabled at 2am.
+   */
+  it('still serves the rest of the drama, and still lists every drama', async () => {
+    const listed = await hostile.inject({ method: 'GET', url: '/v1/dramas' });
+    const reference = await app.inject({ method: 'GET', url: '/v1/dramas' });
+
+    expect(listed.json<Page<DramaSummary>>().items.map((item) => item.id)).toEqual(
+      reference.json<Page<DramaSummary>>().items.map((item) => item.id),
+    );
+
+    const detail = await hostile.inject({ method: 'GET', url: '/v1/dramas/drm_revenge_0001' });
+    const body = detail.json<DramaDetail>();
+
+    expect(body.title).toBe('Reborn at the Banquet');
+    expect(body.seasons).toHaveLength(1);
+  });
+
+  it('keeps the field present, so a client cannot miss the null', async () => {
+    const response = await hostile.inject({ method: 'GET', url: '/v1/dramas?limit=1' });
+    const [first] = response.json<Page<Record<string, unknown>>>().items;
+
+    expect(first).toHaveProperty('coverUrl');
+    expect(Object.keys(first ?? {})).toContain('coverUrl');
+  });
+
+  it.each([
+    ['the drama list', '/v1/dramas'],
+    ['a drama detail', '/v1/dramas/drm_revenge_0001'],
+    ['an episode list', '/v1/dramas/drm_revenge_0001/episodes'],
+    ['an episode', '/v1/episodes/ep_revenge_e01'],
+  ])('leaks no untrusted cover anywhere in %s', async (_label, url) => {
+    const response = await hostile.inject({ method: 'GET', url });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).not.toContain(HOSTILE_HOST);
+    expect(response.body).not.toContain(SCRIPT_SCHEME);
   });
 });
