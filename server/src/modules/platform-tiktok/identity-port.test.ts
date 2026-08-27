@@ -320,7 +320,7 @@ describe('postTiktokOauthToken — the production transport', () => {
 
   it('is what createTiktokIdentityPort uses when no http is injected', async () => {
     const calls: { readonly input: unknown; readonly init: RequestInit | undefined }[] = [];
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = (async (input, init) => {
       calls.push({ input, init });
       return new Response(JSON.stringify({ open_id: PLATFORM_OPEN_ID }), { status: 200 });
     }) as typeof fetch;
@@ -339,7 +339,7 @@ describe('postTiktokOauthToken — the production transport', () => {
   });
 
   it('returns the status and body text, and does not follow redirects', async () => {
-    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = (async (_input, init) => {
       expect(init?.redirect).toBe('error');
       return new Response('nope', { status: 503 });
     }) as typeof fetch;
