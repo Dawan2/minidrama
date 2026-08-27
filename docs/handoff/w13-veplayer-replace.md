@@ -194,12 +194,20 @@ duplicated: silent re-login (`bc-3365072b`), ERROR_OUTCOMES (already on `main`).
 
 ## 6. Verify
 
-Recorded after the implementation commit. `pnpm verify` is format, lint, typecheck, test, build,
-guardrails.
+`pnpm verify` exited 0 at `833cea2`.
 
-Native `<video>` remains absent from app production source (`rg` over `app/src` excluding tests
-and comments finds the installer and the type `HTMLVideoElement` only). The mock player still
-renders a `div`.
+| Gate | Result |
+| --- | --- |
+| Format | pass |
+| Lint | pass |
+| Types | pass, 4 packages |
+| Tests | **2,190 passing, 0 skipped, 0 failing** — `shared` 51/4, `config` 45/3, `server` 1,318/54, `app` 776/56. App grew by 19 tests in `video-replace.test.ts`, plus 2 source-rule tests, 1 bundle-scan case, 1 import-hygiene scan |
+| Build | pass — `index-Cw_Ipwqv.js` 307.70 kB (95.83 kB gzipped). The previous artifact on `main` was `index-DmVWrZ3O.js` 307.42 kB / 95.75 kB gzip; the delta is the installer |
+| Guardrails | `platform guardrails passed (artifact: /workspace/app/dist)` |
+
+Native `<video>` remains absent from app production source. The mock player still renders a `div`. The bundle scan still fails a committed `<video>` fixture (`bundle-scan.test.ts` 43 tests).
+
+The first `pnpm verify` failed typecheck on `result instanceof HTMLElement` where `result` was typed `HTMLElement | null` (`TS2358`). The assertion now goes through `unknown`. That is `833cea2`; the installer itself did not move.
 
 ---
 
