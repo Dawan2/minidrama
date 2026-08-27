@@ -174,6 +174,7 @@ describe('contracts/openapi.yaml', () => {
     expect(operations).toEqual(
       expect.arrayContaining([
         { method: 'get', path: '/health' },
+        { method: 'get', path: '/v1/config' },
         { method: 'post', path: '/v1/playback/sessions' },
         { method: 'post', path: '/v1/auth/login' },
         // The three the trunk served and that `r` and `m` both dropped at their fork points, named

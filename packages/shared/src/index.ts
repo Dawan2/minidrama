@@ -8,3 +8,4 @@ export * from './progress.js';
 export * from './watch-history.js';
 export * from './wallet.js';
 export * from './me.js';
+export * from './config.js';

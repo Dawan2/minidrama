@@ -1,13 +1,21 @@
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 
 import './styles/app.css';
 import { ANONYMOUS } from './auth/session';
 import { App } from './App';
+import {
+  configAfterLogin,
+  initFailureElement,
+  isInitFailure,
+  rootFor,
+  splashElement,
+  wrapWithClientConfig,
+} from './boot/sequence';
 import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
+import { createConfigApi } from './data/config-api';
 import { createFavoritesApi } from './data/favorites-api';
 import { createHistoryApi } from './data/history-api';
 import { createLoginTransport, createSessionTransport } from './data/transports';
@@ -40,16 +48,15 @@ import type { SessionStore } from './session/session-store';
  *
  * The sequence in `docs/architecture/system-overview.md` §3.1 is serial by design: nothing
  * business-facing renders on a half-initialized runtime. Wave 1 wired bridge selection and `init`;
- * later slots added the catalogue and unlock clients, then silent login; this one gives the login a
- * second caller, so a session that dies mid-visit is re-acquired rather than waiting for a cold
- * start. `/config` and deep-link resolution remain the continuation, marked below so the order is
- * not reinvented.
+ * later slots added the catalogue and unlock clients, then silent login. This slot paints SCR-01
+ * first, then `GET /v1/config`, then the tree. Deep-link resolution remains the continuation.
+ * The splash does not invent comments-on, legal URLs, or a Beans rate (`C4-04`).
  */
 
 /**
- * Silent login is awaited before the first render, because the alternative is a viewer who taps
- * "Unlock" a second after boot and is told to sign in while the login that would have worked is
- * still in flight.
+ * Silent login is awaited before the first *business* render. The splash is already on screen.
+ * The alternative is a viewer who taps "Unlock" a second after boot and is told to sign in while
+ * the login that would have worked is still in flight.
  *
  * It gets a shorter budget than a normal read for the other half of that trade: a misconfigured
  * base URL must not hold the first paint for a full request timeout. Whatever happens, boot
@@ -64,15 +71,20 @@ async function boot(): Promise<void> {
     throw new Error('#root is missing from index.html');
   }
 
+  const view = rootFor(container);
+  view.render(splashElement());
+
   const clientKey = import.meta.env['VITE_TIKTOK_CLIENT_KEY'] ?? '';
   const bridge = createBridge(clientKey);
   const initResult = await bridge.init();
-  if (!initResult.ok) {
-    // W2: a terminal error screen with retry. Nothing downstream is usable without the SDK.
+  if (isInitFailure(initResult)) {
+    // SCR-01: init failure is terminal. Nothing downstream is usable without the SDK.
     console.error('[boot] bridge init failed', initResult.error);
+    view.render(initFailureElement(() => void boot()));
+    return;
   }
 
-  // W2, in this order: capability probe merge → silent login → GET /v1/config → deep-link target.
+  // Capability probe merge stays a later insertion. Order: init → silent login → GET /v1/config.
 
   /**
    * Two transports, one session store, and the rule that separates them: everything business-facing
@@ -120,10 +132,11 @@ async function boot(): Promise<void> {
   }
 
   /**
-   * One transport, eight API clients. The history, favourites, wallet and me reads are session-scoped
-   * and the catalogue and search reads are not, so they are separate interfaces — but they share the
-   * timeout, the single automatic retry, the envelope handling and now the session header, which is
-   * the whole reason `http.ts` exists.
+   * One transport, nine API clients. Config is fetched once here and snapshotted into the tree;
+   * the history, favourites, wallet and me reads are session-scoped and the catalogue and search
+   * reads are not, so they are separate interfaces — but they share the timeout, the single
+   * automatic retry, the envelope handling and now the session header, which is the whole reason
+   * `http.ts` exists.
    *
    * The catalogue reads are anonymous-*capable* (`docs/12-api-contracts.md` §2.2), so they render
    * whether or not the login above produced anything; they still travel on the shared transport,
@@ -149,6 +162,7 @@ async function boot(): Promise<void> {
   const meApi = createMeApi(http);
   const progressApi = createProgressApi(http);
   const playbackApi = createPlaybackApi(http);
+  const config = await configAfterLogin(createConfigApi(http));
 
   /**
    * The session the surfaces see. This is the seam `auth/session.ts` left for the identity slot,
@@ -180,31 +194,34 @@ async function boot(): Promise<void> {
   document.documentElement.lang = DEFAULT_LOCALE;
   document.documentElement.dir = isRtl(DEFAULT_LOCALE) ? 'rtl' : 'ltr';
 
-  createRoot(container).render(
+  view.render(
     <StrictMode>
-      <SessionProvider session={session}>
-        <CatalogApiProvider api={api}>
-          <SearchApiProvider api={search}>
-            <HistoryApiProvider api={historyApi}>
-              <FavoritesApiProvider api={favoritesApi}>
-                <UnlockApiProvider api={unlockApi}>
-                  <WalletApiProvider api={walletApi}>
-                    <MeApiProvider api={meApi}>
-                      <ProgressApiProvider api={progressApi}>
-                        <PlaybackApiProvider api={playbackApi}>
-                          <HashRouter>
-                            <App bridge={bridge} />
-                          </HashRouter>
-                        </PlaybackApiProvider>
-                      </ProgressApiProvider>
-                    </MeApiProvider>
-                  </WalletApiProvider>
-                </UnlockApiProvider>
-              </FavoritesApiProvider>
-            </HistoryApiProvider>
-          </SearchApiProvider>
-        </CatalogApiProvider>
-      </SessionProvider>
+      {wrapWithClientConfig(
+        config,
+        <SessionProvider session={session}>
+          <CatalogApiProvider api={api}>
+            <SearchApiProvider api={search}>
+              <HistoryApiProvider api={historyApi}>
+                <FavoritesApiProvider api={favoritesApi}>
+                  <UnlockApiProvider api={unlockApi}>
+                    <WalletApiProvider api={walletApi}>
+                      <MeApiProvider api={meApi}>
+                        <ProgressApiProvider api={progressApi}>
+                          <PlaybackApiProvider api={playbackApi}>
+                            <HashRouter>
+                              <App bridge={bridge} />
+                            </HashRouter>
+                          </PlaybackApiProvider>
+                        </ProgressApiProvider>
+                      </MeApiProvider>
+                    </WalletApiProvider>
+                  </UnlockApiProvider>
+                </FavoritesApiProvider>
+              </HistoryApiProvider>
+            </SearchApiProvider>
+          </CatalogApiProvider>
+        </SessionProvider>,
+      )}
     </StrictMode>,
   );
 }
