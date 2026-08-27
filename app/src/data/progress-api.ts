@@ -1,8 +1,15 @@
-import type { DramaLastWatched, DramaProgressItem, DramaProgressView, Result } from '@minidrama/shared';
+import type {
+  DramaLastWatched,
+  DramaProgressItem,
+  DramaProgressView,
+  Result,
+  WatchProgressReport,
+} from '@minidrama/shared';
 
 import { asRecord, narrow } from './narrow';
+import { apiFailure } from './failure';
 import type { ApiFailure } from './failure';
-import type { HttpReader } from './http';
+import type { HttpReader, HttpWriter } from './http';
 
 /**
  * The per-drama progress read: "which episodes of this drama has this viewer finished".
@@ -19,21 +26,47 @@ import type { HttpReader } from './http';
  *
  * Auth is required on the server. An anonymous call answers `401`; this client does not invent
  * an empty view for that, because empty is "signed in, watched nothing".
+ *
+ * The write is `PUT /v1/progress/episodes/{episodeId}` (`docs/12-api-contracts.md` §4.7). It is
+ * the heartbeat and the exit flush. The server computes `completed`; extra keys a caller stuffed
+ * onto the report (`completed`, Beans, an unlock) are dropped rather than forwarded.
  */
 
 export function dramaProgressEndpoint(dramaId: string): string {
   return `/v1/progress/dramas/${encodeURIComponent(dramaId)}`;
 }
 
-export interface ProgressApi {
-  fetchDramaProgress(dramaId: string): Promise<Result<DramaProgressView, ApiFailure>>;
+export function episodeProgressEndpoint(episodeId: string): string {
+  return `/v1/progress/episodes/${encodeURIComponent(episodeId)}`;
 }
 
-export function createProgressApi(http: HttpReader): ProgressApi {
+export interface ProgressApi {
+  fetchDramaProgress(dramaId: string): Promise<Result<DramaProgressView, ApiFailure>>;
+  reportEpisodeProgress(
+    episodeId: string,
+    report: WatchProgressReport,
+  ): Promise<Result<void, ApiFailure>>;
+}
+
+export function createProgressApi(http: HttpReader & HttpWriter): ProgressApi {
   return {
     fetchDramaProgress: async (dramaId) => {
       const body = await http.getJson(dramaProgressEndpoint(dramaId));
       return body.ok ? narrow(body.value, narrowDramaProgressView) : body;
+    },
+
+    reportEpisodeProgress: async (episodeId, report) => {
+      const wire = toWireProgressReport(episodeId, report);
+      if (wire === null) {
+        return {
+          ok: false,
+          error: apiFailure({
+            kind: 'MALFORMED',
+            message: 'watch progress report is not a position the server can store',
+          }),
+        };
+      }
+      return http.send('PUT', episodeProgressEndpoint(episodeId), { body: wire });
     },
   };
 }
@@ -139,4 +172,39 @@ function isPositiveInteger(value: unknown): value is number {
 
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * The three fields the contract names, and nothing else.
+ *
+ * `completed` is a server-computed metric (`packages/shared/src/progress.ts`). Copying a client
+ * boolean, a Beans amount, or an unlock receipt into this body is how a heartbeat becomes a
+ * grant. A malformed observation is `MALFORMED` here rather than a network call the server would
+ * have to refuse.
+ */
+export function toWireProgressReport(
+  episodeId: string,
+  report: WatchProgressReport,
+): WatchProgressReport | null {
+  if (typeof episodeId !== 'string' || episodeId.length === 0) {
+    return null;
+  }
+  if (!isNonNegativeInteger(report.positionSec)) {
+    return null;
+  }
+  if (!isPositiveInteger(report.durationSec)) {
+    return null;
+  }
+  if (typeof report.clientUpdatedAt !== 'string' || report.clientUpdatedAt.length === 0) {
+    return null;
+  }
+  if (!Number.isFinite(Date.parse(report.clientUpdatedAt))) {
+    return null;
+  }
+
+  return {
+    positionSec: report.positionSec,
+    durationSec: report.durationSec,
+    clientUpdatedAt: report.clientUpdatedAt,
+  };
 }

@@ -25,10 +25,12 @@ import {
   stubPlaybackApi,
   vipPlaybackFailure,
 } from '../testing/playback-fixtures';
+import { stubProgressApi } from '../testing/progress-fixtures';
 import { renderSurface } from '../testing/render';
 import type { EpisodeItem } from '@minidrama/shared';
 import type { CatalogApi } from '../data/catalog-api';
 import type { PlaybackApi } from '../data/playback-api';
+import type { ProgressApi } from '../data/progress-api';
 
 beforeEach(() => {
   MockVePlayer.reset();
@@ -55,6 +57,7 @@ function renderPlayer(options: {
   readonly episodeId?: string;
   readonly api?: CatalogApi;
   readonly playbackApi?: PlaybackApi;
+  readonly progressApi?: ProgressApi;
 }) {
   const episodeId = options.episodeId ?? 'ep_test_0001';
   return renderSurface(
@@ -64,6 +67,7 @@ function renderPlayer(options: {
     {
       api: options.api ?? playCatalog([episodeItem()]),
       playbackApi: options.playbackApi ?? stubPlaybackApi(),
+      ...(options.progressApi === undefined ? {} : { progressApi: options.progressApi }),
       path: `/play/${episodeId}`,
     },
   );
@@ -448,5 +452,28 @@ describe('the demo album does not ship', () => {
     expect(source).not.toMatch(/vid_demo_/);
     expect(source).not.toMatch(/album_demo_/);
     expect(source).not.toMatch(/DEMO_ALBUM_ID|DEMO_EPISODE_COUNT|demoEpisodeId/);
+  });
+});
+
+describe('watch progress heartbeats', () => {
+  it('reports the route episode on pause, never a demo id or a completed flag', async () => {
+    const progressApi = stubProgressApi();
+    renderPlayer({
+      bridge: await readyBridge(),
+      progressApi,
+    });
+    const instance = await player();
+    instance.tick(11, 90);
+    instance.pause();
+
+    await waitFor(() => {
+      expect(progressApi.progressReports).toHaveLength(1);
+    });
+    expect(progressApi.progressReports[0]?.episodeId).toBe('ep_test_0001');
+    expect(progressApi.progressReports[0]?.report.positionSec).toBe(11);
+    expect(progressApi.progressReports[0]?.report.durationSec).toBe(90);
+    expect(JSON.stringify(progressApi.progressReports)).not.toMatch(
+      /completed|ep_demo_|vid_demo_|beans/i,
+    );
   });
 });

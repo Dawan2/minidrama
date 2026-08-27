@@ -57,7 +57,10 @@ export interface HttpRequestInit {
   readonly method: HttpMethod;
   readonly headers: Readonly<Record<string, string>>;
   readonly signal: AbortSignal;
-  /** Already serialised. Present on a `POST` and absent on every other verb. */
+  /**
+   * Already serialised. Present on a `POST`, and on a `PUT` that carries a JSON body (watch
+   * progress). Favourite writes still omit it.
+   */
   readonly body?: string;
 }
 
@@ -147,6 +150,15 @@ export interface HttpReader {
   getJson(path: string, query?: QueryParams): Promise<Result<unknown, ApiFailure>>;
 }
 
+export interface HttpWriteOptions {
+  readonly query?: QueryParams;
+  /**
+   * JSON value, serialised here. Watch-progress `PUT` sends `{ positionSec, durationSec,
+   * clientUpdatedAt }`. Favourite writes omit it.
+   */
+  readonly body?: unknown;
+}
+
 export interface HttpWriter {
   /**
    * An idempotent write whose answer is its status, not its body.
@@ -154,9 +166,14 @@ export interface HttpWriter {
    * The favourite writes answer `204` (`docs/12-api-contracts.md` §4.3), so a success has nothing
    * to parse and this never calls `json()` on one — a `204` has no body, and `Response.json()`
    * rejects on an empty one, which would turn every successful write into a `MALFORMED` failure. A
-   * *failed* write still carries the error envelope, and that is still read.
+   * *failed* write still carries the error envelope, and that is still read. Progress `PUT` is the
+   * same 204, with a body; last-write-wins on the server makes the automatic retry safe.
    */
-  send(method: WriteMethod, path: string, query?: QueryParams): Promise<Result<void, ApiFailure>>;
+  send(
+    method: WriteMethod,
+    path: string,
+    options?: HttpWriteOptions,
+  ): Promise<Result<void, ApiFailure>>;
 }
 
 export interface HttpPoster {
@@ -297,12 +314,22 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
         'JSON',
       ),
 
-    send: async (method, path, query) => {
+    send: async (method, path, writeOptions) => {
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (writeOptions?.body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+      }
       const result = await withRetry(
-        buildUrl(options.baseUrl, path, query),
+        buildUrl(options.baseUrl, path, writeOptions?.query),
         // `Accept` is sent on a write too: the success has no body, but the failure envelope is
         // JSON and it is the half of the answer a surface has to render.
-        { method, headers: { Accept: 'application/json' } },
+        {
+          method,
+          headers,
+          ...(writeOptions?.body === undefined
+            ? {}
+            : { body: JSON.stringify(writeOptions.body) }),
+        },
         'NONE',
       );
       // The success value is discarded rather than cast: a write's answer is its status, and a body

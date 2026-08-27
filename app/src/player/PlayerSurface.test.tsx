@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
-import type { PlaybackDescriptor } from '@minidrama/shared';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ok, type PlaybackDescriptor, type WatchProgressReport } from '@minidrama/shared';
 
 import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from './mock-veplayer';
@@ -187,5 +187,63 @@ describe('PlayerSurface', () => {
 
     expect(await screen.findByTestId('player-unavailable')).toBeDefined();
     expect(MockVePlayer.instances).toHaveLength(0);
+  });
+
+  it('flushes watch progress on pause, without inventing completed', async () => {
+    const reports: Array<{ episodeId: string } & WatchProgressReport> = [];
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        playlist={playlist}
+        progress={{
+          intervalSec: 10,
+          report: async (episodeId, report) => {
+            reports.push({ episodeId, ...report });
+            return ok(undefined);
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    MockVePlayer.instances[0]!.tick(7.8, 90);
+    MockVePlayer.instances[0]!.pause();
+
+    await waitFor(() => {
+      expect(reports).toHaveLength(1);
+    });
+    expect(reports[0]).toMatchObject({
+      episodeId: 'ep_1',
+      positionSec: 7,
+      durationSec: 90,
+    });
+    expect(JSON.stringify(reports)).not.toMatch(/completed|beans/i);
+  });
+
+  it('does not invent a duration for a timeupdate that only has currentTime', async () => {
+    const report = vi.fn(async () => ok(undefined));
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        playlist={playlist}
+        progress={{ intervalSec: 10, report }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    MockVePlayer.instances[0]!.emitForTest('timeupdate', { currentTime: 4 });
+    MockVePlayer.instances[0]!.pause();
+    await waitFor(() => {
+      expect(MockVePlayer.instances[0]?.playing).toBe(false);
+    });
+    expect(report).not.toHaveBeenCalled();
   });
 });
