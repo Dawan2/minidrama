@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import { EmptyState, RetryableError, Skeleton, TerminalError } from './states';
-import { CoverImage } from './CoverImage';
 import { ROUTES } from '../routes/routes';
 import { classifyFailure } from '../data/failure';
 import { httpFailure, offlineFailure } from '../testing/catalog-fixtures';
@@ -147,41 +146,5 @@ describe('the terminal error state', () => {
     expect(state.getAttribute('data-reason')).toBe('REJECTED');
     expect(state.textContent).toContain('We could not load your list.');
     expect(state.textContent).not.toContain('drama');
-  });
-});
-
-/**
- * Every `coverUrl` in the seed catalogue points at `cdn.example.invalid`, which is not a registered
- * trusted domain, so today every cover fails to load (`docs/handoff/w2-work-d.md` §5). The same
- * thing happens in production the first time an image origin is missed in the Portal.
- */
-describe('a cover image', () => {
-  it('renders the image with the title as its alt text', () => {
-    render(<CoverImage src="https://cdn.example.invalid/a.jpg" alt="The Heiress" />);
-
-    const image = screen.getByTestId('cover-image');
-    expect(image.getAttribute('src')).toBe('https://cdn.example.invalid/a.jpg');
-    expect(image.getAttribute('alt')).toBe('The Heiress');
-    expect(image.getAttribute('loading')).toBe('lazy');
-  });
-
-  it('degrades to a labelled placeholder instead of a broken-image icon', () => {
-    render(<CoverImage src="https://cdn.example.invalid/a.jpg" alt="The Heiress" />);
-
-    fireEvent.error(screen.getByTestId('cover-image'));
-
-    expect(screen.queryByTestId('cover-image')).toBeNull();
-    const placeholder = screen.getByTestId('cover-placeholder');
-    expect(placeholder.getAttribute('aria-label')).toBe('The Heiress');
-  });
-
-  // Otherwise one broken cover keeps the placeholder for whatever scrolls into its position next.
-  it('gives a new source a fresh chance to load', () => {
-    const { rerender } = render(<CoverImage src="https://a.invalid/1.jpg" alt="One" />);
-    fireEvent.error(screen.getByTestId('cover-image'));
-    expect(screen.getByTestId('cover-placeholder')).toBeDefined();
-
-    rerender(<CoverImage src="https://a.invalid/2.jpg" alt="Two" />);
-    expect(screen.getByTestId('cover-image')).toBeDefined();
   });
 });

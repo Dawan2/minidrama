@@ -269,3 +269,49 @@ describe('the client never decides an unlock', () => {
     expect(offendersMatching(/viewerAccess:\s*[{'"]/, permitted)).toEqual([]);
   });
 });
+
+/**
+ * The cover allowlist has exactly one place it can be applied, as a source scan.
+ *
+ * `CoverImage` checks its `src` with `checkCoverUrl` before it renders an `<img>`
+ * (`packages/config/src/cover-hosts.ts`), which is what stops a string out of the content database
+ * from becoming a request to a host nobody registered. That guarantee holds only while `CoverImage`
+ * is the *only* way a cover reaches the DOM: a second `<img>` somewhere else is a second decision,
+ * and it will be the one that renders whatever the response happened to contain.
+ *
+ * `CoverImage.test.tsx` proves the gate refuses what it should. This proves nothing walks around it.
+ */
+describe('a cover URL is checked before the browser is asked to fetch it', () => {
+  const COVER_COMPONENT = join('src', 'components', 'CoverImage.tsx');
+
+  it('reaches an <img> only through CoverImage', () => {
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles()) {
+      const path = relativeToApp(file);
+      if (isTestFile(path) || path === COVER_COMPONENT) {
+        continue;
+      }
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, index) => {
+          if (!isCommentLine(line) && /<img[\s/>]/.test(line)) {
+            offenders.push(`${path}:${String(index + 1)} ${line.trim()}`);
+          }
+        });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('and that one component takes the decision from the registry rather than its own', () => {
+    const source = readFileSync(join(APP_ROOT, COVER_COMPONENT), 'utf8');
+
+    expect(source).toContain("from '@minidrama/config'");
+    expect(source).toContain('checkCoverUrl(src)');
+    // The prop is not what gets fetched: the checked, parsed URL is. `src={src}` would make the
+    // check advisory, and it is the one line that would still pass every behavioural test that
+    // only asserts an image appeared.
+    expect(source).not.toContain('src={src}');
+  });
+});
