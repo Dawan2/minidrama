@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "build": "tsc --noEmit",
     "migrate": "tsx src/db/cli.ts up",
-    "migrate:down": "tsx src/db/cli.ts down"
+    "migrate:down": "tsx src/db/cli.ts down",
+    "check:migrate": "tsx src/db/check-migrate-cli.ts"
   },
   "dependencies": {
     "@minidrama/config": "workspace:*",
