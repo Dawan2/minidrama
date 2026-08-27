@@ -595,12 +595,14 @@ Sources are abbreviated: **OP** = Feishu One Page (`docs/research/one-page-feish
 | Newly resolved (`[未知]`/`[待验证]` ⇒ `[已验证]`) | **7** | U-07, U-10, U-15, U-18, U-20, U-21, U-22 |
 | Mechanism resolved, values pending | **2** | U-09, U-11 |
 | Narrowed but still open | **5** | U-05, U-06, U-12, U-13, U-14 |
-| Unchanged and still open | **3** | U-16 (EME), U-17, U-19 |
-| Already verified, re-confirmed | **5** | U-01, U-02, U-03, U-04, plus U-16's MSE half |
+| Unchanged and still open | **4** | U-08, U-16 (the EME half only — MSE is answered), U-17, U-19 |
+| Already verified, re-confirmed | **4** | U-01, U-02, U-03, U-04 |
+| | **22** | |
 
-Ten items were `[未知]` before this slot; **four of those are now verified** (U-07, U-15, U-18, U-21),
-and the remaining six are narrowed. **No item that was previously non-blocking has become blocking,
-and one previously-blocking item (U-07 / blocker B-2) is now unblocked.**
+Twelve rows carried the `[未知]` marker before this slot — note that §2.2's own prose says ten, but
+the table has twelve — and **four of them are now `[已验证]`** (U-07, U-15, U-18, U-21). The
+remaining eight are narrowed or unchanged. **No item that was previously non-blocking has become
+blocking, and one previously-blocking item (U-07 / blocker B-2) is now unblocked.**
 
 The judgement in `docs/design/minis-integration.md` §11.2 — that none of the open questions blocks
 Wave 2 — still holds, and holds more strongly: every remaining unknown is either behind an

@@ -161,7 +161,7 @@ different packages with different binaries (`tiktok-minis-cli` / `minis` versus 
 hand-author it; never hard-code key names in build scripts. **Resolve at:** first `minis init` on the
 real toolchain in Wave 2.
 
-### G-R14 — Undocumented webhook field `pay_type`
+### G-R4 — Undocumented webhook field `pay_type`
 
 The One Page §6.1.1 instructs developers to monitor **`pay_type`** in webhooks to identify the payment
 channel, because the US supports web pay. The field appears in no public webhook reference, whose
@@ -198,7 +198,7 @@ Recorded so that a reader of the older documents does not chase questions that n
 | Was | Now | Where the answer is |
 |---|---|---|
 | **B-1** — the official One Page was unavailable, so all platform conclusions rested on public docs | **Closed.** The document was retrieved and extracted in full text | `docs/research/one-page-feishu.md` |
-| **B-2 / U-07 / Q-MI-2** — webhook signature algorithm and field list unknown | **Closed (algorithm).** `Tiktok-Signature: t=…,s=…`; `signed_payload = t + "." + raw_body`; HMAC-SHA256 keyed with `client_secret`; then a timestamp window. Field list remains non-exhaustive — see G-R14 | `docs/research/tiktok-minis-official.md` §6.3 |
+| **B-2 / U-07 / Q-MI-2** — webhook signature algorithm and field list unknown | **Closed (algorithm).** `Tiktok-Signature: t=…,s=…`; `signed_payload = t + "." + raw_body`; HMAC-SHA256 keyed with `client_secret`; then a timestamp window. Field list remains non-exhaustive — see G-R4 | `docs/research/tiktok-minis-official.md` §6.3 |
 | **O-1** — `TTMinis.*` versus `TTMinis.game.*` | **Closed.** Mini dramas use bare `TTMinis.*`; `TTMinis.game.*` is the mini-games product line, with a different CLI too | `docs/research/tiktok-minis-official.md` §2 |
 | **U-15** — network/device/locale signal | **Closed, negatively.** "Currently no JS API is provided"; use standard browser capabilities | `docs/research/one-page-feishu.md` §9 |
 | **U-18 / Q-MI-6** — server-side ad reward verification | **Closed, negatively.** No SSV exists; backend reward logging is the platform's own recommendation for strict risk control | `docs/research/tiktok-minis-official.md` §6.4 |
