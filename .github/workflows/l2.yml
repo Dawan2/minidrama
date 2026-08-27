@@ -4,8 +4,9 @@ name: L2
 # file is a second workflow on purpose: adding jobs here must not become a reason to skip,
 # filter, or continue-on-error the L1 verify suite in ci.yml.
 #
-# G2.1 is the L1 re-run, which ci.yml already does on main. This workflow is G2.8 (licenses)
-# and G2.7 (migrate up → down → up on sqlite). G2.2–G2.6 are still absent.
+# G2.1 is the L1 re-run, which ci.yml already does on main. This workflow is G2.8 (licenses),
+# G2.7 (migrate up → down → up on sqlite), and G2.2 (integrate against a sqlite file).
+# G2.3–G2.6 are still absent.
 
 on:
   push:
@@ -66,3 +67,26 @@ jobs:
       # continue-on-error: a no-op rollback is a red merge-level gate, not a warning.
       - name: Migrate up, down, up
         run: pnpm run check:migrate
+
+  integrate:
+    name: G2.2 integrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # In-memory, postgres://, redis://, or a stubbed 201 trade order exits 1. There is no
+      # continue-on-error: a bounce that never hit a file is a red merge-level gate, not a warning.
+      - name: Integrate against sqlite
+        run: pnpm run check:integrate
