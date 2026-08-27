@@ -15,6 +15,7 @@
     "check:licenses": "tsx src/cli/check-licenses.ts",
     "check:coverage": "tsx src/cli/check-coverage.ts",
     "check:sast": "tsx src/cli/check-sast.ts",
+    "check:codeql": "tsx src/cli/check-codeql.ts",
     "check:sca": "tsx src/cli/check-sca.ts"
   },
   "devDependencies": {

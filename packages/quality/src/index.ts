@@ -36,6 +36,20 @@ export {
 export type { SastCheckArgs, SastFinding, SastRule } from './sast.js';
 
 export {
+  REQUIRED_CODEQL_QUERY_USES,
+  REQUIRED_CODEQL_SUITE,
+  USAGE as CODEQL_USAGE,
+  buildAnalyzeArgv,
+  buildCreateArgv,
+  defaultConfigPath,
+  evaluateSarif,
+  formatCodeqlFinding,
+  parseCodeqlArgs,
+  runCodeqlCheck,
+} from './codeql.js';
+export type { CodeqlCheckArgs, CodeqlFinding, CodeqlRule } from './codeql.js';
+
+export {
   HIGH_FIX_GRACE_MS,
   LOCKFILE_NAME,
   USAGE as SCA_USAGE,
