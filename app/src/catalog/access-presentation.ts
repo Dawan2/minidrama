@@ -10,9 +10,10 @@ import type { ViewerAccess } from '@minidrama/shared';
  * - **`NEED_VIP`** is a different sale, with a different product and a different button.
  * - **`UNAVAILABLE`** is not a sale at all. The content is not serveable — withdrawn, not
  *   transcoded, refused by the platform — and offering an unlock for it sells access to something
- *   that still would not play. The server already refuses to price it
- *   (`docs/handoff/w2-work-d.md` decision S31); this module is the client half of the same rule,
- *   because a price computed on the client would reintroduce exactly what the server declined.
+ *   that still would not play, with the refund on us (`docs/handoff/w2-work-d.md` decision S31).
+ *   The trap is concrete: `priceCoins` is a property of the episode and stays populated on an
+ *   unavailable one, so episode 7 of `drm_revenge_0001` arrives today as `UNAVAILABLE` with a
+ *   price of 60. Reading the price rather than the reason is all it takes to sell it.
  * - **A platform block** is ours, not the viewer's. When the client cannot take money — payment or
  *   subscription capability missing on this TikTok build, or the ability not yet granted to the app
  *   (`docs/02-information-architecture.md` §9: "all channels unavailable → not purchasable yet") —

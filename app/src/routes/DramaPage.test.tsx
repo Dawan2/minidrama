@@ -282,9 +282,14 @@ describe('episode access states are visibly different', () => {
     expect(screen.getByTestId('episode-action').tagName).not.toBe('A');
   });
 
-  // The single most important assertion in this slot. An unavailable episode is not a conversion
-  // opportunity: an unlock sold for it buys access to something that still would not play.
-  it('never prices or offers an unavailable episode', async () => {
+  /**
+   * The single most important assertion in this slot, and not a hypothetical one. Episode 7 of
+   * `drm_revenge_0001` in the seed catalogue is served as `UNAVAILABLE` *with* `priceCoins: 60` —
+   * the price is a property of the episode and the server does not blank it. A client that read the
+   * price rather than the reason would offer to sell access to something that cannot play, and the
+   * refund would be ours (`docs/handoff/w2-work-d.md` decision S31).
+   */
+  it('never prices or offers an unavailable episode, even when the payload carries a price', async () => {
     await renderWithEpisodes([
       episodeItem({ priceCoins: 30, viewerAccess: viewerAccess('UNAVAILABLE') }),
     ]);
