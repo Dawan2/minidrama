@@ -57,10 +57,12 @@ minidrama/
 │           └── playback/
 ├── packages/
 │   ├── shared/                 # Result, error codes, playback descriptor — client and server
-│   └── config/                 # trusted-domain registry + minis.config.json generator
+│   ├── config/                 # trusted-domain registry + minis.config.json generator
+│   └── quality/                # G2.8 license whitelist; not bundled
 ├── contracts/openapi.yaml      # OpenAPI 3.1 — the HTTP surface's source of truth
 ├── docs/                       # architecture, design, plan, engineering (this file)
-└── .github/workflows/ci.yml    # the gate
+├── .github/workflows/ci.yml    # L1: format, lint, types, tests, build, guardrails
+└── .github/workflows/l2.yml    # L2: G2.8 license whitelist; does not skip L1
 ```
 
 This matches the Wave 2 target layout in `docs/architecture/tech-stack.md` §7, with the module
@@ -201,10 +203,12 @@ pnpm lint
 pnpm typecheck
 pnpm build
 pnpm check:guardrails     # requires the build first; a missing app/dist fails the check
+pnpm check:licenses       # G2.8; requires the install; a missing store fails the check
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
-`pnpm verify` is exactly what CI runs, in the same order.
+`pnpm verify` is exactly what L1 CI runs, in the same order. L2 (`check:licenses`) is a second
+workflow and is not folded into `verify`, so adding it cannot become a reason to skip a verify step.
 
 ---
 
