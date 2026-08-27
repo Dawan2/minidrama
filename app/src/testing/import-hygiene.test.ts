@@ -315,3 +315,40 @@ describe('a cover URL is checked before the browser is asked to fetch it', () =>
     expect(source).not.toContain('src={src}');
   });
 });
+
+/**
+ * Native `<video>` is prohibited in the source, not only in the artifact. ESLint and the bundle
+ * scan already reject it; this is the backstop for an `eslint-disable` that would otherwise
+ * leave a tag in a file the compiler never sees as JSX.
+ */
+describe('native video does not appear in app source', () => {
+  it('contains no video tag and no createElement("video") outside tests', () => {
+    const offenders: string[] = [];
+    const videoTag = ['<', 'video'].join('');
+    const createVideo = "createElement('video')";
+    const createVideoDouble = 'createElement("video")';
+
+    for (const file of sourceFiles()) {
+      const path = relativeToApp(file);
+      if (isTestFile(path)) {
+        continue;
+      }
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, index) => {
+          if (isCommentLine(line)) {
+            return;
+          }
+          if (
+            line.includes(videoTag) ||
+            line.includes(createVideo) ||
+            line.includes(createVideoDouble)
+          ) {
+            offenders.push(`${path}:${String(index + 1)} ${line.trim()}`);
+          }
+        });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});

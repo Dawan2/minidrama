@@ -101,12 +101,23 @@ export interface HttpClientOptions {
   /**
    * Called when a request that **did** carry a token was answered `401`. The token is dead; the
    * session holder drops it so the next request is honestly anonymous instead of replaying a
-   * credential the server has already refused.
+   * credential the server has already refused, and re-acquires one for the requests after it.
    *
-   * Not a refresh-and-replay interceptor (IA §8.2). Replaying a `POST` after a refresh is a second
-   * write, and the only `POST` here opens a payment — see rule 4.
+   * Still not a refresh-and-replay interceptor (IA §8.2): whatever this does, the request that was
+   * refused is not sent again from here. Replaying a `POST` after a refresh is a second write, and
+   * the only `POST` here opens a payment — see rule 4.
    */
   readonly onCredentialRefused?: () => void;
+  /**
+   * Called when a request that carried a token was **accepted**. The mirror of the hook above, and
+   * the only evidence this client ever gets that its credential is currently good.
+   *
+   * It exists because a bounded re-login needs something to count against. Counting logins bounds
+   * nothing useful — a server that issues tokens and then refuses them keeps every login
+   * "successful" — so the budget in `session/session-recovery.ts` is refilled by this instead: the
+   * one signal that says the credential worked on a real request.
+   */
+  readonly onCredentialAccepted?: () => void;
 }
 
 export interface PostOptions {
@@ -220,8 +231,12 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     // for no reason. Checked before the body is parsed, and before the `204` shortcut below, so a
     // refused credential is noticed on a write as well as on a read — whether or not a gateway
     // bothered to send an envelope.
-    if (response.status === 401 && AUTHORIZATION_HEADER in bearer) {
-      options.onCredentialRefused?.();
+    if (AUTHORIZATION_HEADER in bearer) {
+      if (response.status === 401) {
+        options.onCredentialRefused?.();
+      } else if (response.ok) {
+        options.onCredentialAccepted?.();
+      }
     }
 
     if (response.ok && successBody === 'NONE') {

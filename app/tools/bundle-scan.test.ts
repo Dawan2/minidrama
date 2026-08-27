@@ -93,6 +93,10 @@ describe('the JSX runtime', () => {
     ['a discriminated union tag', 'const asset = { kind: "video", url: u };'],
     ['a lookup table', 'const posters = { video: p, audio: q };'],
     ['an element name inside a longer word', 'jsx("video-card", { id: "x" })'],
+    [
+      'the fail-closed replace installer',
+      'n.setValidateVideoReplaceElement(function(e,r){return null})',
+    ],
   ])('leaves %s alone', (_label, source) => {
     expect(rulesFor(source)).toEqual([]);
   });
