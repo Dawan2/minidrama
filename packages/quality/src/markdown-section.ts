@@ -21,8 +21,13 @@ export function markdownSection(markdown: string, headingLine: string): string {
 
   let end = lines.length;
   for (let index = start + 1; index < lines.length; index += 1) {
-    const next = /^(#+)\s/.exec(lines[index] ?? '');
-    if (next !== null && next[1].length <= level) {
+    const line = lines[index];
+    if (line === undefined) {
+      continue;
+    }
+    const next = /^(#+)\s/.exec(line);
+    const marks = next?.[1];
+    if (marks !== undefined && marks.length <= level) {
       end = index;
       break;
     }
