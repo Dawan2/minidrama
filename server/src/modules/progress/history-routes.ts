@@ -74,8 +74,9 @@ export async function watchHistoryRoutes(
       );
     }
 
-    // A viewer's history is per-viewer and short-lived by nature; a shared cache holding it is a
-    // cross-user leak waiting for a misconfigured proxy (`docs/design/api-contracts.md` §7.3).
+    // A history list is the most complete picture of a viewer's behaviour this product holds, and a
+    // shared cache holding it is a cross-user leak waiting for a misconfigured proxy. Set before the
+    // answer is known, so the refusals carry it too.
     const answer = reply.header('cache-control', 'private, no-store');
 
     const rows = await store.list(viewer.value, WATCH_HISTORY_SCAN_LIMIT);
