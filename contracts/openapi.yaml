@@ -68,6 +68,111 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/auth/login:
+    post:
+      operationId: login
+      summary: Exchange a TikTok authorization code for a session
+      description: |
+        `TTMinis.login()` yields a short-lived code on the client; the exchange happens server-side
+        because a browser cannot call the OpenAPI directly (CORS) and because the client secret may
+        never leave the server (U-03).
+
+        Minis launches with `TIKTOK` only. The other providers in `docs/design/api-contracts.md` §5
+        are reserved for future clients and are rejected here.
+
+        The access token is opaque and short-lived. No refresh token is issued: the Minis client
+        holds the access token in memory and re-runs silent login when it expires.
+      tags: [identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: A session was issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: |
+            The platform rejected the authorization code — expired, already spent, or issued to
+            another client key. The client answers by running silent login again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: |
+            The identity provider could not be reached or is not configured. `AUTH_PROVIDER_ERROR`
+            is ours to fix, not the caller's, and the response does not distinguish the two cases.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/payments/callbacks/tiktok:
+    post:
+      operationId: receiveTiktokPaymentCallback
+      summary: Inbound TikTok payment webhook
+      description: |
+        Server-to-server only; never called by a client. TikTok signs the request with
+        `Tiktok-Signature: t=<epoch>,s=<hex>`, where the signed payload is
+        `t + "." + <raw request body>` and the key is the client secret
+        (`docs/research/tiktok-minis-official.md` §6.3).
+
+        Verification is fail-closed and has no bypass. A request that cannot be authenticated —
+        including one arriving at a deployment that holds no signing key — is rejected, and every
+        verification failure answers with the same status and the same code so the endpoint cannot
+        be used as an oracle.
+
+        Delivery is at-least-once with 72 hours of retries, so a redelivery is normal traffic:
+        it is deduplicated on `trade_order_id` and answered `200`. A non-200 is treated as failed
+        delivery and brings the event back.
+
+        The raw body is stored before it is parsed and before it is verified. The envelope field set
+        is documented-but-not-exhaustive (gap G-R4), so the stored bytes are what makes a historical
+        event replayable once the real field list is known.
+      tags: [platform-tiktok]
+      parameters:
+        - name: Tiktok-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: '^t=[0-9]+,s=[0-9a-fA-F]{64}$'
+          description: Sent by TikTok. `t` is UTC epoch seconds, `s` is the HMAC-SHA256 hex digest.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TiktokWebhookEnvelope'
+      responses:
+        '200':
+          description: |
+            The event was authenticated and accepted, or recognised as a redelivery. Returned
+            immediately; fulfilment is not part of this response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAck'
+        '400':
+          description: |
+            Rejected. `PAYMENT_CALLBACK_INVALID_SIGN` covers every authenticity failure without
+            distinguishing them; `COMMON_VALIDATION_FAILED` means the request was authentic but its
+            envelope could not be interpreted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          $ref: '#/components/responses/Error'
+
 components:
   schemas:
     Health:
@@ -110,6 +215,71 @@ components:
         resumePositionSec:
           type: integer
           minimum: 0
+
+    LoginRequest:
+      type: object
+      required: [provider, authCode]
+      properties:
+        provider:
+          type: string
+          enum: [TIKTOK]
+        authCode:
+          type: string
+          minLength: 1
+          description: |
+            Single-use credential from `TTMinis.login()`. Never logged, never echoed, never stored.
+
+    LoginResponse:
+      type: object
+      required: [accessToken, expiresInSec, openId]
+      properties:
+        accessToken:
+          type: string
+          description: Opaque and short-lived. The Minis client holds it in memory only.
+        expiresInSec:
+          type: integer
+          minimum: 1
+        openId:
+          type: string
+          description: |
+            The TikTok user identifier and our user primary key. Stable, and scoped to the client
+            key rather than to a region (U-04).
+
+    TiktokWebhookEnvelope:
+      type: object
+      required: [client_key, event, create_time, user_openid, content]
+      description: |
+        TikTok's own envelope, in its own naming. Additional properties are permitted on purpose:
+        the One Page documents `pay_type`, which appears in no public reference, so the field set is
+        known to be incomplete (G-R4).
+      additionalProperties: true
+      properties:
+        client_key:
+          type: string
+        event:
+          type: string
+          examples: [minis.trade_order.redeem.success]
+        create_time:
+          type: integer
+          description: UTC epoch seconds.
+        user_openid:
+          type: string
+        content:
+          type: string
+          description: |
+            A serialised JSON *string*, not an object. Parsed separately from the envelope, so a
+            `content` we cannot interpret does not invalidate a signature we already verified.
+
+    WebhookAck:
+      type: object
+      required: [received, duplicate]
+      properties:
+        received:
+          type: boolean
+          const: true
+        duplicate:
+          type: boolean
+          description: True when this delivery repeated an event already claimed.
 
     ErrorResponse:
       type: object
