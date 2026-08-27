@@ -53,7 +53,16 @@ export function refuseNonFileDatabase(databaseUrl: string): string | undefined {
   return undefined;
 }
 
-function errorCode(payload: unknown): string | undefined {
+export interface ProbeApp {
+  inject(opts: {
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    payload?: unknown;
+  }): Promise<{ statusCode: number; json: <T>() => T }>;
+}
+
+export function readErrorCode(payload: unknown): string | undefined {
   if (typeof payload !== 'object' || payload === null || !('error' in payload)) {
     return undefined;
   }
@@ -62,6 +71,33 @@ function errorCode(payload: unknown): string | undefined {
     return undefined;
   }
   return typeof error.code === 'string' ? error.code : undefined;
+}
+
+function asProbe(app: FastifyInstance): ProbeApp {
+  return {
+    inject: async (opts) => {
+      const args: {
+        method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+        url: string;
+        headers?: Record<string, string>;
+        payload?: object;
+      } = {
+        method: opts.method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+        url: opts.url,
+      };
+      if (opts.headers !== undefined) {
+        args.headers = opts.headers;
+      }
+      if (opts.payload !== undefined && typeof opts.payload === 'object' && opts.payload !== null) {
+        args.payload = opts.payload;
+      }
+      const response = (await app.inject(args)) as {
+        statusCode: number;
+        json: <T>() => T;
+      };
+      return { statusCode: response.statusCode, json: response.json };
+    },
+  };
 }
 
 async function startApp(databaseUrl: string): Promise<FastifyInstance> {
@@ -77,7 +113,7 @@ async function startApp(databaseUrl: string): Promise<FastifyInstance> {
   return app;
 }
 
-async function login(app: FastifyInstance, userId: string): Promise<string | IntegrateCheckResult> {
+export async function login(app: ProbeApp, userId: string): Promise<string | IntegrateCheckResult> {
   const response = await app.inject({
     method: 'POST',
     url: '/v1/auth/login',
@@ -96,7 +132,7 @@ async function login(app: FastifyInstance, userId: string): Promise<string | Int
   return token;
 }
 
-async function probeFirstProcess(app: FastifyInstance): Promise<string | IntegrateCheckResult> {
+export async function probeFirstProcess(app: ProbeApp): Promise<string | IntegrateCheckResult> {
   const health = await app.inject({ method: 'GET', url: '/health' });
   if (health.statusCode !== 200) {
     return { ok: false, message: `GET /health returned ${String(health.statusCode)}` };
@@ -180,20 +216,20 @@ async function probeFirstProcess(app: FastifyInstance): Promise<string | Integra
         'POST /v1/unlock/coin-orders returned 201: G2.2 requires the refusing trade-order gateway, not a stubbed payment',
     };
   }
-  if (order.statusCode !== 503 || errorCode(order.json()) !== 'COMMON_SERVICE_UNAVAILABLE') {
+  if (order.statusCode !== 503 || readErrorCode(order.json()) !== 'COMMON_SERVICE_UNAVAILABLE') {
     return {
       ok: false,
       message:
         `POST /v1/unlock/coin-orders returned ${String(order.statusCode)} ` +
-        `${errorCode(order.json()) ?? '(no code)'}; expected 503 COMMON_SERVICE_UNAVAILABLE`,
+        `${readErrorCode(order.json()) ?? '(no code)'}; expected 503 COMMON_SERVICE_UNAVAILABLE`,
     };
   }
 
   return tokenA;
 }
 
-async function probeAfterBounce(
-  app: FastifyInstance,
+export async function probeAfterBounce(
+  app: ProbeApp,
   tokenA: string,
 ): Promise<IntegrateCheckResult | undefined> {
   const drama = await app.inject({ method: 'GET', url: `/v1/dramas/${DRAMA_ID}` });
@@ -334,13 +370,13 @@ export async function checkIntegrate(options: {
   let second: FastifyInstance | undefined;
   try {
     first = await startApp(options.databaseUrl);
-    const tokenOrError = await probeFirstProcess(first);
+    const tokenOrError = await probeFirstProcess(asProbe(first));
     if (typeof tokenOrError !== 'string') return tokenOrError;
     await first.close();
     first = undefined;
 
     second = await startApp(options.databaseUrl);
-    const bounced = await probeAfterBounce(second, tokenOrError);
+    const bounced = await probeAfterBounce(asProbe(second), tokenOrError);
     if (bounced !== undefined) return bounced;
 
     return {
