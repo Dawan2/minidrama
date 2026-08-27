@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { err, ok } from '@minidrama/shared';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { HomePage } from './HomePage';
 import {
@@ -223,19 +223,30 @@ describe('feed paging', () => {
     expect(screen.getAllByTestId('feed-card')).toHaveLength(1);
   });
 
-  // The cards the viewer is reading stay on screen. The error goes underneath them.
+  /**
+   * The cards the viewer is reading stay on screen. The error goes underneath them.
+   *
+   * Driven through `act` rather than the `findBy*`/`waitFor` idiom the rest of this file uses. This
+   * is the only assertion here that needs two rounds of the stub to land — the first page, and then
+   * the append that fails — and each async utility is a one-second wall-clock budget that a worker
+   * descheduled under parallel load can spend without doing any work. `act` returns when React has
+   * run out of work rather than when a timer says so, which is a condition that starvation delays
+   * but cannot break, so nothing here is left to lose a race.
+   */
   it('keeps the loaded cards when the next page fails', async () => {
     const api = stubCatalogApi({
       feed: (request) =>
         request.cursor === undefined ? ok(page([feedCard()], 'cur_2')) : err(offlineFailure()),
     });
-    renderSurface(<HomePage />, { api });
 
-    fireEvent.click(await screen.findByTestId('load-more'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('retryable-error')).toBeDefined();
+    await act(async () => {
+      renderSurface(<HomePage />, { api });
     });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('load-more'));
+    });
+
+    expect(screen.getByTestId('retryable-error')).toBeDefined();
     expect(screen.getAllByTestId('feed-card')).toHaveLength(1);
     expect(screen.getByTestId('load-more')).toBeDefined();
   });
