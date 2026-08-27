@@ -67,7 +67,7 @@ the verified callback — and `unlockGranted` is the field it makes true.
 | `unlock-store.test.ts` | **10**, new | One row per viewer per episode: the second write reports the stored row, does not create a second, does not restamp the first. Both halves of the index are asserted separately, and nothing is evicted as the store fills |
 | `grant.test.ts` | **18**, new | A `PENDING` order writes **no receipt** — asserted against the store, not the returned status. Repetition grants once; a replay completes an order whose receipt was written but never recorded; a write that does not land is reported rather than thrown |
 | `granted-facts.test.ts` | **14**, new | The verdict changes from `NEED_UNLOCK` to `UNLOCKED` because a row exists, and nothing else moves: a failing base port stays failing, an anonymous request stays anonymous, and a `VIP` viewing receipt for the same episode does not hide the purchase (DM-3) |
-| `payment-sink.test.ts` | **18** (was 9) | The receipt carries the order's own fields; a redelivery restamps neither the payment nor the grant; a failed grant is reported as `UNLOCK_NOT_GRANTED` with the payment still recorded; a second paid order for one episode is `DUPLICATE_PURCHASE` |
+| `payment-sink.test.ts` | **18** (was 9) | The receipt carries the order's own fields; a redelivery restamps neither the payment nor the grant; a failed grant is reported as `NOT_FULFILLED` with the payment still recorded; a second paid order for one episode is `DUPLICATE_PURCHASE` |
 | `paid-unlock.test.ts` | **20**, new | The same thing over HTTP, with the unlock store injected so the assertions are on the rows. Includes the replay across a restart, the deployment whose receipts cannot be written, and the enumeration of deliveries that must write no receipt at all |
 | `routes.test.ts` | 64 (was 61) | The verified callback now grants, and grants only the episode the order named. Every way of skipping the signature is unchanged |
 | `session-orders.test.ts` | 26 (was 24) | The funnel: the episode is granted to the account the session named, survives a re-login, and is granted to nobody when the payer is not the buyer |
@@ -87,9 +87,9 @@ POST /v1/payments/callbacks/tiktok
                             ├── payer == order.userId            → PAYER_MISMATCH
                             ├── 1. PENDING → PAID                → ORDER_NOT_PAYABLE
                             └── 2. grantUnlockForOrder
-                                   ├── refuse a PENDING order    → UNLOCK_NOT_GRANTED
-                                   ├── write Unlock (dedup)      → UNLOCK_NOT_GRANTED
-                                   └── PAID → FULFILLED          → UNLOCK_NOT_GRANTED
+                                   ├── refuse a PENDING order    → NOT_FULFILLED
+                                   ├── write Unlock (dedup)      → NOT_FULFILLED
+                                   └── PAID → FULFILLED          → NOT_FULFILLED
                                                                  → DUPLICATE_PURCHASE
 ```
 
@@ -110,7 +110,7 @@ Numbering resumes after W8's `S64`.
 | S67 | **The `PENDING` check is in `grant.ts`, before the write, even though `advanceUnlockOrder` already refuses `PENDING → FULFILLED`** | The transition table guards the *order*. A caller that wrote the row first and was then refused would have handed over the episode and merely failed to record it. Two lines of defence for the one rule that gives away paid content, and the test asserts the store is empty rather than reading the returned status | One condition |
 | S68 | **Deduplication is on `(userId, episodeId)` in the store, not on the order and not on the delivery** | It is the unique index the domain model specifies, and it is the only key that makes all three retry paths converge: a redelivered callback, a replayed stored event, and two orders for one episode. Keying on the order would give one viewer two receipts for one episode; keying on the delivery would give them one per redelivery | It is the store's key; 11 tests |
 | S69 | **The unlock records are joined onto the entitlement facts in `buildApp`, by a port that wraps the configured one** | The alternatives were worse in ways that outlive this slot: teaching the fixture facts port about unlocks makes the grant invisible in production, and letting playback read the unlock store directly gives the enforcement point a second opinion about entitlement — the exact defect `decideEpisodeAccess` exists to prevent. The decorator adds facts and decides nothing, so a facts port that refuses still refuses, and the default deployment still has no entitlements at all | One line in `buildApp`; 8 tests |
-| S70 | **Two outcomes were added to the callback's vocabulary and both are error level: `UNLOCK_NOT_GRANTED` and `DUPLICATE_PURCHASE`** | Both mean an authentic payment arrived and the money is in the wrong place — charged and owns nothing, or charged twice and owns it once. Neither is visible to the viewer, and neither can be answered with a non-200. An error-level line naming the event id and the trade order is the whole of the alerting, and `ERROR_OUTCOMES` sits next to the type so a future outcome cannot be added without deciding | Two constants |
+| S70 | **Two outcomes were added to the callback's vocabulary and both are error level: `NOT_FULFILLED` and `DUPLICATE_PURCHASE`** | Both mean an authentic payment arrived and the money is in the wrong place — charged and owns nothing, or charged twice and owns it once. Neither is visible to the viewer, and neither can be answered with a non-200. An error-level line naming the event id and the trade order is the whole of the alerting, and `ERROR_OUTCOMES` sits next to the type so a future outcome cannot be added without deciding. Neither name says *unlock*: the callback module does not know what a payment bought, and a subscription sink reports the same two things | Two constants |
 | S71 | **A second paid order for one episode is fulfilled against the existing receipt, not refused** | Both payments happened. Leaving the second order `PAID` forever would be a client polling an order that never completes for an episode the viewer can already watch, and writing a second receipt would be an entitlement a refund cannot revoke. What is owed is a refund decision, which is a human's, and `unlock.orderId` is what tells them which order paid for the receipt | One comparison; three tests |
 | S72 | **Nothing is evicted from the unlock store** | The order store bounds its map and drops oldest-first, which is survivable there — a forgotten `PENDING` order is a payment to reconcile. Here it would silently revoke an episode somebody paid for, under load, for the viewers unlucky enough to be oldest. A row can only be created by a verified payment, so the growth is paid for | A bound, if the durable table is ever late |
 | S73 | **No wallet is debited and no `WalletTransaction` is written; `costCoins` is recorded and `transactionId` is absent** | The platform charged the viewer for the trade order. A debit against a coin balance that does not exist yet (W14) would be bookkeeping somebody would have to unpick, and a plausible-looking `transactionId` pointing at no ledger row is worse than an absent one. `orderId` is the provenance until the ledger exists | Add a field |
@@ -219,7 +219,7 @@ skipping the signature still leaves the order `PENDING` and `unlockGranted` `fal
 - **No unlock list endpoint.** `UnlockStore` has `findForEpisode` because that is the lookup the
   decision needs, plus `list()` for tests. "Which episodes do I own" is a browse-path query against a
   data layer that does not exist.
-- **No replay endpoint or operator tool.** Recovery from `UNLOCK_NOT_GRANTED` is a redelivery from
+- **No replay endpoint or operator tool.** Recovery from `NOT_FULFILLED` is a redelivery from
   TikTok or a replay of the stored payload, and the second one has no button. It is proven in a test
   by building a second app around the same stores; a human would need a script.
 - **No durable store.** Both stores are process-local maps. §8.
@@ -306,7 +306,7 @@ inferring access from the order.
   alike. It is recoverable by replay only because TikTok redelivers for 72 hours and the raw events
   are stored; nothing automates that, and a viewer whose receipt vanished sees a locked episode they
   paid for.
-- **A grant failure is only a log line.** `UNLOCK_NOT_GRANTED` is error level with the event id and
+- **A grant failure is only a log line.** `NOT_FULFILLED` is error level with the event id and
   the trade order id on it, and there is no alert, no metric, no dead-letter queue and no query for
   "orders that are `PAID` and older than five minutes". That query is the operational answer and it
   does not exist.
