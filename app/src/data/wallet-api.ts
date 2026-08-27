@@ -7,10 +7,11 @@ import type { HttpReader } from './http';
 /**
  * The wallet reads: "how many coins do I have", and "what moved them".
  *
- * There is still no ledger on the server — `GET /v1/wallet` is not in `contracts/openapi.yaml`,
- * and a request today answers `404` from the not-found handler. That is not a client bug and it
- * must not render as one. The screen inventory (`docs/02-screen-inventory.md` SCR-09) still needs
- * the surface, including the empty ledger, which is a required state rather than an edge case.
+ * `GET /v1/wallet` is served. There is still no coin ledger — unlocks do not debit one — so a
+ * body with the balance fields omitted is a successful read of an absence, which this module
+ * reads as `UNAVAILABLE`. That is not a client bug and it must not render as `0`. The screen
+ * inventory (`docs/02-screen-inventory.md` SCR-09) still needs the surface, including the empty
+ * ledger, which is a required state rather than an edge case.
  *
  * Two rules this module exists to hold, because both are easy to violate with a placeholder:
  *

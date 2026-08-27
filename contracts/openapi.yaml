@@ -384,6 +384,58 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/wallet:
+    get:
+      operationId: getWallet
+      summary: This viewer's coin balance
+      description: |
+        Returns `WalletView`. Authentication is required: a wallet without a session is not a
+        wallet, and an anonymous `200` with omitted fields would look like "this viewer has no
+        coins" to a client that then has to guess whether to sign in.
+
+        The figure is fail-closed. Balance fields are present **only** when the platform supplied
+        them. A missing `coinBalance` is not `0` — `0` is a real empty wallet the platform must
+        have said, and a missing figure is the unavailable card the client already renders
+        (`docs/plan/cycle-3-backlog.md` C3-04, `docs/handoff/w3-work-m.md` M16). There is no coin
+        ledger on this server (unlocks do not debit one), so the default deployment omits the
+        fields rather than inventing a number.
+
+        Beans and fiat are not in this response. The platform charges Beans; what a coin is worth
+        in Beans is a pricing decision that does not exist (`C3-09`). A `beansAmount`,
+        `amountCents`, `currency` or rate here would be that decision, made in a contract.
+
+        `private, no-store`: the answer is per viewer and is money (`docs/design/api-contracts.md`
+        CA-3). A shared cache holding it is a cross-user leak waiting for a misconfigured proxy.
+      tags: [wallet]
+      security:
+        - bearerSession: []
+      responses:
+        '200':
+          description: |
+            The viewer's wallet. Balance fields may all be absent: that is a successful read of
+            an absence, not an empty wallet. `0` appears only when the platform said zero.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletView'
+        '401':
+          description: |
+            `AUTH_REQUIRED`. No credential, or one that could not be read or resolved. There is
+            no anonymous reading of a wallet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            `COMMON_SERVICE_UNAVAILABLE`. Either the session could not be resolved, or the coin
+            balance could not be read. Distinct from a `200` with omitted fields: that one is
+            "we asked, there is no figure"; this one is "we could not complete the check".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/progress/episodes/{episodeId}:
     parameters:
       - name: episodeId
@@ -1504,6 +1556,39 @@ components:
               description: |
                 The platform's identifier for the payment, and the only field the callback is
                 correlated on.
+
+    WalletView:
+      type: object
+      description: |
+        The body of `GET /v1/wallet`. Every property is optional because the honest answer, until
+        the platform supplies a coin figure, is to omit it. A missing field is not `0`: `0` is a
+        real empty wallet the platform must have said.
+
+        Beans, fiat and a coin→Beans rate are not properties of this schema and must not be
+        added. The client ignores those keys; putting them on the wire would still quote a
+        currency this product has no rate for (`C3-09`).
+      properties:
+        coinBalance:
+          type: integer
+          minimum: 0
+          description: |
+            Paid-coin balance. Present only when the platform named it, including `0` when it said
+            zero.
+        bonusBalance:
+          type: integer
+          minimum: 0
+          description: Bonus-coin balance. Same rule. Absent is not "all paid" and not `0`.
+        totalBalance:
+          type: integer
+          minimum: 0
+          description: |
+            The figure the viewer is shown. Present only when the platform named a total. The
+            server does not invent one from a lone half.
+        pendingCredit:
+          type: boolean
+          description: |
+            Only `true` when the platform said a credit is still settling. Absent is not a
+            pending credit; the banner SCR-09 reserves for that stays down.
 
     DramaSearchHit:
       type: object
