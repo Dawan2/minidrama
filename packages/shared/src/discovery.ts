@@ -67,3 +67,63 @@ export interface FavoriteState {
    */
   readonly favoritedAt?: string;
 }
+
+/**
+ * The cursor-pagination envelope from `docs/12-api-contracts.md` §2.3, which every list endpoint in
+ * this product shares.
+ *
+ * It lives in the discovery module because the favourites list is the first list endpoint to ship,
+ * and it is deliberately named for the envelope rather than for favourites: the second list
+ * endpoint — `GET /v1/dramas` on the catalogue branch — must reuse this shape and not define a
+ * second one that agrees with it by coincidence. Moving it into a shared pagination module when
+ * that lands is a re-export, not a rename.
+ */
+export interface PageInfo {
+  /**
+   * Opaque. A client stores it and sends it back verbatim; it encodes a position in one specific
+   * ordering and means nothing outside it. `null` — not absent — when `hasMore` is false, so a
+   * client that reads `pageInfo.nextCursor` unconditionally gets an explicit end rather than
+   * `undefined`.
+   */
+  readonly nextCursor: string | null;
+  /**
+   * Whether another page exists. It is a fact about the query, not a guess from `items.length`:
+   * a client that inferred "a short page means the end" would stop early against any server that
+   * filters rows after fetching them.
+   */
+  readonly hasMore: boolean;
+}
+
+/**
+ * One row of the viewer's favourites list. `GET /v1/users/me/favorites`.
+ *
+ * It carries the drama *identifier* and nothing about the drama. `docs/12-api-contracts.md` §4.3
+ * specifies this endpoint as a `DramaSummary` page, and it will become one — but `DramaSummary` is
+ * a catalogue view object, and inventing a partial copy of it here is exactly the duplication
+ * `DramaSearchHit` already refuses (see the note at the top of this file). What the favourites
+ * store knows is which dramas this viewer follows and when they started; that is what this shape
+ * says, and a client resolves the ids through the catalogue.
+ */
+export interface FavoriteListItem {
+  readonly dramaId: string;
+  /**
+   * Server time when the favourite was first recorded, ISO 8601. Always present here — a row only
+   * exists because it was recorded — and it is also the sort key, so a client can render "followed
+   * on" without a second request.
+   */
+  readonly favoritedAt: string;
+}
+
+/**
+ * A page of the viewer's favourites, most recently followed first.
+ *
+ * An empty `items` is a `200`, not a `404` and not an error: "you follow nothing yet" is a complete
+ * answer and it is the empty state of the favourites screen (`docs/02-screen-inventory.md`
+ * SCR-08). The endpoint is per viewer, so it refuses without a session — the one thing an empty
+ * list must never be confused with is a list somebody was not allowed to see.
+ */
+export interface FavoriteList {
+  /** Ordered by `favoritedAt` descending, then by `dramaId` descending. Never null. */
+  readonly items: readonly FavoriteListItem[];
+  readonly pageInfo: PageInfo;
+}
