@@ -1117,3 +1117,48 @@ a {
   color: var(--text-muted);
   font-size: 13px;
 }
+
+.profile-vip {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.profile-vip__heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-vip__status {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.profile-vip__action {
+  padding: 14px 20px;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.profile-vip__action:disabled {
+  opacity: 0.5;
+}
+
+.profile-vip__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}

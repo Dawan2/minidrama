@@ -12,21 +12,22 @@ import { useSession } from '../auth/session-context';
 import { useWalletApi } from '../data/wallet-api-context';
 
 /**
- * SCR-06, "me" — the shell, plus the one assets card that can be built honestly today.
+ * SCR-06, "me" — the shell, plus the assets cards that can be built honestly today.
  *
- * Who the app thinks the viewer is, the entries that lead to the personal screens, and a wallet
- * card that quotes a coin balance only when the server sent one. What is still not here is a VIP
- * card, a real nickname, or a recharge sheet: `GET /users/me` does not exist, SCR-11 has no
- * contract, and the Beans rate is `C3-09`. Settings (SCR-12) is reachable from here.
+ * Who the app thinks the viewer is, the entries that lead to the personal screens, a wallet
+ * card that quotes a coin balance only when the server sent one, and a VIP card that quotes no
+ * status. `GET /users/me` does not exist, SCR-11 has no contract, and the Beans rate is `C3-09`,
+ * so the VIP region is a statement rather than a `#/vip` that invented a product. Settings
+ * (SCR-12) is reachable from here.
  *
  * The wallet card is fail-closed. `GET /v1/wallet` is not served today, and a missing figure is a
  * statement rather than `0 coins`. A viewer who has recharged and sees an invented zero will not
  * believe the next number either (`docs/02-user-journeys.md` J10-B,
  * `docs/plan/cycle-3-backlog.md` C3-04).
  *
- * The sections load independently by construction: the identity block, the wallet card and the
- * entries share no request, so a failure in one cannot blank the others
- * (`docs/02-screen-inventory.md` SCR-06, sectioned loading).
+ * The sections load independently by construction: the identity block, the wallet card, the VIP
+ * card and the entries share no request, so a failure in one cannot blank the others
+ * (`docs/02-screen-inventory.md` SCR-06, sectioned loading). The VIP card has no request at all.
  */
 export function ProfilePage(): React.JSX.Element {
   const session = useSession();
@@ -66,7 +67,10 @@ export function ProfilePage(): React.JSX.Element {
         read: a missing endpoint is not a zero balance.
       */}
       {signedIn ? (
-        <ProfileWalletCard />
+        <>
+          <ProfileWalletCard />
+          <ProfileVipCard />
+        </>
       ) : (
         <SignInPrompt messageKey="profile.signInPrompt" testId="profile-sign-in" />
       )}
@@ -132,5 +136,33 @@ function ProfileWalletCard(): React.JSX.Element {
       balance={wallet.resource.data}
       pendingCredit={wallet.resource.data.kind === 'KNOWN' && wallet.resource.data.pendingCredit}
     />
+  );
+}
+
+/**
+ * The VIP status card `docs/02-screen-inventory.md` SCR-06 names. There is no `GET /users/me`
+ * and no subscription contract, so this is a statement, not a status: inventing "not subscribed"
+ * is the same lie as inventing `0 coins`, and a `#/vip` would be SCR-11 invented in the client
+ * (`C3-04`). The subscribe control is present and disabled for the same reason the wallet's
+ * recharge control is: the entry the inventory asked for, naming the missing contract rather
+ * than hiding it.
+ *
+ * Beans never appear. The rate does not exist (`C3-09`).
+ */
+function ProfileVipCard(): React.JSX.Element {
+  return (
+    <section className="profile-vip" data-testid="profile-vip" data-status="unavailable">
+      <h2 className="profile-vip__heading">{translate('profile.vip')}</h2>
+      <p className="profile-vip__status">{translate('profile.vipUnavailable')}</p>
+      <button
+        className="profile-vip__action"
+        type="button"
+        disabled
+        data-testid="profile-vip-subscribe"
+      >
+        {translate('profile.vipSubscribe')}
+      </button>
+      <p className="profile-vip__hint">{translate('unlock.vipPending')}</p>
+    </section>
   );
 }

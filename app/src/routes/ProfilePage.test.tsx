@@ -15,8 +15,9 @@ import {
 
 /**
  * SCR-06, as far as it can honestly go today. The assertions worth having are about what the screen
- * refuses to invent: there is no VIP state and no real nickname, because there is no endpoint
- * behind either of them. The wallet card quotes a number only when the server sent one.
+ * refuses to invent: there is no readable VIP state and no real nickname, because there is no
+ * endpoint behind either of them. The wallet card quotes a number only when the server sent one.
+ * The VIP card is present, quotes none, and does not open a `#/vip`.
  */
 describe('the profile shell', () => {
   it('names the session state it is rendering', () => {
@@ -170,5 +171,47 @@ describe('the profile wallet card', () => {
     expect(await screen.findByTestId('retryable-error')).toBeDefined();
     expect(screen.getByTestId('wallet-entry')).toBeDefined();
     expect(screen.getByTestId('history-entry')).toBeDefined();
+  });
+});
+
+describe('the profile VIP card', () => {
+  const signedIn = stubSession({ state: { status: 'AUTHENTICATED', openId: 'open_1' } });
+
+  it('is an assets-area card, so a guest never sees a VIP status', () => {
+    renderSurface(<ProfilePage />, { session: stubSession({ state: { status: 'ANONYMOUS' } }) });
+
+    expect(screen.queryByTestId('profile-vip')).toBeNull();
+  });
+
+  it('quotes no status, because GET /users/me does not exist', () => {
+    renderSurface(<ProfilePage />, { session: signedIn });
+
+    const card = screen.getByTestId('profile-vip');
+    expect(card.getAttribute('data-status')).toBe('unavailable');
+    expect(card.textContent).toContain('VIP status is not available yet');
+    expect(card.textContent).not.toMatch(/active|inactive|expires|expiry|until/i);
+    expect(card.textContent).not.toMatch(/\d/);
+  });
+
+  it('does not invent a #/vip, a Beans price, or a working subscribe', () => {
+    renderSurface(<ProfilePage />, { session: signedIn });
+
+    const card = screen.getByTestId('profile-vip');
+    expect(card.querySelector('a')).toBeNull();
+    expect(card.textContent).not.toMatch(/beans/i);
+    expect(card.textContent).not.toMatch(/\$|€|£|¥|¢/);
+
+    const subscribe = screen.getByTestId('profile-vip-subscribe');
+    expect(subscribe).toBeInstanceOf(HTMLButtonElement);
+    expect((subscribe as HTMLButtonElement).disabled).toBe(true);
+    expect(card.textContent).toContain('Subscribing is not available in this version yet');
+  });
+
+  it('leaves the VIP card in place when the wallet card retries', async () => {
+    const walletApi = stubWalletApi({ wallet: () => err(offlineFailure()) });
+    renderSurface(<ProfilePage />, { session: signedIn, walletApi });
+
+    expect(await screen.findByTestId('retryable-error')).toBeDefined();
+    expect(screen.getByTestId('profile-vip')).toBeDefined();
   });
 });
