@@ -18,8 +18,10 @@ import { createSessionStore } from './session/session-store';
 import { createSilentLogin } from './session/silent-login';
 import { createUnlockApi } from './data/unlock-api';
 import { createWalletApi } from './data/wallet-api';
+import { createProgressApi } from './data/progress-api';
 import { FavoritesApiProvider } from './data/favorites-api-context';
 import { HistoryApiProvider } from './data/history-api-context';
+import { ProgressApiProvider } from './data/progress-api-context';
 import { SearchApiProvider } from './data/search-api-context';
 import { SessionProvider } from './auth/session-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
@@ -140,6 +142,7 @@ async function boot(): Promise<void> {
   const unlockApi = createUnlockApi(http);
   const favoritesApi = createFavoritesApi(http);
   const walletApi = createWalletApi(http);
+  const progressApi = createProgressApi(http);
 
   /**
    * The session the surfaces see. This is the seam `auth/session.ts` left for the identity slot,
@@ -180,9 +183,11 @@ async function boot(): Promise<void> {
               <FavoritesApiProvider api={favoritesApi}>
                 <UnlockApiProvider api={unlockApi}>
                   <WalletApiProvider api={walletApi}>
-                    <HashRouter>
-                      <App bridge={bridge} />
-                    </HashRouter>
+                    <ProgressApiProvider api={progressApi}>
+                      <HashRouter>
+                        <App bridge={bridge} />
+                      </HashRouter>
+                    </ProgressApiProvider>
                   </WalletApiProvider>
                 </UnlockApiProvider>
               </FavoritesApiProvider>

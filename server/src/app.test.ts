@@ -260,6 +260,38 @@ describe('GET /v1/wallet', () => {
   });
 });
 
+describe('GET /v1/progress/dramas/{dramaId}', () => {
+  it('refuses a request that carries no session', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/dramas/drm_revenge_0001',
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+    expect(response.body).not.toMatch(/"items"/);
+  });
+
+  it('answers 200 with no items, not 503, to a session that has never watched the drama', async () => {
+    const sessionStore = createInMemorySessionStore();
+    const sessionApp = await buildApp({ ...loadConfig({}), logLevel: 'silent' }, { sessionStore });
+    await sessionApp.ready();
+
+    try {
+      const response = await sessionApp.inject({
+        method: 'GET',
+        url: '/v1/progress/dramas/drm_revenge_0001',
+        headers: { authorization: `Bearer ${sessionStore.issue('open_abc').accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ items: [], lastWatched: null });
+    } finally {
+      await sessionApp.close();
+    }
+  });
+});
+
 describe('POST /v1/unlock/coin-orders', () => {
   it('rejects a request without an episodeId', async () => {
     const response = await app.inject({

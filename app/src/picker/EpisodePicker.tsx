@@ -8,7 +8,9 @@ import { playPath } from '../routes/routes';
 import { translate } from '../core/i18n';
 import { useCatalogApi } from '../data/catalog-api-context';
 import { usePagedResource } from '../data/use-paged-resource';
+import { useProgressApi } from '../data/progress-api-context';
 import { useResource } from '../data/use-resource';
+import { watchedEpisodeIds } from '../data/progress-api';
 import type { Resource } from '../data/use-resource';
 import { episodeGroupBounds, episodeGroupCount, episodeGroupIndex } from './episode-groups';
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
@@ -21,13 +23,13 @@ import type { SurfaceError } from '../data/failure';
  * is already playing, without leaving the player route. The list is `GET /v1/dramas/{dramaId}/
  * episodes`, recovered from the episode the route named via `GET /v1/episodes/{episodeId}` —
  * the lookup `docs/02-information-architecture.md` §5 already describes. There is no fixture
- * album in here, and there is no `GET /progress/dramas/{dramaId}`: that path is not in
- * `contracts/openapi.yaml`, and inventing it would be a client-side contract.
+ * album in here. Watched marks come from `GET /v1/progress/dramas/{dramaId}` and only from
+ * that: a failed or in-flight read is an unmarked grid, never a guessed range of episode
+ * numbers, and never N per-episode progress calls.
  *
- * Watched marks therefore do not appear. Lock marks do, because `viewerAccess` arrives on every
- * episode item. A locked cell is not a destination — switching into a wall is the J16 exception
- * the picker is not allowed to perform. A playable cell is a `replace` link, so a walk through
- * forty episodes is still one history entry.
+ * Lock marks come from `viewerAccess` on every episode item. A locked cell is not a destination
+ * — switching into a wall is the J16 exception the picker is not allowed to perform. A playable
+ * cell is a `replace` link, so a walk through forty episodes is still one history entry.
  *
  * Empty is not a state this panel has (`docs/02-screen-inventory.md` PNL-01). A drama with no
  * episodes yet is a content grid with nothing in it, and closing the panel is the way out.
@@ -37,6 +39,9 @@ const TITLE_ID = 'episode-picker-title';
 
 /** The server's maximum page of episodes, so an 80-episode drama is one request when it can be. */
 const EPISODE_PAGE_LIMIT = 100;
+
+/** Watched marks are omitted until the drama-progress read succeeds. Not a guessed empty watch. */
+const EMPTY_WATCHED: ReadonlySet<string> = new Set();
 
 function identifyEpisode(episode: EpisodeItem): string {
   return episode.id;
@@ -170,6 +175,7 @@ function EpisodeGrid({
   readonly onClose: () => void;
 }): React.JSX.Element {
   const api = useCatalogApi();
+  const progressApi = useProgressApi();
   const episodes = usePagedResource(
     (cursor: string | undefined) =>
       api.fetchEpisodes({
@@ -180,9 +186,17 @@ function EpisodeGrid({
     identifyEpisode,
     `picker-episodes:${dramaId}`,
   );
+  const progress = useResource(
+    () => progressApi.fetchDramaProgress(dramaId),
+    `picker-progress:${dramaId}`,
+  );
 
   const { appendError, appending, error, items, loadMore, nextCursor, reload, status } = episodes;
   const [groupOverride, setGroupOverride] = useState<number | null>(null);
+  const watched =
+    progress.resource.status === 'ready'
+      ? watchedEpisodeIds(progress.resource.data)
+      : EMPTY_WATCHED;
 
   /**
    * Walk the remaining pages so an 80-episode drama is one grid, not a "load more" buried under
@@ -254,6 +268,7 @@ function EpisodeGrid({
             episode={episode}
             key={episode.id}
             onClose={onClose}
+            watched={watched.has(episode.id)}
           />
         ))}
       </ul>
@@ -266,11 +281,13 @@ function EpisodeGrid({
 function EpisodeCell({
   episode,
   current,
+  watched,
   capabilities,
   onClose,
 }: {
   readonly episode: EpisodeItem;
   readonly current: boolean;
+  readonly watched: boolean;
   readonly capabilities: PurchaseCapabilities;
   readonly onClose: () => void;
 }): React.JSX.Element {
@@ -280,6 +297,7 @@ function EpisodeCell({
     'episode-picker__cell',
     presentation.locked ? 'episode-picker__cell--locked' : '',
     current ? 'episode-picker__cell--current' : '',
+    watched ? 'episode-picker__cell--watched' : '',
   ]
     .filter((part) => part !== '')
     .join(' ');
@@ -292,8 +310,15 @@ function EpisodeCell({
           {translate('picker.locked')}
         </span>
       ) : null}
+      {watched ? (
+        <span className="episode-picker__watched" aria-hidden>
+          {translate('picker.watched')}
+        </span>
+      ) : null}
     </>
   );
+
+  const watchedSuffix = watched ? `. ${translate('picker.watched')}` : '';
 
   return (
     <li>
@@ -304,11 +329,16 @@ function EpisodeCell({
           data-episode-id={episode.id}
           data-locked="false"
           data-current={current ? 'true' : 'false'}
+          data-watched={watched ? 'true' : 'false'}
           replace
           to={playPath(episode.id)}
           onClick={onClose}
           aria-current={current ? 'true' : undefined}
-          aria-label={current ? `${label}. ${translate('picker.current')}` : label}
+          aria-label={
+            current
+              ? `${label}. ${translate('picker.current')}${watchedSuffix}`
+              : `${label}${watchedSuffix}`
+          }
         >
           {marks}
         </Link>
@@ -321,8 +351,9 @@ function EpisodeCell({
           data-episode-id={episode.id}
           data-locked="true"
           data-current={current ? 'true' : 'false'}
+          data-watched={watched ? 'true' : 'false'}
           data-action={presentation.action}
-          aria-label={`${label}. ${translate('picker.locked')}`}
+          aria-label={`${label}. ${translate('picker.locked')}${watchedSuffix}`}
         >
           {marks}
         </span>

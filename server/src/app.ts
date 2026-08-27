@@ -30,6 +30,7 @@ import { createUnavailableEntitlementFactsPort } from './modules/entitlement/fac
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
 import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import { createUnavailableWalletBalancePort } from './modules/wallet/balance-port.js';
+import { createCatalogDramaProgressPort } from './modules/catalog/drama-progress-lookup.js';
 import { createUnavailableWatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { createCorsPolicy } from './core/origin-policy.js';
@@ -48,6 +49,7 @@ import { registerCors } from './core/cors.js';
 import { searchRoutes } from './modules/search/routes.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
 import { walletRoutes } from './modules/wallet/routes.js';
+import { dramaProgressRoutes } from './modules/progress/drama-routes.js';
 import { watchHistoryRoutes } from './modules/progress/history-routes.js';
 import type { CatalogStore } from './modules/catalog/store.js';
 // Aliased because the entitlement module publishes an interface of the same name that answers a
@@ -70,6 +72,7 @@ import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { UnlockStore } from './modules/unlock/unlock-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WalletBalancePort } from './modules/wallet/balance-port.js';
+import type { DramaProgressCatalogPort } from './modules/progress/drama-catalog-port.js';
 import type { WatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import type { WatchProgressStore } from './modules/progress/store.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
@@ -164,6 +167,12 @@ export interface AppDependencies {
    */
   readonly watchProgressStore?: WatchProgressStore;
   readonly watchHistoryCatalogPort?: WatchHistoryCatalogPort;
+  /**
+   * Episode-to-number mapping for `GET /v1/progress/dramas/{dramaId}`. Defaults to the live
+   * catalogue store, the same one the episode list is served from, so a watched mark cannot land
+   * on a different cell than the grid. Inject the unavailable port to assert the `503` path.
+   */
+  readonly dramaProgressCatalogPort?: DramaProgressCatalogPort;
   /**
    * Search and favourites. The favourites store defaults to the in-memory skeleton; the drama
    * directory the two read defaults to a seed, and `modules/search/dramas.ts` explains why it is a
@@ -375,6 +384,13 @@ export async function buildApp(
     store: watchProgressStore,
     viewerResolver,
     now,
+  });
+
+  await app.register(dramaProgressRoutes, {
+    store: watchProgressStore,
+    viewerResolver,
+    catalogPort:
+      dependencies.dramaProgressCatalogPort ?? createCatalogDramaProgressPort(catalogStore),
   });
 
   await app.register(watchHistoryRoutes, {

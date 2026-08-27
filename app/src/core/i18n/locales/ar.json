@@ -115,6 +115,7 @@
   "picker.close": "إغلاق",
   "picker.group": "{start}–{end}",
   "picker.locked": "مقفلة",
+  "picker.watched": "شوهدت",
   "picker.current": "تُعرض الآن",
   "picker.unavailable": "لم نتمكن من تحميل قائمة الحلقات.",
   "state.loading": "جارٍ التحميل…",
