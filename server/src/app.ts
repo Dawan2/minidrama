@@ -141,7 +141,13 @@ export async function buildApp(
     dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort();
 
   // One store, read by the resolver and written by the login route. Two instances here would be an
-  // app that issues sessions it cannot resolve — the state this slot found the server in.
+  // app that issues sessions it cannot resolve — the state W3 slot L found the server in.
+  //
+  // Every module that asks who is calling reads this one resolver: entitlement, playback and the
+  // coin-order endpoints below. That matters most for the last of them, because an order is
+  // attributed to whatever it resolves to and a payment is later correlated against that same
+  // account id — so a second resolver here would not be a wiring inconsistency, it would be a
+  // purchase recorded for the wrong viewer.
   const sessionStore = dependencies.sessionStore ?? createInMemorySessionStore({ now });
   const viewerResolver = dependencies.viewerResolver ?? createSessionViewerResolver(sessionStore);
 

@@ -174,4 +174,26 @@ describe('POST /v1/unlock/coin-orders', () => {
     expect(response.statusCode).toBe(404);
     expect(response.json<{ error: { code: string } }>().error.code).toBe('PAYMENT_ORDER_NOT_FOUND');
   });
+
+  // The default app resolves coin orders against the store its own login route writes to, exactly as
+  // the entitlement and playback endpoints do. A token nothing issued is the caller's problem — a
+  // `401` answered by running silent login — and is never read as an anonymous browse that then gets
+  // quoted a price. `modules/unlock/session-orders.test.ts` covers the resolved side.
+  it.each([
+    ['opening an order', 'POST' as const, '/v1/unlock/coin-orders'],
+    ['reading one', 'GET' as const, '/v1/unlock/coin-orders/uord_nothing'],
+  ])(
+    'refuses a presented session when %s, rather than downgrading it',
+    async (_case, method, url) => {
+      const response = await app.inject({
+        method,
+        url,
+        headers: { authorization: 'Bearer some-opaque-session-token', 'idempotency-key': 'idem-1' },
+        ...(method === 'POST' ? { payload: { episodeId: 'ep_fx_s2e01' } } : {}),
+      });
+
+      expect(response.statusCode).toBe(401);
+      expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+    },
+  );
 });
