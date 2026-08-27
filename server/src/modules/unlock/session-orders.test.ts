@@ -194,12 +194,18 @@ describe('a coin order is opened for the account the session names', () => {
     ]);
   });
 
-  // The same request, byte for byte, twice: only the session differs, and it is what decides whether
-  // there is anything to sell. A resolver that answered "anonymous" — or answered with a fixed id —
-  // would make these two responses the same.
+  // The same episode asked for twice, with nothing differing but the session — the keys are distinct
+  // so that idempotency is not what separates the two answers. A resolver that read both requests as
+  // anonymous, or as one fixed viewer, would give them the same one.
   it('answers the same request differently for two accounts', async () => {
-    const bought = await createOrder(COIN_OR_VIP_EPISODE, { token: signIn(BUYER) });
-    const covered = await createOrder(COIN_OR_VIP_EPISODE, { token: signIn(SUBSCRIBER) });
+    const bought = await createOrder(COIN_OR_VIP_EPISODE, {
+      token: signIn(BUYER),
+      idempotencyKey: 'buyer-1',
+    });
+    const covered = await createOrder(COIN_OR_VIP_EPISODE, {
+      token: signIn(SUBSCRIBER),
+      idempotencyKey: 'subscriber-1',
+    });
 
     expect(bought.statusCode).toBe(201);
     expect(covered.statusCode).toBe(422);
