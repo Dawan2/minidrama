@@ -25,6 +25,16 @@ describe('trusted domain registry', () => {
     }
   });
 
+  it('registers a host for the covers the client renders', () => {
+    // An `<img src>` is a request, and the platform checks it against this list like any other.
+    // A registry with no image host means every cover is broken on device and nowhere else.
+    const images = TRUSTED_DOMAINS.filter((entry) => entry.usage === 'image');
+    expect(images.length).toBeGreaterThan(0);
+    for (const entry of images) {
+      expect(entry.url.startsWith('https://')).toBe(true);
+    }
+  });
+
   it('rejects a scheme other than https or wss', () => {
     expect(validateDomainRegistry([domain('http://api.example.invalid')])).toContainEqual({
       url: 'http://api.example.invalid',

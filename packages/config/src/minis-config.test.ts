@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { TRUSTED_DOMAINS } from './domains.js';
 import { DomainRegistryError, buildMinisConfig, serializeMinisConfig } from './minis-config.js';
 import { minisConfigPath } from './paths.js';
 import type { TrustedDomain } from './domains.js';
@@ -11,6 +12,13 @@ describe('minis.config.json generation', () => {
     const config = buildMinisConfig();
     expect(config.domain.trustedDomains).toEqual(config.domain.allowList);
     expect(config.domain.trustedDomains).toContain('https://api.example.invalid');
+  });
+
+  it('carries every image host, since an <img src> is checked against the same list', () => {
+    const { trustedDomains } = buildMinisConfig().domain;
+    for (const entry of TRUSTED_DOMAINS.filter((domain) => domain.usage === 'image')) {
+      expect(trustedDomains).toContain(entry.url);
+    }
   });
 
   it('refuses to emit a config from an invalid registry', () => {

@@ -2,10 +2,12 @@
   "domain": {
     "trustedDomains": [
       "https://api.example.invalid",
+      "https://cdn.example.invalid",
       "https://connect.tiktok-minis.com"
     ],
     "allowList": [
       "https://api.example.invalid",
+      "https://cdn.example.invalid",
       "https://connect.tiktok-minis.com"
     ]
   }

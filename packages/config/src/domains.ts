@@ -13,7 +13,12 @@
  *   - no path, query or fragment components
  */
 
-export type TrustedDomainUsage = 'api' | 'websocket' | 'sdk';
+/**
+ * What the client does with a domain. `image` is not decoration: an `<img src>` is a request the
+ * platform checks against this same list, so a cover host that is not registered here produces a
+ * broken image on device and a working one everywhere else.
+ */
+export type TrustedDomainUsage = 'api' | 'websocket' | 'sdk' | 'image';
 
 export interface TrustedDomain {
   readonly url: string;
@@ -34,6 +39,14 @@ export const TRUSTED_DOMAINS: readonly TrustedDomain[] = [
     url: 'https://api.example.invalid',
     usage: 'api',
     reason: 'Drama API — the only origin the client calls directly. Placeholder until W2.',
+  },
+  {
+    url: 'https://cdn.example.invalid',
+    usage: 'image',
+    reason:
+      'Cover and poster images. The host the platform media library serves an `open_pic_id` from ' +
+      'is not documented anywhere we hold (U-IMG-1), so this is a placeholder until a real cover ' +
+      'URL is seen. Kept in step with `TRUSTED_COVER_HOSTS` by `validateCoverHostRegistry`.',
   },
   {
     url: 'https://connect.tiktok-minis.com',
