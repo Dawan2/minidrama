@@ -13,9 +13,7 @@ const LAST: DramaLastWatched = {
 
 describe('dramaPrimaryCta', () => {
   it('continues at lastWatched even when a different episode is the first openable', () => {
-    expect(
-      dramaPrimaryCta({ lastWatched: LAST, openableEpisodeId: 'ep_test_0001' }),
-    ).toEqual({
+    expect(dramaPrimaryCta({ lastWatched: LAST, openableEpisodeId: 'ep_test_0001' })).toEqual({
       kind: 'continue',
       episodeId: 'ep_test_0007',
       episodeNumber: 7,
@@ -45,15 +43,17 @@ describe('dramaPrimaryCta', () => {
   });
 
   it('falls back to Watch now when progress looked and found nothing', () => {
-    expect(
-      dramaPrimaryCta({ lastWatched: null, openableEpisodeId: 'ep_test_0002' }),
-    ).toEqual({ kind: 'watch', episodeId: 'ep_test_0002' });
+    expect(dramaPrimaryCta({ lastWatched: null, openableEpisodeId: 'ep_test_0002' })).toEqual({
+      kind: 'watch',
+      episodeId: 'ep_test_0002',
+    });
   });
 
   it('falls back to Watch now when progress has not produced a view', () => {
-    expect(
-      dramaPrimaryCta({ lastWatched: undefined, openableEpisodeId: 'ep_test_0002' }),
-    ).toEqual({ kind: 'watch', episodeId: 'ep_test_0002' });
+    expect(dramaPrimaryCta({ lastWatched: undefined, openableEpisodeId: 'ep_test_0002' })).toEqual({
+      kind: 'watch',
+      episodeId: 'ep_test_0002',
+    });
   });
 
   it('omits the button when there is no lastWatched and nothing openable', () => {

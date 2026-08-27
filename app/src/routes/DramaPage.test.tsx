@@ -579,10 +579,7 @@ describe('the drama-detail continue CTA', () => {
       drama: () => ok(dramaDetail()),
       episodes: () =>
         ok(
-          page([
-            episodeItem({ globalEpisodeNumber: 1 }),
-            episodeItem({ globalEpisodeNumber: 2 }),
-          ]),
+          page([episodeItem({ globalEpisodeNumber: 1 }), episodeItem({ globalEpisodeNumber: 2 })]),
         ),
     });
     const progressApi = stubProgressApi({
