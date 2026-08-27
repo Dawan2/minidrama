@@ -3,6 +3,7 @@ import type { FeedCard } from '@minidrama/shared';
 
 import { EmptyState, RetryableError, Skeleton, TerminalError } from '../components/states';
 import { FeedCardView } from '../catalog/FeedCardView';
+import { splitHomeFeed } from '../catalog/home-feed';
 import { ROUTES } from './routes';
 import { translate } from '../core/i18n';
 import { useCatalogApi } from '../data/catalog-api-context';
@@ -22,6 +23,11 @@ import type { PagedResourceHandle } from '../data/use-paged-resource';
  * assertable without faking a scroll viewport, and infinite scroll on top of a feed cursor that is
  * only stable while the ranking is (`docs/handoff/w2-work-d.md` §5) would page through a shifting
  * list automatically instead of on request.
+ *
+ * Continue-watching is a rail projected from the same mix. The server already leads HOME with
+ * `CONTINUE_WATCHING` when heartbeats exist (`docs/handoff/w14-c4-after-seek.md`). Fetching history
+ * or inventing a resume from the catalogue would be a second list, and an anonymous or empty
+ * response would then disagree with the mix the feed already returned.
  */
 
 /** Stable by construction — a new identity each render would reload the feed each render. */
@@ -94,13 +100,27 @@ function renderFeed(feed: PagedResourceHandle<FeedCard>): React.JSX.Element {
     );
   }
 
+  const { continueWatching, mix } = splitHomeFeed(feed.items);
+
   return (
     <>
-      <ul className="feed" data-testid="feed">
-        {feed.items.map((card) => (
-          <FeedCardView card={card} key={card.drama.id} />
-        ))}
-      </ul>
+      {continueWatching.length === 0 ? null : (
+        <section className="continue-rail" data-testid="continue-rail">
+          <h2 className="page__subheading">{translate('home.continue')}</h2>
+          <ul className="feed feed--continue" data-testid="continue-rail-list">
+            {continueWatching.map((card) => (
+              <FeedCardView card={card} key={card.drama.id} />
+            ))}
+          </ul>
+        </section>
+      )}
+      {mix.length === 0 ? null : (
+        <ul className="feed" data-testid="feed">
+          {mix.map((card) => (
+            <FeedCardView card={card} key={card.drama.id} />
+          ))}
+        </ul>
+      )}
       {/*
         An append failure is shown under the list and never replaces it. The viewer keeps their
         position and the cards they were reading; the retry re-requests the same cursor.
