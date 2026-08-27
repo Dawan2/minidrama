@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "build": "tsc --noEmit",
     "check:licenses": "tsx src/cli/check-licenses.ts",
-    "check:coverage": "tsx src/cli/check-coverage.ts"
+    "check:coverage": "tsx src/cli/check-coverage.ts",
+    "check:sast": "tsx src/cli/check-sast.ts"
   },
   "devDependencies": {
     "@types/node": "^22.18.9",
