@@ -27,6 +27,10 @@ describe('routes', () => {
     expect(ROUTES.play).toBe('/play/:episodeId');
   });
 
+  it('declares the theatre tab at the path the inventory publishes', () => {
+    expect(ROUTES.browse).toBe('/browse');
+  });
+
   it('declares the personal screens at the paths the IA publishes', () => {
     expect(ROUTES.me).toBe('/me');
     expect(ROUTES.history).toBe('/history');
@@ -42,6 +46,7 @@ describe('routes', () => {
    */
   it('declares no path without a screen behind it', () => {
     expect(Object.keys(ROUTES).sort()).toEqual([
+      'browse',
       'drama',
       'fallback',
       'favorites',

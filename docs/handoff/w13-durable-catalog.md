@@ -44,8 +44,9 @@ operator row written to the file would revert to the seed. That is the loss C3-0
   (`numbering.ts`), so an offline season still keeps its numbers and a draft is still not
   numbered.
 
-`0006` is unused on purpose: the in-flight favourites slot owns that version. A gap is fine; the
-runner sorts by id and applies anything missing.
+`0006` is unused on this branch's first commit on purpose: the in-flight favourites slot owned
+that version. Favourites landed on `main` as `0006_favorites` while this ran (`d182043`). The
+merge takes both: `0006` then `0007`. A gap would have been fine; composing is better.
 
 The down file drops episodes, then seasons, then dramas. The reverse check now covers the
 catalogue: after rollback, `INSERT INTO dramas` fails with `no such table`; after a second up,
@@ -61,9 +62,10 @@ implementations (`describe.each`).
 ### 2.3 Wiring, and what is refused
 
 `DATABASE_URL=sqlite:<path>` opens **one** file, migrates it, and puts SQLite behind unlock
-receipts, sessions, webhook events, coin unlock orders, watch progress, **and** the catalogue.
-Unset keeps every remaining store in memory. A `postgres://` URL is still **refused at boot**.
-Redis is not read. Favourites stay in memory on this branch.
+receipts, sessions, webhook events, coin unlock orders, watch progress, favourites, **and** the
+catalogue. Unset keeps the remaining in-memory store (the search directory). A `postgres://`
+URL is still **refused at boot**. Redis is not read. Favourites (`0006`) landed on `main` as
+`d182043` while this slot ran; this branch has taken it.
 
 ### 2.4 Restart
 
@@ -125,12 +127,10 @@ Recorded after `pnpm verify` on this branch.
 
 ## 7. Left open
 
-- **Favourites sqlite** (`bc-a824ef82`, `0006`). Compose; do not retake.
 - **Search directory.** Still `createSeedDramaDirectory`. The catalogue module owns the records;
   wiring the two together is the follow-up `app.ts` already names.
 - **PostgreSQL / Drizzle (T14 / T16).** The catalogue interface was already async. Do not rewrite
   `DATABASE_URL` to a file to make the swap look done.
 - **Redis (T15).** Not read. Do not add a no-op client.
-- **SCR-03 browse** (`bc-7cccf28c`). Client. Different files.
 - **AM-blocked C3 leftovers.** Beans (`C3-09`), GATE-8 / EIS (`C3-03` recorded the escalation),
   real TikTok login (`C3-08`), SCR-10/11.

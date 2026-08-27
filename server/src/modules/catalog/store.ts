@@ -18,9 +18,10 @@ import type { DramaRecord, EpisodeRecord, PositionedEpisode, SeasonRecord } from
  * agree if one component owns both.
  *
  * `DATABASE_URL=sqlite:<path>` puts three SQLite tables behind this same interface (the same
- * file as unlock receipts, sessions, webhook events, coin unlock orders, and watch progress);
- * a postgres URL is refused rather than rewritten to a file. The seed is written once, when
- * the table is empty, so a bounce cannot revert an operator-loaded catalogue to the fixture.
+ * file as unlock receipts, sessions, webhook events, coin unlock orders, watch progress, and
+ * favourites); a postgres URL is refused rather than rewritten to a file. The seed is written
+ * once, when the table is empty, so a bounce cannot revert an operator-loaded catalogue to the
+ * fixture.
  */
 
 export type DramaSort = 'HOT' | 'NEW';

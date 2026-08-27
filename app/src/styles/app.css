@@ -77,6 +77,7 @@ a {
 .page__nav {
   display: flex;
   justify-content: flex-start;
+  gap: 8px;
   margin: 0 var(--capsule-safe-area) 8px 0;
 }
 
@@ -419,6 +420,40 @@ a {
 .feed__more[disabled],
 .episodes__more[disabled] {
   color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------- browse */
+
+.browse-filters {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.browse-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.browse-chip {
+  appearance: none;
+  padding: 6px 12px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.browse-chip[aria-pressed='true'] {
+  color: var(--accent-text);
+  background: var(--accent);
+}
+
+.browse-chip--tag {
+  justify-self: start;
 }
 
 /* ---------------------------------------------------------------- search */

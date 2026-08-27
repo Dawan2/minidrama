@@ -1,4 +1,5 @@
 import type {
+  DramaCategory,
   DramaDetail,
   DramaSummary,
   EpisodeItem,
@@ -16,7 +17,7 @@ import type { HttpReader } from './http';
 /**
  * The catalogue read surface, as the client sees it.
  *
- * Four endpoints, all anonymous-capable (`docs/12-api-contracts.md` §4.3, §4.8). The interface is
+ * Five endpoints, all anonymous-capable (`docs/12-api-contracts.md` §4.3, §4.8). The interface is
  * declared separately from the HTTP implementation because every screen test in this slot supplies
  * its own: a page's five states are a property of the page, and asserting them through a stubbed
  * `fetch` would be testing the transport twice.
@@ -29,6 +30,7 @@ import type { HttpReader } from './http';
  */
 
 export const FEED_PATH = '/v1/recommendations/feed';
+export const DRAMAS_PATH = '/v1/dramas';
 
 export function dramaEndpoint(dramaId: string): string {
   return `/v1/dramas/${encodeURIComponent(dramaId)}`;
@@ -55,8 +57,17 @@ export interface EpisodesRequest {
   readonly limit?: number;
 }
 
+export interface DramasRequest {
+  readonly category?: DramaCategory;
+  readonly tag?: string;
+  readonly sort?: 'HOT' | 'NEW';
+  readonly cursor?: string;
+  readonly limit?: number;
+}
+
 export interface CatalogApi {
   fetchFeed(request: FeedRequest): Promise<Result<Page<FeedCard>, ApiFailure>>;
+  fetchDramas(request: DramasRequest): Promise<Result<Page<DramaSummary>, ApiFailure>>;
   fetchDrama(dramaId: string): Promise<Result<DramaDetail, ApiFailure>>;
   fetchEpisode(episodeId: string): Promise<Result<EpisodeItem, ApiFailure>>;
   fetchEpisodes(request: EpisodesRequest): Promise<Result<Page<EpisodeItem>, ApiFailure>>;
@@ -72,6 +83,17 @@ export function createCatalogApi(http: HttpReader): CatalogApi {
         limit: request.limit,
       });
       return body.ok ? narrowPage(body.value, narrowFeedCard) : body;
+    },
+
+    fetchDramas: async (request) => {
+      const body = await http.getJson(DRAMAS_PATH, {
+        category: request.category,
+        tag: request.tag,
+        sort: request.sort,
+        cursor: request.cursor,
+        limit: request.limit,
+      });
+      return body.ok ? narrowPage(body.value, narrowDramaSummary) : body;
     },
 
     fetchDrama: async (dramaId) => {

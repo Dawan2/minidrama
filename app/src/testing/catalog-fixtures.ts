@@ -12,7 +12,7 @@ import type {
 
 import { apiFailure } from '../data/failure';
 import type { ApiFailure } from '../data/failure';
-import type { CatalogApi, EpisodesRequest, FeedRequest } from '../data/catalog-api';
+import type { CatalogApi, DramasRequest, EpisodesRequest, FeedRequest } from '../data/catalog-api';
 
 /**
  * Test doubles for the catalogue.
@@ -124,6 +124,10 @@ export function page<T>(items: readonly T[], nextCursor: string | null = null): 
 
 export interface StubCatalogApiScript {
   readonly feed?: (request: FeedRequest, callIndex: number) => Result<Page<FeedCard>, ApiFailure>;
+  readonly dramas?: (
+    request: DramasRequest,
+    callIndex: number,
+  ) => Result<Page<DramaSummary>, ApiFailure>;
   readonly drama?: (dramaId: string, callIndex: number) => Result<DramaDetail, ApiFailure>;
   readonly episode?: (episodeId: string, callIndex: number) => Result<EpisodeItem, ApiFailure>;
   readonly episodes?: (
@@ -134,6 +138,7 @@ export interface StubCatalogApiScript {
 
 export interface StubCatalogApi extends CatalogApi {
   readonly feedCalls: readonly FeedRequest[];
+  readonly dramaListCalls: readonly DramasRequest[];
   readonly dramaCalls: readonly string[];
   readonly episodeByIdCalls: readonly string[];
   readonly episodeCalls: readonly EpisodesRequest[];
@@ -147,12 +152,14 @@ const UNSCRIPTED = apiFailure({
 
 export function stubCatalogApi(script: StubCatalogApiScript = {}): StubCatalogApi {
   const feedCalls: FeedRequest[] = [];
+  const dramaListCalls: DramasRequest[] = [];
   const dramaCalls: string[] = [];
   const episodeByIdCalls: string[] = [];
   const episodeCalls: EpisodesRequest[] = [];
 
   return {
     feedCalls,
+    dramaListCalls,
     dramaCalls,
     episodeByIdCalls,
     episodeCalls,
@@ -161,6 +168,12 @@ export function stubCatalogApi(script: StubCatalogApiScript = {}): StubCatalogAp
       const index = feedCalls.length;
       feedCalls.push(request);
       return Promise.resolve(script.feed?.(request, index) ?? ok(page<FeedCard>([])));
+    },
+
+    fetchDramas: (request) => {
+      const index = dramaListCalls.length;
+      dramaListCalls.push(request);
+      return Promise.resolve(script.dramas?.(request, index) ?? ok(page<DramaSummary>([])));
     },
 
     fetchDrama: (dramaId) => {

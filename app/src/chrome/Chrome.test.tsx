@@ -89,9 +89,14 @@ describe('Chrome', () => {
     expect(screen.getByTestId('chrome').getAttribute('data-capsule-inset')).toBe(
       String(viewport - measured.left),
     );
-    expect(document.documentElement.style.getPropertyValue('--capsule-safe-area')).toBe(
-      `${viewport - measured.left}px`,
-    );
+    // The CSS variable is written in an effect of `inset`, so it can lag the attribute by one
+    // paint. Waiting on the attribute and then reading the variable is the flake this test hit
+    // under a full `pnpm verify`.
+    await waitFor(() => {
+      expect(document.documentElement.style.getPropertyValue('--capsule-safe-area')).toBe(
+        `${viewport - measured.left}px`,
+      );
+    });
   });
 
   it('keeps the default when the rect is unusable rather than treating it as spendable space', async () => {

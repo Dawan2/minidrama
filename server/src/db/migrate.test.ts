@@ -43,7 +43,7 @@ function tables(connection: SqliteDatabase): string[] {
 }
 
 describe('migrateUp / migrateDown', () => {
-  it('creates the unlocks, sessions, webhook event, unlock order, watch-progress, and catalogue tables on the way up', () => {
+  it('creates the unlocks, sessions, webhook, order, watch-progress, favorites, and catalogue tables on the way up', () => {
     const connection = memory();
 
     expect(migrateUp(connection)).toEqual({
@@ -53,12 +53,14 @@ describe('migrateUp / migrateDown', () => {
         '0003_webhook_events',
         '0004_unlock_orders',
         '0005_watch_progress',
+        '0006_favorites',
         '0007_catalog',
       ],
     });
     expect(tables(connection)).toEqual([
       'dramas',
       'episodes',
+      'favorite',
       'seasons',
       'sessions',
       'unlock_orders',
@@ -76,13 +78,14 @@ describe('migrateUp / migrateDown', () => {
     expect(migrateUp(connection)).toEqual({ applied: [] });
   });
 
-  it('drops the catalogue, watch-progress, unlock order, webhook, sessions, and unlocks tables on the way down', () => {
+  it('drops the catalogue, favorites, watch-progress, unlock order, webhook, sessions, and unlocks tables on the way down', () => {
     const connection = memory();
     migrateUp(connection);
 
     expect(migrateDown(connection)).toEqual({
       applied: [
         '0007_catalog',
+        '0006_favorites',
         '0005_watch_progress',
         '0004_unlock_orders',
         '0003_webhook_events',
@@ -159,6 +162,13 @@ describe('migrateUp / migrateDown', () => {
     expect(() =>
       connection
         .prepare(
+          `INSERT INTO favorite (user_id, drama_id, created_at_ms) VALUES ('usr_1', 'drm_1', 0)`,
+        )
+        .run(),
+    ).toThrow(/no such table: favorite/i);
+    expect(() =>
+      connection
+        .prepare(
           `INSERT INTO dramas (
             id, title, description, cover_url, horizontal_cover_url, category, tags, status,
             total_seasons, total_episodes, free_episodes, is_completed, release_at,
@@ -218,6 +228,13 @@ describe('migrateUp / migrateDown', () => {
     expect(
       connection
         .prepare(
+          `INSERT INTO favorite (user_id, drama_id, created_at_ms) VALUES ('usr_1', 'drm_1', 0)`,
+        )
+        .run().changes,
+    ).toBe(1);
+    expect(
+      connection
+        .prepare(
           `INSERT INTO dramas (
             id, title, description, cover_url, horizontal_cover_url, category, tags, status,
             total_seasons, total_episodes, free_episodes, is_completed, release_at,
@@ -270,6 +287,7 @@ describe('migrateUp / migrateDown', () => {
     expect(tables(second)).toEqual([
       'dramas',
       'episodes',
+      'favorite',
       'seasons',
       'sessions',
       'unlock_orders',

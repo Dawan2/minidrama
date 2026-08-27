@@ -5,13 +5,13 @@
  * rewrite paths, so a history-mode reload has no safe answer (`docs/architecture/tech-stack.md`
  * T5). Paths are declared here as data so the router and the deep-link resolver cannot drift.
  *
- * The paths match `docs/02-information-architecture.md` §5, including the ones this slot does not
- * implement, so the parameter names and the shape of a deep link are settled once. `:episodeId` is
- * the authoritative locator for playback — a deep link carries one id and the drama is looked up
- * from it (§5), which is why the player route does not take a drama.
+ * The paths match `docs/02-information-architecture.md` §5. `:episodeId` is the authoritative
+ * locator for playback — a deep link carries one id and the drama is looked up from it (§5),
+ * which is why the player route does not take a drama.
  */
 export const ROUTES = {
   home: '/home',
+  browse: '/browse',
   search: '/search',
   drama: '/drama/:dramaId',
   play: '/play/:episodeId',

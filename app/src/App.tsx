@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router';
 
 import { Chrome } from './chrome/Chrome';
+import { BrowsePage } from './routes/BrowsePage';
 import { DramaPage } from './routes/DramaPage';
 import { FallbackPage } from './routes/FallbackPage';
 import { FavoritesPage } from './routes/FavoritesPage';
@@ -25,6 +26,7 @@ export function App({ bridge }: AppProps): React.JSX.Element {
         <Routes>
           <Route path="/" element={<Navigate to={ROUTES.home} replace />} />
           <Route path={ROUTES.home} element={<HomePage />} />
+          <Route path={ROUTES.browse} element={<BrowsePage />} />
           <Route path={ROUTES.search} element={<SearchPage />} />
           <Route path={ROUTES.drama} element={<DramaPage bridge={bridge} />} />
           <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />

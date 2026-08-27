@@ -15,7 +15,7 @@ import { SEED_CATALOG } from './store.js';
  * C3-06, the next store after watch progress and the in-flight favourites slice: a drama
  * served, a process restart, the same GET /v1/dramas/{id} still answers. Unlock receipts,
  * sessions, webhook events, coin unlock orders, and watch progress already survive this
- * bounce; favourites stay in memory on this branch (sibling `0006`).
+ * bounce; favourites persist too (`0006`, landed while this slot ran).
  */
 
 const dirs: string[] = [];
