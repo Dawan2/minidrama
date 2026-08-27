@@ -104,7 +104,23 @@ movement, with no rate.
 
 ## 4. Verify
 
-`pnpm verify` on this branch: recorded after the run.
+`pnpm verify` exited 0 on this branch at `c15ff74`.
+
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 55 |
+| `packages/config` | 45 |
+| `packages/quality` | 37 |
+| `server` | 1,450 |
+| `app` | 857 |
+| **Total** | **2,444** |
+
+Format, lint, typecheck, test, build, guardrails all green. Artifact
+`dist/assets/index-CQnFIqTJ.js` 318.14 kB / 98.12 kB gzip (unchanged: comments only on the
+client). Guardrails passed.
+
+New server tests: 3 (ledger-port) + 5 (query) + 5 (view) + 14 (routes) + 2 (app) + 1
+(`contract.test.ts` `it.each` for the new path) = 30. Shared: 2.
 
 ---
 
