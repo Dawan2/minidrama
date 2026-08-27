@@ -32,7 +32,10 @@ describe('createSqliteWebhookEventStore — durability', () => {
       receivedAtMs: 1_700_000_000_000,
     });
     expect(
-      await createSqliteWebhookEventStore(first).claimIdempotencyKey(written.id, 'trade_order:to_1'),
+      await createSqliteWebhookEventStore(first).claimIdempotencyKey(
+        written.id,
+        'trade_order:to_1',
+      ),
     ).toBe(true);
     first.close();
 
