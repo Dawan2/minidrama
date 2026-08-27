@@ -4,83 +4,94 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { FavoritesPage } from './FavoritesPage';
 import {
-  dramaSummary,
-  feedCard,
+  dramaDetail,
   httpFailure,
   offlineFailure,
-  page,
   stubCatalogApi,
 } from '../testing/catalog-fixtures';
 import {
   favoritesHttpFailure,
-  followedState,
+  favoritesPage,
   stubFavoritesApi,
-  unfollowedState,
 } from '../testing/favorites-fixtures';
-import { FAVORITE_PROBE_CONCURRENCY } from '../favorites/favorite-collection';
 import { renderSurface } from '../testing/render';
 import { stubSession } from '../testing/history-fixtures';
 
-const AUGUST_1 = '2026-08-01T00:00:00.000Z';
-const AUGUST_2 = '2026-08-02T00:00:00.000Z';
-
-/** A feed page carrying the given dramas, which is what the screen asks about. */
-function candidates(...ids: readonly string[]) {
+/** The catalogue, resolving whatever the list names. A row needs a title before it can be drawn. */
+function resolvingCatalog() {
   return stubCatalogApi({
-    feed: () => ok(page(ids.map((id) => feedCard({ drama: dramaSummary({ id, title: id }) })))),
+    drama: (dramaId) => ok(dramaDetail({ id: dramaId, title: dramaId })),
   });
+}
+
+/** The list endpoint answering with these dramas, in this order. */
+function following(...dramaIds: readonly string[]) {
+  return stubFavoritesApi({ list: () => ok(favoritesPage(dramaIds)) });
+}
+
+function renderFavorites(options: Parameters<typeof renderSurface>[1] = {}) {
+  return renderSurface(<FavoritesPage />, { api: resolvingCatalog(), ...options });
 }
 
 /**
  * SCR-08. The assertions that matter are the ones separating the ways this screen can show no rows:
- * an empty list, a missing session, an endpoint that is not deployed, and a read that only partly
- * answered. A viewer who follows twenty dramas and is told "you are not following anything" because
- * a token was missing has been told their list is gone.
+ * an empty list, a missing session, and an endpoint that is not deployed. A viewer who follows twenty
+ * dramas and is told "you are not following anything" because a token was missing has been told their
+ * list is gone.
  */
 describe('the favourites screen', () => {
-  it('asks the favourite endpoint about each drama it can see', async () => {
-    const favoritesApi = stubFavoritesApi();
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
+  /**
+   * The change this slot is about. The screen used to ask a page of the recommendation feed for
+   * candidate dramas and then probe each one, so a followed drama the feed page did not carry was not
+   * on this screen at all.
+   */
+  it('reads the viewer’s list rather than probing the dramas it can see', async () => {
+    const favoritesApi = following('drm_1', 'drm_2');
+    const api = resolvingCatalog();
+    renderFavorites({ api, favoritesApi });
 
     await waitFor(() => {
-      expect(favoritesApi.readCalls).toEqual(['drm_1', 'drm_2']);
+      expect(screen.getAllByTestId('favorite-row')).toHaveLength(2);
     });
+    expect(favoritesApi.listCalls).toHaveLength(1);
+    expect(favoritesApi.readCalls).toEqual([]);
+    expect(api.feedCalls).toEqual([]);
   });
 
   it('shows a skeleton while the read is in flight', () => {
-    renderSurface(<FavoritesPage />);
+    renderFavorites();
     expect(screen.getByTestId('skeleton')).toBeDefined();
   });
 
-  it('renders a row per followed drama and leaves the rest out', async () => {
-    const favoritesApi = stubFavoritesApi({
-      read: (dramaId) =>
-        ok(dramaId === 'drm_1' ? followedState(dramaId, AUGUST_1) : unfollowedState(dramaId)),
-    });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
-    });
-    expect(screen.getByTestId('favorite-row').getAttribute('data-drama-id')).toBe('drm_1');
-  });
-
-  it('puts the most recently followed drama first', async () => {
-    const favoritesApi = stubFavoritesApi({
-      read: (dramaId) => ok(followedState(dramaId, dramaId === 'drm_1' ? AUGUST_1 : AUGUST_2)),
-    });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
+  it('renders a row per favourite the server listed', async () => {
+    renderFavorites({ favoritesApi: following('drm_1', 'drm_2') });
 
     await waitFor(() => {
       expect(screen.getAllByTestId('favorite-row')).toHaveLength(2);
     });
     expect(
       screen.getAllByTestId('favorite-row').map((row) => row.getAttribute('data-drama-id')),
-    ).toEqual(['drm_2', 'drm_1']);
+    ).toEqual(['drm_1', 'drm_2']);
+  });
+
+  /**
+   * Most recently followed first is the server's ordering now, applied inside the keyset the cursor
+   * pages through. The screen renders the order it was given; re-sorting it here would be a second
+   * opinion about an order the pages are already cut along.
+   */
+  it('renders the server’s order rather than one of its own', async () => {
+    renderFavorites({ favoritesApi: following('drm_c', 'drm_a', 'drm_b') });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('favorite-row')).toHaveLength(3);
+    });
+    expect(
+      screen.getAllByTestId('favorite-row').map((row) => row.getAttribute('data-drama-id')),
+    ).toEqual(['drm_c', 'drm_a', 'drm_b']);
   });
 
   it('sends an empty list to the feed, because the way out of one is content', async () => {
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1') });
+    renderFavorites();
 
     const empty = await screen.findByTestId('empty-state');
     expect(empty.textContent).toContain('not following anything yet');
@@ -91,24 +102,20 @@ describe('the favourites screen', () => {
   });
 
   /**
-   * The screen is assembled from the dramas it can see, so "you follow nothing" is a claim it is not
-   * in a position to make. Saying nothing about that would read as the product having lost a drama
-   * the viewer chose.
+   * The disclosure the fan-out needed is gone with it. The screen said, on every successful read
+   * including the empty state, that the list covered only the dramas it could see — and it must not
+   * keep apologising for a limitation it no longer has.
    */
-  it('discloses that the list may be incomplete, on the list and on the empty state', async () => {
-    const followed = stubFavoritesApi({ read: (dramaId) => ok(followedState(dramaId, AUGUST_1)) });
-    const { unmount } = renderSurface(<FavoritesPage />, {
-      api: candidates('drm_1'),
-      favoritesApi: followed,
-    });
+  it('no longer warns that the list may be incomplete', async () => {
+    const { unmount } = renderFavorites({ favoritesApi: following('drm_1') });
 
-    const onList = await screen.findByTestId('favorites-coverage');
-    expect(onList.textContent).toContain('may not be complete');
+    await screen.findByTestId('favorites-list');
+    expect(screen.queryByTestId('favorites-coverage')).toBeNull();
     unmount();
 
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1') });
+    renderFavorites();
     await screen.findByTestId('empty-state');
-    expect(screen.getByTestId('favorites-coverage')).toBeDefined();
+    expect(screen.queryByTestId('favorites-coverage')).toBeNull();
   });
 });
 
@@ -117,9 +124,9 @@ describe('the favourites screen', () => {
  * they do not say the same thing, and the recovery is different in each case.
  */
 describe('no session versus an empty list versus a failure', () => {
-  it('offers a sign-in rather than an empty list when a favourite read answers 401', async () => {
-    const favoritesApi = stubFavoritesApi({ read: () => err(favoritesHttpFailure(401)) });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
+  it('offers a sign-in rather than an empty list when the list read answers 401', async () => {
+    const favoritesApi = stubFavoritesApi({ list: () => err(favoritesHttpFailure(401)) });
+    renderFavorites({ favoritesApi });
 
     const prompt = await screen.findByTestId('favorites-sign-in');
     expect(prompt.textContent).toContain('Sign in to see the dramas you follow.');
@@ -130,32 +137,25 @@ describe('no session versus an empty list versus a failure', () => {
   });
 
   it('says something different from the empty state, and offers a different action', async () => {
-    const unauthorised = stubFavoritesApi({ read: () => err(favoritesHttpFailure(401)) });
-    const { unmount } = renderSurface(<FavoritesPage />, {
-      api: candidates('drm_1'),
-      favoritesApi: unauthorised,
-    });
+    const unauthorised = stubFavoritesApi({ list: () => err(favoritesHttpFailure(401)) });
+    const { unmount } = renderFavorites({ favoritesApi: unauthorised });
     const promptText = (await screen.findByTestId('favorites-sign-in')).textContent ?? '';
     expect(screen.queryByRole('link', { name: 'Find something to follow' })).toBeNull();
     unmount();
 
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1') });
+    renderFavorites();
     const emptyText = (await screen.findByTestId('empty-state')).textContent ?? '';
 
     expect(promptText).not.toBe(emptyText);
     expect(screen.queryByTestId('favorites-sign-in')).toBeNull();
   });
 
-  it('rereads the whole list once a session exists', async () => {
+  it('rereads the list once a session exists', async () => {
     const favoritesApi = stubFavoritesApi({
-      read: (dramaId, index) =>
-        index === 0 ? err(favoritesHttpFailure(401)) : ok(followedState(dramaId, AUGUST_1)),
+      list: (_request, index) =>
+        index === 0 ? err(favoritesHttpFailure(401)) : ok(favoritesPage(['drm_1'])),
     });
-    renderSurface(<FavoritesPage />, {
-      api: candidates('drm_1'),
-      favoritesApi,
-      session: stubSession({ signInSucceeds: true }),
-    });
+    renderFavorites({ favoritesApi, session: stubSession({ signInSucceeds: true }) });
 
     fireEvent.click(await screen.findByTestId('sign-in'));
 
@@ -165,12 +165,8 @@ describe('no session versus an empty list versus a failure', () => {
   // Silent login cannot succeed until the identity slot lands. The viewer is told, and the screen
   // stays where it was rather than becoming an error.
   it('keeps the prompt and explains itself when silent login cannot produce a session', async () => {
-    const favoritesApi = stubFavoritesApi({ read: () => err(favoritesHttpFailure(401)) });
-    renderSurface(<FavoritesPage />, {
-      api: candidates('drm_1'),
-      favoritesApi,
-      session: stubSession({ signInSucceeds: false }),
-    });
+    const favoritesApi = stubFavoritesApi({ list: () => err(favoritesHttpFailure(401)) });
+    renderFavorites({ favoritesApi, session: stubSession({ signInSucceeds: false }) });
 
     fireEvent.click(await screen.findByTestId('sign-in'));
 
@@ -184,12 +180,8 @@ describe('no session versus an empty list versus a failure', () => {
    * over a list the server would have returned.
    */
   it('reads the list even when the client believes nobody is signed in', async () => {
-    const favoritesApi = stubFavoritesApi({
-      read: (dramaId) => ok(followedState(dramaId, AUGUST_1)),
-    });
-    renderSurface(<FavoritesPage />, {
-      api: candidates('drm_1'),
-      favoritesApi,
+    renderFavorites({
+      favoritesApi: following('drm_1'),
       session: stubSession({ state: { status: 'ANONYMOUS' } }),
     });
 
@@ -198,13 +190,13 @@ describe('no session versus an empty list versus a failure', () => {
 });
 
 /**
- * There is no discovery module on the server on this branch, so every favourite request answers 404
- * from the not-found handler. That is our gap, not the viewer's missing data.
+ * The list endpoint is not merged on this branch, so a request answers 404 from Fastify's not-found
+ * handler. That is our gap, not the viewer's missing data.
  */
 describe('an endpoint that is not deployed', () => {
   it('degrades to the empty state rather than to an error', async () => {
-    const favoritesApi = stubFavoritesApi({ read: () => err(favoritesHttpFailure(404)) });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1'), favoritesApi });
+    const favoritesApi = stubFavoritesApi({ list: () => err(favoritesHttpFailure(404)) });
+    renderFavorites({ favoritesApi });
 
     expect(await screen.findByTestId('empty-state')).toBeDefined();
     expect(screen.queryByTestId('terminal-error')).toBeNull();
@@ -215,43 +207,21 @@ describe('an endpoint that is not deployed', () => {
   // The viewer sees the empty state; the DOM still says which of the two it was, so a bug report can
   // tell "we have not built this" from "you follow nothing".
   it('stays distinguishable from a genuinely empty list', async () => {
-    const favoritesApi = stubFavoritesApi({ read: () => err(favoritesHttpFailure(404)) });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1'), favoritesApi });
+    const favoritesApi = stubFavoritesApi({ list: () => err(favoritesHttpFailure(404)) });
+    renderFavorites({ favoritesApi });
 
     await screen.findByTestId('empty-state');
     expect(screen.getByTestId('favorites-page').getAttribute('data-state')).toBe('unavailable');
   });
-
-  /**
-   * Twenty requests that all answer 404 is nineteen wasted round trips before an empty screen. The
-   * saving is bounded by the batch already in flight, which is what `FAVORITE_PROBE_CONCURRENCY`
-   * costs and why it is small.
-   */
-  it('stops after the first batch of refusals instead of asking about every drama', async () => {
-    const favoritesApi = stubFavoritesApi({ read: () => err(favoritesHttpFailure(404)) });
-    renderSurface(<FavoritesPage />, {
-      api: candidates('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'),
-      favoritesApi,
-    });
-
-    await screen.findByTestId('empty-state');
-    expect(favoritesApi.readCalls.length).toBe(FAVORITE_PROBE_CONCURRENCY);
-  });
 });
 
 describe('failures that are neither', () => {
-  it('offers a retry when the candidate source failed, and rereads on it', async () => {
-    let attempt = 0;
-    const api = stubCatalogApi({
-      feed: () => {
-        attempt += 1;
-        return attempt === 1 ? err(offlineFailure()) : ok(page([feedCard()]));
-      },
-    });
+  it('offers a retry when the list read failed, and rereads on it', async () => {
     const favoritesApi = stubFavoritesApi({
-      read: (dramaId) => ok(followedState(dramaId, AUGUST_1)),
+      list: (_request, index) =>
+        index === 0 ? err(offlineFailure()) : ok(favoritesPage(['drm_1'])),
     });
-    renderSurface(<FavoritesPage />, { api, favoritesApi });
+    renderFavorites({ favoritesApi });
 
     const error = await screen.findByTestId('retryable-error');
     expect(error.getAttribute('data-failure-kind')).toBe('OFFLINE');
@@ -262,8 +232,8 @@ describe('failures that are neither', () => {
 
   // A terminal state's only job is to explain itself, and the shared copy explains a drama.
   it('explains a refused read in terms of the viewer’s list, not of a drama', async () => {
-    const api = stubCatalogApi({ feed: () => err(httpFailure(400)) });
-    renderSurface(<FavoritesPage />, { api });
+    const favoritesApi = stubFavoritesApi({ list: () => err(favoritesHttpFailure(400)) });
+    renderFavorites({ favoritesApi });
 
     const terminal = await screen.findByTestId('terminal-error');
     expect(terminal.textContent).toContain('We could not load your favourites.');
@@ -272,8 +242,10 @@ describe('failures that are neither', () => {
   });
 
   it('carries the trace id so a report maps to a server trace', async () => {
-    const api = stubCatalogApi({ feed: () => err(httpFailure(500, 'trace_fav')) });
-    renderSurface(<FavoritesPage />, { api });
+    const favoritesApi = stubFavoritesApi({
+      list: () => err(favoritesHttpFailure(500, { traceId: 'trace_fav' })),
+    });
+    renderFavorites({ favoritesApi });
 
     expect((await screen.findByTestId('retryable-error')).getAttribute('data-trace-id')).toBe(
       'trace_fav',
@@ -282,73 +254,109 @@ describe('failures that are neither', () => {
 });
 
 /**
- * A read where some probes answered and some did not. The rows that loaded are correct; the list is
- * not known to be complete, and a hole in it is indistinguishable from a drama the viewer never
- * followed.
+ * The list names dramas; the catalogue turns them into cards. A card that cannot be drawn must not
+ * remove a favourite from the list, because that is the hole the fan-out was deleted for.
  */
-describe('a read that only partly answered', () => {
-  it('keeps the rows it resolved and reports the list as incomplete underneath them', async () => {
-    const favoritesApi = stubFavoritesApi({
-      read: (dramaId) =>
-        dramaId === 'drm_2' ? err(offlineFailure()) : ok(followedState(dramaId, AUGUST_1)),
+describe('a favourite the catalogue could not resolve', () => {
+  it('keeps the row and marks the screen as incomplete', async () => {
+    const api = stubCatalogApi({
+      drama: (dramaId) =>
+        dramaId === 'drm_gone' ? err(httpFailure(410)) : ok(dramaDetail({ id: dramaId })),
     });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
-    });
-    expect(screen.getByTestId('retryable-error')).toBeDefined();
-    expect(screen.getByTestId('favorites-page').getAttribute('data-state')).toBe('incomplete');
-  });
-
-  /**
-   * The case this branch exists for. No row was found *and* a probe never answered, so "you are not
-   * following anything" is a claim about the drama that did not answer — and it is not made.
-   */
-  it('does not call a list empty when a drama never answered', async () => {
-    const favoritesApi = stubFavoritesApi({
-      read: (dramaId) =>
-        dramaId === 'drm_2' ? err(offlineFailure()) : ok(unfollowedState(dramaId)),
-    });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
-
-    expect(await screen.findByTestId('retryable-error')).toBeDefined();
-    expect(screen.queryByTestId('empty-state')).toBeNull();
-    expect(screen.getByTestId('favorites-page').getAttribute('data-state')).toBe('unresolved');
-  });
-
-  /**
-   * A refused probe answers the same way for ever, so it gets a sentence rather than a button. It
-   * still cannot be hidden: the rows on screen are real and the list is still not known to be
-   * complete.
-   */
-  it('states an unresolvable gap without offering a retry that cannot work', async () => {
-    const favoritesApi = stubFavoritesApi({
-      read: (dramaId) =>
-        dramaId === 'drm_2' ? err(favoritesHttpFailure(400)) : ok(followedState(dramaId, AUGUST_1)),
-    });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
-
-    const notice = await screen.findByTestId('favorites-incomplete');
-    expect(notice.textContent).toContain('may be missing');
-    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
-    expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
-  });
-
-  it('rereads the whole list on the retry rather than only the drama that failed', async () => {
-    const favoritesApi = stubFavoritesApi({
-      read: (dramaId, index) =>
-        index < 2 && dramaId === 'drm_2'
-          ? err(offlineFailure())
-          : ok(followedState(dramaId, AUGUST_1)),
-    });
-    renderSurface(<FavoritesPage />, { api: candidates('drm_1', 'drm_2'), favoritesApi });
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+    renderFavorites({ api, favoritesApi: following('drm_1', 'drm_gone') });
 
     await waitFor(() => {
       expect(screen.getAllByTestId('favorite-row')).toHaveLength(2);
     });
-    expect(favoritesApi.readCalls).toEqual(['drm_1', 'drm_2', 'drm_1', 'drm_2']);
+    expect(screen.getByTestId('favorites-page').getAttribute('data-state')).toBe('incomplete');
+    expect(screen.getByTestId('favorite-unresolved')).toBeDefined();
+  });
+
+  // A list of rows we could not draw is still the viewer's list, and it is not an error screen.
+  it('is not an error and is not an empty list', async () => {
+    const api = stubCatalogApi({ drama: () => err(offlineFailure()) });
+    renderFavorites({ api, favoritesApi: following('drm_1') });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
+    });
+    expect(screen.queryByTestId('empty-state')).toBeNull();
+    expect(screen.queryByTestId('terminal-error')).toBeNull();
+  });
+});
+
+/**
+ * The list is paged, which the fan-out could not be: a "load more" over candidates would have paged
+ * the wrong collection. `hasMore` is not consulted — `nextCursor === null` is exactly equivalent.
+ */
+describe('paging the list', () => {
+  it('offers more only while the server says there is more', async () => {
+    const { unmount } = renderFavorites({ favoritesApi: following('drm_1') });
+    await screen.findByTestId('favorites-list');
+    expect(screen.queryByTestId('load-more-favorites')).toBeNull();
+    unmount();
+
+    renderFavorites({
+      favoritesApi: stubFavoritesApi({ list: () => ok(favoritesPage(['drm_1'], 'cursor_2')) }),
+    });
+    expect(await screen.findByTestId('load-more-favorites')).toBeDefined();
+  });
+
+  it('appends the next page with the cursor the server handed back', async () => {
+    const favoritesApi = stubFavoritesApi({
+      list: (request) =>
+        request.cursor === undefined
+          ? ok(favoritesPage(['drm_1'], 'cursor_2'))
+          : ok(favoritesPage(['drm_2'])),
+    });
+    renderFavorites({ favoritesApi });
+
+    fireEvent.click(await screen.findByTestId('load-more-favorites'));
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('favorite-row')).toHaveLength(2);
+    });
+    expect(favoritesApi.listCalls.map((call) => call.cursor)).toEqual([undefined, 'cursor_2']);
+    expect(screen.queryByTestId('load-more-favorites')).toBeNull();
+  });
+
+  /**
+   * A page that fails is not an error screen once there are rows: replacing them would cost the
+   * viewer their place to tell them something a notice can say.
+   */
+  it('keeps the rows on screen when a further page fails', async () => {
+    const favoritesApi = stubFavoritesApi({
+      list: (request) =>
+        request.cursor === undefined
+          ? ok(favoritesPage(['drm_1'], 'cursor_2'))
+          : err(offlineFailure()),
+    });
+    renderFavorites({ favoritesApi });
+
+    fireEvent.click(await screen.findByTestId('load-more-favorites'));
+
+    expect(await screen.findByTestId('retryable-error')).toBeDefined();
+    expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
+    expect(screen.getByTestId('favorites-page').getAttribute('data-state')).toBe('ready');
+  });
+
+  /**
+   * A session that expires mid-scroll is the same fact as one that was missing at the first page, so
+   * it is a sign-in prompt under the rows rather than a retry button that cannot succeed.
+   */
+  it('asks for a session under the rows when a further page answers 401', async () => {
+    const favoritesApi = stubFavoritesApi({
+      list: (request) =>
+        request.cursor === undefined
+          ? ok(favoritesPage(['drm_1'], 'cursor_2'))
+          : err(favoritesHttpFailure(401)),
+    });
+    renderFavorites({ favoritesApi });
+
+    fireEvent.click(await screen.findByTestId('load-more-favorites'));
+
+    expect(await screen.findByTestId('favorites-sign-in-more')).toBeDefined();
+    expect(screen.getAllByTestId('favorite-row')).toHaveLength(1);
+    expect(screen.queryByTestId('retryable-error')).toBeNull();
   });
 });

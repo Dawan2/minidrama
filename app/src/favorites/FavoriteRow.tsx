@@ -9,23 +9,31 @@ import { translate } from '../core/i18n';
 import { useFavoritesApi } from '../data/favorites-api-context';
 import type { FavoriteActionPresentation } from './favorite-action';
 import type { FavoriteEntry } from './favorite-collection';
+import type { TranslationKey } from '../core/i18n';
 
 /**
  * One favourite: the drama, one tap to it, and the way to stop following it.
  *
- * Two decisions shape this component.
+ * Three decisions shape this component.
  *
  * **A removed row stays on screen, un-followed, with an undo.** The alternative — deleting the row
- * from the list — is what most lists do and it is wrong here for a specific reason: the list is
- * assembled by asking the server about twenty dramas (`favorite-collection.ts`), so a row that
- * disappears cannot be brought back without redoing that, and the viewer's own scroll position moves
- * under their finger at the moment they touched it. Keeping the row is also what makes `PUT` reachable
- * from this screen at all, which matters because re-following is the favourite request that can fail.
+ * from the list — is what most lists do and it is wrong here for a specific reason: the row would
+ * come back on the next read of the page anyway, and until then the viewer's own scroll position
+ * moves under their finger at the moment they touched it. Keeping the row is also what makes `PUT`
+ * reachable from this screen at all, which matters because re-following is the favourite request that
+ * can fail.
  *
  * **The action state is the row's own, not the list's.** A failed remove must not blank the list, and
  * a viewer un-following three dramas must not have the second attempt cancel the first. Lifting this
  * into the page would mean one failure state for twenty rows, which is exactly how "something went
  * wrong" ends up on a screen where nineteen things went right.
+ *
+ * **A row whose drama the catalogue did not resolve is still a row.** The favourites list is ids and
+ * follow dates (`favorite-collection.ts`), so a delisted drama — or one whose read failed — has no
+ * title, no cover and nowhere to tap. It keeps its place and its un-follow button anyway: the server
+ * leaves a delisted favourite in the list precisely so the viewer can clear it
+ * (`docs/handoff/w8-work-favorites-list.md` S68), and a row that were hidden here would be a
+ * favourite they can neither see nor remove.
  *
  * The favourite timestamp is displayed nowhere. It is the list's sort key and the client has no
  * authority over the server's clock; "following since 3 August" is a claim we would be quoting.
@@ -54,7 +62,7 @@ const REMOVED: RowState = { kind: 'REMOVED' };
 export function FavoriteRow({ entry }: FavoriteRowProps): React.JSX.Element {
   const api = useFavoritesApi();
   const [state, setState] = useState<RowState>(FOLLOWED);
-  const { drama } = entry;
+  const { dramaId, drama } = entry;
 
   const run = async (action: RowAction): Promise<void> => {
     // Guarded rather than merely disabled. A second request while the first is in flight is two
@@ -65,7 +73,7 @@ export function FavoriteRow({ entry }: FavoriteRowProps): React.JSX.Element {
     setState({ kind: 'WORKING', action });
 
     const result =
-      action === 'REMOVE' ? await api.removeFavorite(drama.id) : await api.addFavorite(drama.id);
+      action === 'REMOVE' ? await api.removeFavorite(dramaId) : await api.addFavorite(dramaId);
 
     if (result.ok) {
       setState(action === 'REMOVE' ? REMOVED : FOLLOWED);
@@ -83,20 +91,35 @@ export function FavoriteRow({ entry }: FavoriteRowProps): React.JSX.Element {
     <li
       className={`favorite-row${followedNow(state) ? '' : ' favorite-row--removed'}`}
       data-testid="favorite-row"
-      data-drama-id={drama.id}
+      data-drama-id={dramaId}
       data-row-state={state.kind}
+      data-row-resolved={drama === null ? 'false' : 'true'}
       data-row-failure={state.kind === 'FAILED' ? state.presented.kind : ''}
     >
-      <Link className="favorite-row__link" to={dramaPath(drama.id)}>
-        <CoverImage className="favorite-row__cover" src={drama.coverUrl} alt={drama.title} />
-        <div className="favorite-row__body">
-          <h2 className="favorite-row__title">{drama.title}</h2>
-          <p className="favorite-row__meta">
-            {translate('feed.episodeCount', undefined, { n: drama.totalEpisodes })}
+      {drama === null ? (
+        /*
+         * No title, no cover and no link: a link to a drama we could not read is a tap that lands on
+         * an error screen. What the row does say is that this is the viewer's favourite and that they
+         * can still stop following it, which is the only action available on a drama that is gone.
+         */
+        <div className="favorite-row__unresolved">
+          <h2 className="favorite-row__title">{translate('favorites.unresolvedTitle')}</h2>
+          <p className="favorite-row__meta" data-testid="favorite-unresolved">
+            {translate('favorites.unresolved')}
           </p>
         </div>
-      </Link>
-      <div className="favorite-row__action">{renderAction(state, drama.title, start)}</div>
+      ) : (
+        <Link className="favorite-row__link" to={dramaPath(drama.id)}>
+          <CoverImage className="favorite-row__cover" src={drama.coverUrl} alt={drama.title} />
+          <div className="favorite-row__body">
+            <h2 className="favorite-row__title">{drama.title}</h2>
+            <p className="favorite-row__meta">
+              {translate('feed.episodeCount', undefined, { n: drama.totalEpisodes })}
+            </p>
+          </div>
+        </Link>
+      )}
+      <div className="favorite-row__action">{renderAction(state, drama?.title ?? null, start)}</div>
     </li>
   );
 }
@@ -120,10 +143,13 @@ function followedNow(state: RowState): boolean {
  * Every button carries an accessible name naming the drama, while showing two words. A list of five
  * buttons all announced as "Remove" is a list a screen-reader user cannot act on: the visible label
  * is disambiguated by the row it sits in, and an accessible name is not.
+ *
+ * An unresolved row has no title to name, so it falls back to a label that says which *kind* of row
+ * it is. That is worse than a title and much better than five buttons announced identically.
  */
 function renderAction(
   state: RowState,
-  title: string,
+  title: string | null,
   start: (action: RowAction) => void,
 ): React.JSX.Element {
   if (state.kind === 'WORKING') {
@@ -144,7 +170,7 @@ function renderAction(
           className="favorite-row__button"
           type="button"
           data-testid="favorite-undo"
-          aria-label={translate('favorites.undoLabel', undefined, { title })}
+          aria-label={actionLabel('favorites.undoLabel', 'favorites.undoUnresolvedLabel', title)}
           onClick={() => {
             start('RESTORE');
           }}
@@ -164,7 +190,7 @@ function renderAction(
       className="favorite-row__button"
       type="button"
       data-testid="favorite-remove"
-      aria-label={translate('favorites.removeLabel', undefined, { title })}
+      aria-label={actionLabel('favorites.removeLabel', 'favorites.removeUnresolvedLabel', title)}
       onClick={() => {
         start('REMOVE');
       }}
@@ -172,6 +198,15 @@ function renderAction(
       {translate('favorites.remove')}
     </button>
   );
+}
+
+/** The named label when there is a title, and the row's own kind when there is not. */
+function actionLabel(
+  titledKey: TranslationKey,
+  untitledKey: TranslationKey,
+  title: string | null,
+): string {
+  return title === null ? translate(untitledKey) : translate(titledKey, undefined, { title });
 }
 
 /**

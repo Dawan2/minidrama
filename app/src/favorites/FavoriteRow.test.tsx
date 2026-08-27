@@ -11,10 +11,16 @@ import type { FavoriteEntry } from './favorite-collection';
 
 function entry(overrides: Partial<FavoriteEntry> = {}): FavoriteEntry {
   return {
+    dramaId: 'drm_1',
     drama: dramaSummary({ id: 'drm_1', title: 'The Heiress Returns' }),
     favoritedAt: '2026-08-01T00:00:00.000Z',
     ...overrides,
   };
+}
+
+/** A favourite whose drama the catalogue did not resolve: delisted, or a read that failed. */
+function unresolvedEntry(): FavoriteEntry {
+  return entry({ drama: null });
 }
 
 describe('a favourite row', () => {
@@ -52,6 +58,63 @@ describe('a favourite row', () => {
     expect(button.getAttribute('aria-label')).toBe(
       'Remove The Heiress Returns from your favourites',
     );
+  });
+});
+
+/**
+ * The favourites list carries drama ids, so a delisted drama — or one whose read failed — arrives with
+ * no title, no cover and nowhere to tap. The server keeps such a row in the list on purpose, so that
+ * the viewer can clear a favourite they can no longer watch.
+ */
+describe('a favourite whose drama did not resolve', () => {
+  it('stays on screen and says what it is', () => {
+    renderSurface(<FavoriteRow entry={unresolvedEntry()} />);
+
+    const row = screen.getByTestId('favorite-row');
+    expect(row.getAttribute('data-drama-id')).toBe('drm_1');
+    expect(row.getAttribute('data-row-resolved')).toBe('false');
+    expect(screen.getByTestId('favorite-unresolved').textContent).toContain(
+      'could not load this drama',
+    );
+  });
+
+  // A link to a drama we could not read is a tap that lands on an error screen.
+  it('offers nothing to tap through to', () => {
+    renderSurface(<FavoriteRow entry={unresolvedEntry()} />);
+
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  /**
+   * The one action that still means something. Hiding the row would leave a favourite the viewer can
+   * neither see nor remove.
+   */
+  it('can still be un-followed', async () => {
+    const favoritesApi = stubFavoritesApi();
+    renderSurface(<FavoriteRow entry={unresolvedEntry()} />, { favoritesApi });
+
+    fireEvent.click(screen.getByTestId('favorite-remove'));
+
+    await waitFor(() => {
+      expect(favoritesApi.removeCalls).toEqual(['drm_1']);
+    });
+    expect(await screen.findByTestId('favorite-removed')).toBeDefined();
+  });
+
+  // There is no title to name, so the label says which kind of row it is rather than nothing at all.
+  it('names the row in the button’s accessible name without a title to use', () => {
+    renderSurface(<FavoriteRow entry={unresolvedEntry()} />);
+
+    expect(screen.getByTestId('favorite-remove').getAttribute('aria-label')).toBe(
+      'Remove this unavailable drama from your favourites',
+    );
+  });
+
+  it('says a resolved row is resolved, so the two stay distinguishable', () => {
+    renderSurface(<FavoriteRow entry={entry()} />);
+
+    expect(screen.getByTestId('favorite-row').getAttribute('data-row-resolved')).toBe('true');
+    expect(screen.queryByTestId('favorite-unresolved')).toBeNull();
   });
 });
 

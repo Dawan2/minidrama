@@ -1,171 +1,154 @@
-import { err, ok } from '@minidrama/shared';
-import type { DramaSummary, Result } from '@minidrama/shared';
+import { ok } from '@minidrama/shared';
+import type { DramaSummary, Page, Result } from '@minidrama/shared';
 
-import { UNAVAILABLE_STATUSES } from '../data/session-read';
 import type { ApiFailure } from '../data/failure';
-import type { FavoriteCandidateSource } from './favorite-candidates';
-import type { FavoriteState } from '../data/favorites-api';
+import type { FavoriteList, FavoriteListItem, FavoritesListRequest } from '../data/favorites-api';
 
 /**
- * The viewer's favourites, assembled from per-drama reads.
+ * The viewer's favourites, as a page of rows the screen can render.
  *
- * `favorite-candidates.ts` explains why the screen is built this way rather than from a list
- * endpoint. What this module owns is the part that has to be right whatever the candidates are:
+ * **This module used to fan out.** There was no `GET /v1/users/me/favorites`, so SCR-08 asked a page
+ * of the recommendation feed for candidate dramas and then asked, drama by drama, "do you follow this
+ * one?". The cost was not the request count: it was that a followed drama outside the candidate page
+ * was **not on the viewer's favourites screen at all**, which is a wrong list rather than a slow one
+ * (`docs/handoff/w7-work-favorites.md` G-F2). The list endpoint closes that, so the fan-out, the
+ * candidate source, the partial-answer state and the coverage notice that disclosed the limit are all
+ * gone.
  *
- * 1. **when the fan-out stops.** Two failures mean the same thing for every candidate — no session,
- *    and no endpoint — so the first one of those ends the whole read instead of being asked again
- *    nineteen times;
- * 2. **what a partial answer is allowed to look like.** A read where three probes timed out is not
- *    an empty list and it is not a complete list, and the screen must be able to say which;
- * 3. **the order.** Most recently followed first, which is the order SCR-08 reads in
- *    (`docs/02-screen-inventory.md`), and it is the client's job here only because there is no
- *    server sort to inherit.
+ * What is left is one paged read and one honest gap. The list carries drama *ids* and follow
+ * timestamps and nothing about the dramas themselves — `DramaSummary` is a catalogue view object and
+ * the endpoint deliberately does not invent a partial copy of it
+ * (`docs/handoff/w8-work-favorites-list.md` decision S60) — so a row is resolved through the
+ * catalogue's own drama read before it can be drawn. Two properties of that step matter:
+ *
+ * 1. **the list is the list.** Which dramas are on the screen, and in what order, is decided by the
+ *    endpoint. Resolving is a rendering step, so a drama that will not resolve subtracts a *card*
+ *    from the screen and never a *row*;
+ * 2. **a row that will not resolve keeps its place and its un-follow button.** The server keeps a
+ *    delisted drama in the list on purpose — the row is why the drama is on the viewer's screen, and
+ *    hiding it leaves a favourite they can neither see nor clear (that slot's S68, and the question
+ *    it left to this screen as `W8-a`). Dropping it here would re-introduce exactly the hole the
+ *    fan-out was deleted for.
+ *
+ * The order is the server's now: `favoritedAt` descending with the drama id as a tiebreak, applied
+ * inside the keyset the cursor pages through (S61). A client-side re-sort would be a second opinion
+ * about an order the pages are already cut along, and two pages sorted independently do not
+ * concatenate.
  */
 
+/** One favourite, ready to render. */
 export interface FavoriteEntry {
-  readonly drama: DramaSummary;
+  readonly dramaId: string;
+  /**
+   * The drama, or `null` when the catalogue did not resolve it — a delisted title, or a read that
+   * failed. The row is still the viewer's favourite either way, which is why this is a nullable field
+   * rather than a reason to drop the entry.
+   */
+  readonly drama: DramaSummary | null;
   /**
    * When the viewer first followed it, ISO 8601, or `null` when the row carried no usable timestamp.
-   * The sort key, and nothing else: it is never displayed, because "following since 3 August" is a
-   * fact the client would be quoting from a clock it does not own.
+   * Carried and never used: it is the server's sort key, and "following since 3 August" is a fact the
+   * client would be quoting from a clock it does not own.
    */
   readonly favoritedAt: string | null;
 }
 
-export interface FavoritesList {
-  /** Ordered by `orderFavorites`. Only dramas the server said this viewer follows. */
-  readonly entries: readonly FavoriteEntry[];
-  /** How many dramas the candidate source offered. */
-  readonly candidates: number;
-  /** How many of them answered. Below `candidates` when a probe failed and the read went on. */
-  readonly answered: number;
-  /**
-   * The first probe failure that was neither a missing session nor a missing endpoint — a timeout,
-   * a server fault. Non-null means `entries` is incomplete, which is a state the screen renders
-   * rather than hides: a hole in this list is indistinguishable from a drama the viewer never
-   * followed, so it reads as the product having silently un-followed something.
-   */
-  readonly unresolved: ApiFailure | null;
-}
+/**
+ * How many drama reads are in flight at once while a page is resolved.
+ *
+ * Not "all of them". A WebView holds around six connections per host, so a whole page requested at
+ * once means the tail queues in the browser — and the client's 10s timeout starts when the request is
+ * *made*, not when it is sent, so a queued request can time out having never left the device
+ * (`data/http.ts`). Four leaves connections free for the cover images the rows are about to ask for,
+ * which is the difference between a list that appears and a list that appears blank.
+ */
+export const FAVORITE_RESOLVE_CONCURRENCY = 4;
 
-export interface CollectFavoritesOptions {
-  readonly candidates: FavoriteCandidateSource;
-  readonly readFavorite: (dramaId: string) => Promise<Result<FavoriteState, ApiFailure>>;
+/**
+ * How many favourites a page asks for.
+ *
+ * The endpoint's own default (S69), stated rather than left implicit so the page size the screen
+ * pages at is visible in the client too. It is also the resolve cost of one page: twenty favourites
+ * is twenty drama reads until the projection lands (§5 of this slot's handoff).
+ */
+export const FAVORITES_PAGE_LIMIT = 20;
+
+/**
+ * The two reads a page of this screen needs, as functions rather than as the whole clients.
+ *
+ * `fetchDrama` is typed to `DramaSummary` although the catalogue answers `DramaDetail`: a detail
+ * response *is* a summary plus fields this screen does not draw, and asking for the narrower type is
+ * what keeps a row from quietly starting to depend on one.
+ */
+export interface FavoritesPageSource {
+  readonly listFavorites: (
+    request: FavoritesListRequest,
+  ) => Promise<Result<FavoriteList, ApiFailure>>;
+  readonly fetchDrama: (dramaId: string) => Promise<Result<DramaSummary, ApiFailure>>;
+  readonly limit?: number;
   readonly concurrency?: number;
 }
 
 /**
- * How many probes are in flight at once.
+ * One page of favourites: the list read, then the rows it named.
  *
- * Not "all of them". A WebView holds around six connections per host, so twenty simultaneous
- * requests means the last fourteen queue in the browser — and the client's 10s timeout starts when
- * the request is *made*, not when it is sent, so a queued request can time out having never left the
- * device (`data/http.ts`). Four leaves connections free for the cover images the rows are about to
- * ask for, which is the difference between a list that appears and a list that appears blank.
+ * The list read's failure is the page's failure, unchanged — a `401` is a missing session and not an
+ * empty list, and that split is `data/session-read.ts`'s to make. A *resolution* failure is not a
+ * page failure at all: it lands in the row it belongs to.
  */
-export const FAVORITE_PROBE_CONCURRENCY = 4;
+export async function loadFavoritesPage(
+  source: FavoritesPageSource,
+  cursor: string | undefined,
+): Promise<Result<Page<FavoriteEntry>, ApiFailure>> {
+  const list = await source.listFavorites({
+    limit: source.limit ?? FAVORITES_PAGE_LIMIT,
+    ...(cursor === undefined ? {} : { cursor }),
+  });
 
-/**
- * Failures whose answer would be identical for every remaining candidate.
- *
- * A `401` is about the viewer, not about the drama: there is no session, so no probe can succeed and
- * nineteen more requests would produce nineteen more `401`s and a slower sign-in prompt. The
- * "endpoint is not deployed" statuses are about the deployment for the same reason — today, on this
- * branch, *every* probe answers `404` from Fastify's not-found handler, and the screen should reach
- * its empty state in one request rather than twenty.
- *
- * The failure is returned as the read's failure so the screen presents it through
- * `presentSessionReadFailure`, which is the only place either status is interpreted.
- */
-function endsTheRead(failure: ApiFailure): boolean {
-  if (failure.kind !== 'HTTP' || failure.status === null) {
-    return false;
+  if (!list.ok) {
+    return list;
   }
-  return failure.status === 401 || UNAVAILABLE_STATUSES.includes(failure.status);
+
+  const items = await resolveFavoriteEntries(
+    list.value.items,
+    source.fetchDrama,
+    source.concurrency,
+  );
+  return ok({ items, pageInfo: list.value.pageInfo });
 }
 
-export async function collectFavorites(
-  options: CollectFavoritesOptions,
-): Promise<Result<FavoritesList, ApiFailure>> {
-  const found = await options.candidates();
-  if (!found.ok) {
-    // The candidate source's failure, unchanged. The screen presents it with the same three-way
-    // split as a probe failure: a feed that is not deployed is as much "we cannot assemble your
-    // list" as a favourite endpoint that is not.
-    return found;
-  }
-
-  const concurrency = Math.max(1, options.concurrency ?? FAVORITE_PROBE_CONCURRENCY);
-  const candidates = found.value;
-
+/**
+ * The rows of one page, in the order the server sent them, each with its drama if the catalogue
+ * had one.
+ *
+ * Resolution is batched rather than serialised, and the batches are collected in order rather than in
+ * the order they resolve: the order is the endpoint's answer, and a list that reorders itself
+ * according to which drama read came back first moves a row out from under the viewer's finger.
+ */
+export async function resolveFavoriteEntries(
+  items: readonly FavoriteListItem[],
+  fetchDrama: (dramaId: string) => Promise<Result<DramaSummary, ApiFailure>>,
+  concurrency = FAVORITE_RESOLVE_CONCURRENCY,
+): Promise<readonly FavoriteEntry[]> {
+  const bound = Math.max(1, concurrency);
   const entries: FavoriteEntry[] = [];
-  let answered = 0;
-  let unresolved: ApiFailure | null = null;
 
-  for (let start = 0; start < candidates.length; start += concurrency) {
-    const batch = candidates.slice(start, start + concurrency);
+  for (let start = 0; start < items.length; start += bound) {
+    const batch = items.slice(start, start + bound);
 
-    const answers = await Promise.all(
-      batch.map(async (drama) => ({ drama, result: await options.readFavorite(drama.id) })),
+    const resolved = await Promise.all(
+      batch.map(async (item) => {
+        const drama = await fetchDrama(item.dramaId);
+        return {
+          dramaId: item.dramaId,
+          drama: drama.ok ? drama.value : null,
+          favoritedAt: item.favoritedAt,
+        };
+      }),
     );
 
-    for (const { drama, result } of answers) {
-      if (!result.ok) {
-        /*
-         * A session that expires mid-fan-out ends the read even though earlier probes succeeded.
-         * The rows already collected are still true, and showing them under a sign-in prompt would
-         * present a fragment of the list as the list — on the screen whose one job is to keep
-         * "your list" apart from "the part of your list we could read". The reload after a
-         * successful sign-in produces the whole thing.
-         */
-        if (endsTheRead(result.error)) {
-          return err(result.error);
-        }
-        unresolved ??= result.error;
-        continue;
-      }
-
-      answered += 1;
-      if (result.value.favorited) {
-        entries.push({ drama, favoritedAt: result.value.favoritedAt ?? null });
-      }
-    }
+    entries.push(...resolved);
   }
 
-  return ok({
-    entries: orderFavorites(entries),
-    candidates: candidates.length,
-    answered,
-    unresolved,
-  });
-}
-
-/**
- * Most recently followed first, then by drama id.
- *
- * The tiebreak is not decoration: without it the order of two rows followed in the same millisecond
- * — or of any two rows whose timestamps were unreadable — is the order the probes happened to
- * resolve in, which changes between renders and moves a row out from under the viewer's finger.
- *
- * A row with no usable timestamp sorts last rather than first. The alternative would promote exactly
- * the rows we know least about to the top of the screen.
- */
-export function orderFavorites(entries: readonly FavoriteEntry[]): readonly FavoriteEntry[] {
-  return [...entries].sort((left, right) => {
-    const byRecency = followedAtMs(right) - followedAtMs(left);
-    return byRecency !== 0 ? byRecency : left.drama.id.localeCompare(right.drama.id);
-  });
-}
-
-/**
- * Parsed rather than string-compared. The server's `favoritedAt` is `Date.toISOString()` and would
- * sort correctly as text, but a timestamp with an offset (`+03:00`) would not, and a favourites list
- * silently in the wrong order is a bug nobody reports.
- */
-function followedAtMs(entry: FavoriteEntry): number {
-  if (entry.favoritedAt === null) {
-    return Number.NEGATIVE_INFINITY;
-  }
-  const parsed = Date.parse(entry.favoritedAt);
-  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+  return entries;
 }
