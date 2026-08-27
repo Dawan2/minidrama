@@ -45,7 +45,10 @@ describe('QA-011 compatibility matrix (X-04)', () => {
 });
 
 describe('QA-011 Minis budgets (X-05)', () => {
-  const section = markdownSection(qualityGates, '### 5.4 性能与体积预算(Minis 形态;允许收紧、放宽须豁免)');
+  const section = markdownSection(
+    qualityGates,
+    '### 5.4 性能与体积预算(Minis 形态;允许收紧、放宽须豁免)',
+  );
 
   it('replaces native APK/iOS rows with ZIP and first-screen JS', () => {
     expect(section).not.toBe('');
