@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:guardrails": "tsx tools/cli/check-guardrails.ts --dist dist"
+    "check:guardrails": "tsx tools/cli/check-guardrails.ts --dist dist",
+    "check:artifact": "tsx tools/cli/check-artifact.ts --dist dist"
   },
   "dependencies": {
     "@minidrama/config": "workspace:*",
