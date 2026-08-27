@@ -68,6 +68,86 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/entitlement/episode-access:
+    post:
+      operationId: describeEpisodeAccess
+      summary: Decide whether a viewer may play an episode
+      description: |
+        The single server-side answer to "may this viewer play this episode, and if not, what would
+        change that". `docs/12-api-contracts.md` §3.3 forbids the client from deriving playability,
+        so this is where it is derived.
+
+        A commercial denial answers `200` with `viewerAccess.playable: false`: this endpoint reports
+        state and the client needs the state to render an unlock panel. Playback is the enforcement
+        point, and answers `403 EPISODE_LOCKED` for the same episode. Content that is unpublished or
+        withdrawn has no viewer-facing state and uses the error envelope instead.
+
+        Two ordering properties are part of the contract. A durable unlock (`COIN`, `AD`, `GRANT`) is
+        consulted **before** VIP, so a subscription lapse cannot revoke separately paid access, and a
+        `VIP`-method unlock row is a viewing receipt rather than a purchase. The drama-level free
+        window is measured on the episode's position within the **drama**, not within its season.
+
+        The response carries no media identifier of any kind. Playback identifiers come from
+        `POST /v1/playback/sessions` (correction A4, `docs/architecture/system-overview.md` §1.1).
+
+        Authentication is optional: a request with no credential is answered as a signed-out,
+        non-VIP viewer holding nothing. A credential that cannot be read or resolved is refused
+        rather than downgraded to anonymous.
+      tags: [entitlement]
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            type: string
+          description: '`Bearer <accessToken>`. Omit for an anonymous view.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EpisodeAccessRequest'
+      responses:
+        '200':
+          description: The decision, including denials that the viewer can act on.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeAccessResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: |
+            `AUTH_REQUIRED`. The credential could not be read, or names a user that does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            `CONTENT_NOT_FOUND`. The episode does not exist, or it — or its season or drama — is not
+            published. Draft content is reported as absent rather than as withdrawn, so the response
+            does not confirm the existence of unpublished content.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: '`CONTENT_OFFLINE`. The episode, its season or its drama has been withdrawn.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            `COMMON_SERVICE_UNAVAILABLE`. Entitlement state could not be established — no data layer,
+            an unresolvable session, or a paid episode whose price is unusable. The decision denies
+            rather than guessing, because both guesses cost money.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/auth/login:
     post:
       operationId: login
@@ -215,6 +295,56 @@ components:
         resumePositionSec:
           type: integer
           minimum: 0
+
+    EpisodeAccessRequest:
+      type: object
+      required: [episodeId]
+      properties:
+        episodeId:
+          type: string
+          minLength: 1
+
+    EpisodeAccessResponse:
+      type: object
+      required: [episodeId, viewerAccess, unlockOptions, priceCoins]
+      properties:
+        episodeId:
+          type: string
+        viewerAccess:
+          $ref: '#/components/schemas/ViewerAccess'
+        unlockOptions:
+          type: array
+          description: |
+            What the viewer can do about a denial, empty when the episode is playable. `AD` is
+            absent until ad unlocking exists.
+          items:
+            type: string
+            enum: [COINS, VIP]
+        priceCoins:
+          type: [integer, 'null']
+          minimum: 1
+          description: |
+            The coin price, present only when paying is one of the options. A paid episode whose
+            stored price is not a positive integer is answered `503` rather than quoted as free.
+
+    ViewerAccess:
+      type: object
+      required: [playable, reason, unlockedBy]
+      description: |
+        The `viewerAccess` view of `docs/12-api-contracts.md` §3.3. `UNAVAILABLE` is not returned
+        here — unavailable content uses the error envelope.
+      properties:
+        playable:
+          type: boolean
+        reason:
+          type: string
+          enum: [FREE, UNLOCKED, VIP, NEED_UNLOCK, NEED_VIP]
+        unlockedBy:
+          type: [string, 'null']
+          enum: [COIN, AD, GRANT, VIP, null]
+          description: |
+            How access was granted. `VIP` means the live subscription grants it and access ends with
+            the subscription; `COIN`, `AD` and `GRANT` are durable receipts for this episode.
 
     LoginRequest:
       type: object

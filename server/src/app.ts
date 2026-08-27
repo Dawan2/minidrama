@@ -5,6 +5,9 @@ import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event
 import { createSessionIssuer } from './modules/identity/session.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
+import { createUnavailableEntitlementFactsPort } from './modules/entitlement/facts-port.js';
+import { createUnresolvedViewerResolver } from './modules/entitlement/viewer-resolver.js';
+import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { identityRoutes } from './modules/identity/routes.js';
@@ -12,11 +15,13 @@ import { loadConfig } from './config.js';
 import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
+import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { ServerConfig } from './config.js';
 import type { SessionIssuer } from './modules/identity/session.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
+import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
 
 /**
@@ -40,6 +45,12 @@ export interface AppDependencies {
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
   readonly sessionIssuer?: SessionIssuer;
+  /**
+   * Entitlement reads content and viewer state. Both defaults refuse until the data layer and
+   * session storage exist, so a deployment cannot serve invented entitlements by omission.
+   */
+  readonly entitlementFactsPort?: EntitlementFactsPort;
+  readonly viewerResolver?: ViewerResolver;
   readonly now?: () => number;
 }
 
@@ -98,6 +109,12 @@ export async function buildApp(
 
   await app.register(healthRoutes);
   await app.register(playbackRoutes);
+
+  await app.register(entitlementRoutes, {
+    factsPort: dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort(),
+    viewerResolver: dependencies.viewerResolver ?? createUnresolvedViewerResolver(),
+    now,
+  });
 
   await app.register(identityRoutes, {
     identityPort: dependencies.identityPort ?? createTiktokIdentityPort(credentials),
