@@ -20,6 +20,10 @@ import type { WatchProgressRecord } from './progress.js';
  *     merges and writes. A durable implementation must make that sequence atomic — in SQL, by
  *     putting the timestamp comparison in the upsert predicate rather than doing read-compare-write
  *     in the application, which is what makes concurrent flushes from several instances deterministic.
+ *
+ * **Default is process-local.** The in-memory map dies with the process, so a restart forgets every
+ * position it held. `DATABASE_URL=sqlite:<path>` puts a SQLite table behind this same interface; a
+ * postgres URL is refused rather than rewritten to a file. Redis (T15) is not read.
  */
 export interface WatchProgressStore {
   read(userId: string, episodeId: string): Promise<WatchProgressRecord | undefined>;
