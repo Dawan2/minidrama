@@ -1,3 +1,9 @@
+# G1.6 oasdiff baseline (`docs/14-quality-gates.md` §2, CTR-007).
+# Additive paths in openapi.yaml do not require updating this file.
+# Deleting a field, changing a type, adding a required request property, or narrowing
+# an enum fails until this snapshot is updated through the contract change process.
+# A TypeScript grep of path strings is not G1.6; the L1 job runs oasdiff against this file.
+#
 openapi: 3.1.0
 info:
   title: Minidrama API

@@ -8,6 +8,7 @@ import type { EntitlementFactsPort, EpisodeAccessFactsFailure } from '../entitle
 import type { EpisodeAccess, UnavailableCause } from '../entitlement/access.js';
 import type { PlaybackMediaFailure, PlaybackMediaPort } from './media-port.js';
 import type { ViewerResolutionFailure, ViewerResolver } from '../entitlement/viewer-resolver.js';
+import type { WatchProgressStore } from '../progress/store.js';
 
 /**
  * Playback session issuance — `POST /v1/playback/sessions` → `201` (X-19 BD-1…BD-6,
@@ -36,8 +37,12 @@ import type { ViewerResolutionFailure, ViewerResolver } from '../entitlement/vie
  * a disagreement: entitlement reports state a client renders an unlock panel from, and playback is
  * an attempt, so a commercial denial here is a refusal (`docs/handoff/w2-work-f.md` §2.2, S32).
  *
- * Still deferred: the lazy `play_auth_token` fetch for TikTok clients below 44.5.0 (W10), and
- * `resumePositionSec`, which belongs to watch progress and is `0` until that lands.
+ * **`resumePositionSec` is the viewer's stored progress, or `0`.** The player already forwards
+ * that field as VePlayer `startTime`. A missing row, an anonymous caller, or a non-integer stored
+ * position starts at the beginning — that is wrong for a returning viewer we failed to read, and
+ * never wrong about entitlement. Another viewer's row is unreachable because the key is
+ * `(userId, episodeId)`. Still deferred: the lazy `play_auth_token` fetch for TikTok clients
+ * below 44.5.0 (W10).
  */
 
 interface CreateSessionBody {
@@ -49,6 +54,11 @@ export interface PlaybackRouteOptions {
   readonly viewerResolver: ViewerResolver;
   readonly mediaPort: PlaybackMediaPort;
   readonly now: () => number;
+  /**
+   * The same store the heartbeat writes. A second map here would resume from a position the
+   * player had been reporting into a different table.
+   */
+  readonly progressStore: WatchProgressStore;
 }
 
 interface ErrorMapping {
@@ -214,15 +224,21 @@ export async function playbackRoutes(
       return send(MEDIA_FAILURES[media.error], { episodeId: facts.value.episode.id });
     }
 
+    // After the gate, and after media: a commercial denial must not read another viewer's
+    // progress, and a missing asset must not look up a resume we will not send.
+    const resumePositionSec = await resumeFromProgress(
+      options.progressStore,
+      viewerId.value,
+      facts.value.episode.id,
+    );
+
     const descriptor: PlaybackDescriptor = {
       // The drama is the album. Taken from the facts that decided access rather than resolved
       // again, so the descriptor cannot name a different drama than the one that was authorized.
       albumId: facts.value.drama.id,
       episodeId: facts.value.episode.id,
       vid: media.value.vid,
-      // Watch progress is a separate slot. Until it lands every session starts at the beginning,
-      // which is wrong for a returning viewer but never wrong about entitlement.
-      resumePositionSec: 0,
+      resumePositionSec,
     };
 
     return reply.status(201).send(descriptor);
@@ -244,4 +260,25 @@ function denialMapping(access: EpisodeAccess, viewerId: string | null): ErrorMap
   return access.reason === 'NEED_VIP'
     ? COMMERCIAL_DENIALS.NEED_VIP
     : COMMERCIAL_DENIALS.NEED_UNLOCK;
+}
+
+/**
+ * Where VePlayer should start, from the heartbeat table, never from a guess.
+ *
+ * Anonymous callers have no row to read. A missing row is `0`, the same answer `GET
+ * /v1/progress/episodes/{id}` already gives, so continue-watching and a fresh session cannot
+ * disagree about "never watched". A stored value that is not a non-negative integer is not a
+ * start time — it is dropped rather than forwarded into `startTime`.
+ */
+async function resumeFromProgress(
+  store: WatchProgressStore,
+  viewerId: string | null,
+  episodeId: string,
+): Promise<number> {
+  if (viewerId === null) return 0;
+
+  const record = await store.read(viewerId, episodeId);
+  if (record === undefined) return 0;
+  if (!Number.isInteger(record.positionSec) || record.positionSec < 0) return 0;
+  return record.positionSec;
 }

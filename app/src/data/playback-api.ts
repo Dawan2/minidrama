@@ -88,7 +88,7 @@ export function narrowPlaybackDescriptor(value: unknown): PlaybackDescriptor | n
   const albumId = record['albumId'];
   const episodeId = record['episodeId'];
   const vid = record['vid'];
-  const resumePositionSec = record['resumePositionSec'];
+  const resumePositionSec = resumeStartTime(record['resumePositionSec']);
   const playAuthToken = record['playAuthToken'];
 
   if (typeof albumId !== 'string' || albumId.length === 0) {
@@ -100,10 +100,7 @@ export function narrowPlaybackDescriptor(value: unknown): PlaybackDescriptor | n
   if (typeof vid !== 'string' || vid.length === 0) {
     return null;
   }
-  if (typeof resumePositionSec !== 'number' || !Number.isFinite(resumePositionSec)) {
-    return null;
-  }
-  if (resumePositionSec < 0) {
+  if (resumePositionSec === null) {
     return null;
   }
   if (playAuthToken !== undefined && typeof playAuthToken !== 'string') {
@@ -120,4 +117,22 @@ export function narrowPlaybackDescriptor(value: unknown): PlaybackDescriptor | n
     resumePositionSec,
     ...(playAuthToken === undefined ? {} : { playAuthToken }),
   };
+}
+
+/**
+ * Where VePlayer should start, from the session field alone.
+ *
+ * Omitted or `0` is the beginning — that is the only time this returns 0. A present
+ * non-negative finite number is used as-is. A negative, NaN, or non-number value is not a
+ * start time: the descriptor is refused rather than filled from catalog `durationSec` or a
+ * local cache.
+ */
+export function resumeStartTime(value: unknown): number | null {
+  if (value === undefined) {
+    return 0;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return value;
 }

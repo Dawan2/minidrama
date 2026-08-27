@@ -390,10 +390,20 @@ export async function buildApp(
     continueWatching: dependencies.continueWatching ?? createEmptyContinueWatchingSource(),
   });
 
+  // One progress store for heartbeats, history, drama marks, *and* the playback descriptor's
+  // `resumePositionSec`. A second map here would resume from a position the player had been
+  // reporting into a different table — the leftover C4 heartbeat slot just started writing.
+  const watchProgressStore =
+    dependencies.watchProgressStore ??
+    (durableDb === undefined
+      ? createInMemoryWatchProgressStore()
+      : createSqliteWatchProgressStore(durableDb));
+
   await app.register(playbackRoutes, {
     factsPort: entitlementFactsPort,
     viewerResolver,
     mediaPort: dependencies.playbackMediaPort ?? createUnavailablePlaybackMediaPort(),
+    progressStore: watchProgressStore,
     now,
   });
 
@@ -444,15 +454,9 @@ export async function buildApp(
     balancePort: dependencies.walletBalancePort ?? createUnavailableWalletBalancePort(),
   });
 
-  // One progress store for both registrations: the per-episode endpoints write the rows the history
-  // list reads. Separate stores would leave the history screen permanently empty for a viewer whose
-  // player had been reporting positions all along.
-  const watchProgressStore =
-    dependencies.watchProgressStore ??
-    (durableDb === undefined
-      ? createInMemoryWatchProgressStore()
-      : createSqliteWatchProgressStore(durableDb));
-
+  // Same instance the playback descriptor reads. The per-episode endpoints write the rows the
+  // history list reads. Separate stores would leave the history screen permanently empty for a
+  // viewer whose player had been reporting positions all along.
   await app.register(progressRoutes, {
     store: watchProgressStore,
     viewerResolver,

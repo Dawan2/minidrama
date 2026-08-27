@@ -6,6 +6,7 @@ import {
   createPlaybackApi,
   isPlaybackLock,
   narrowPlaybackDescriptor,
+  resumeStartTime,
 } from './playback-api';
 import { apiFailure } from './failure';
 import { playbackDescriptor } from '../testing/playback-fixtures';
@@ -114,14 +115,29 @@ describe('a response that is not a playback descriptor', () => {
     expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
   });
 
-  it('rejects a missing album, episode, or resume position', async () => {
+  it('rejects a missing album or episode', async () => {
     const { albumId: _album, ...withoutAlbum } = playbackDescriptor();
     const { episodeId: _episode, ...withoutEpisode } = playbackDescriptor();
-    const { resumePositionSec: _resume, ...withoutResume } = playbackDescriptor();
 
-    for (const body of [withoutAlbum, withoutEpisode, withoutResume, null, [], 'ok']) {
+    for (const body of [withoutAlbum, withoutEpisode, null, [], 'ok']) {
       expect((await narrows(body)).ok, JSON.stringify(body)).toBe(false);
     }
+  });
+
+  it('starts at 0 when the session omitted resumePositionSec, rather than inventing duration', async () => {
+    const { resumePositionSec: _resume, ...withoutResume } = playbackDescriptor();
+    const result = await narrows(withoutResume);
+
+    expect(result).toEqual(ok(playbackDescriptor({ resumePositionSec: 0 })));
+  });
+
+  it('keeps a present resumePositionSec, including an explicit 0', () => {
+    expect(narrowPlaybackDescriptor(playbackDescriptor({ resumePositionSec: 45 }))).toEqual(
+      playbackDescriptor({ resumePositionSec: 45 }),
+    );
+    expect(narrowPlaybackDescriptor(playbackDescriptor({ resumePositionSec: 0 }))).toEqual(
+      playbackDescriptor({ resumePositionSec: 0 }),
+    );
   });
 
   it('rejects a playUrl, a quality ladder, or any URL-shaped key', async () => {
@@ -167,5 +183,33 @@ describe('a response that is not a playback descriptor', () => {
 
   it('rejects a negative resume position', async () => {
     expect((await narrows(playbackDescriptor({ resumePositionSec: -1 }))).ok).toBe(false);
+  });
+
+  it('rejects a non-finite or non-number resume rather than starting at a guessed time', async () => {
+    expect((await narrows({ ...playbackDescriptor(), resumePositionSec: Number.NaN })).ok).toBe(
+      false,
+    );
+    expect(
+      (await narrows({ ...playbackDescriptor(), resumePositionSec: Number.POSITIVE_INFINITY }))
+        .ok,
+    ).toBe(false);
+    expect((await narrows({ ...playbackDescriptor(), resumePositionSec: '45' })).ok).toBe(false);
+    expect((await narrows({ ...playbackDescriptor(), resumePositionSec: null })).ok).toBe(false);
+  });
+});
+
+describe('resumeStartTime', () => {
+  it('is 0 only when the field is omitted or already 0', () => {
+    expect(resumeStartTime(undefined)).toBe(0);
+    expect(resumeStartTime(0)).toBe(0);
+    expect(resumeStartTime(45)).toBe(45);
+  });
+
+  it('refuses a bad value instead of filling it from duration', () => {
+    expect(resumeStartTime(-1)).toBeNull();
+    expect(resumeStartTime(Number.NaN)).toBeNull();
+    expect(resumeStartTime('45')).toBeNull();
+    expect(resumeStartTime(null)).toBeNull();
+    expect(resumeStartTime({ durationSec: 90 })).toBeNull();
   });
 });
