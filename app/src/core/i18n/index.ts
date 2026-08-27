@@ -30,8 +30,25 @@ export function isRtl(locale: Locale): boolean {
   return RTL_LOCALES.includes(locale);
 }
 
-export function translate(key: TranslationKey, locale: Locale = DEFAULT_LOCALE): string {
-  return BUNDLES[locale][key] ?? BUNDLES[DEFAULT_LOCALE][key] ?? key;
+/**
+ * Placeholders are `{name}`. A placeholder with no supplied value is left in the string rather
+ * than blanked: "Episode {n}" is a visible bug that gets fixed, "Episode " is one that ships.
+ */
+export type TranslationParams = Readonly<Record<string, string | number>>;
+
+export function translate(
+  key: TranslationKey,
+  locale: Locale = DEFAULT_LOCALE,
+  params?: TranslationParams,
+): string {
+  const template = BUNDLES[locale][key] ?? BUNDLES[DEFAULT_LOCALE][key] ?? key;
+  if (params === undefined) {
+    return template;
+  }
+  return template.replace(/\{(\w+)\}/g, (placeholder, name: string) => {
+    const value = params[name];
+    return value === undefined ? placeholder : String(value);
+  });
 }
 
 export function bundleFor(locale: Locale): Readonly<Record<string, string>> {
