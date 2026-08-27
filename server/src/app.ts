@@ -6,7 +6,7 @@ import type { FastifyError, FastifyInstance } from 'fastify';
 import { catalogRoutes } from './modules/catalog/routes.js';
 import { createAnonymousViewerResolver } from './modules/catalog/viewer.js';
 import { createCatalogDramaSummaryLookup } from './modules/catalog/summary-lookup.js';
-import { createEmptyContinueWatchingSource } from './modules/discovery/feed.js';
+import { createProgressContinueWatchingSource } from './modules/discovery/continue-watching.js';
 import { createGrantedUnlockFactsPort } from './modules/unlock/granted-facts.js';
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
 import { createSqliteCatalogStore } from './modules/catalog/sqlite-catalog-store.js';
@@ -143,9 +143,10 @@ export interface AppDependencies {
   readonly catalogStore?: CatalogStore;
   readonly catalogViewerResolver?: CatalogViewerResolver;
   /**
-   * The rows the recommendation feed's "continue watching" rail is built from. Empty by default:
-   * the feed is assembled from the catalogue, and a rail invented for a viewer nobody resolved is
-   * worse than an absent one.
+   * The rows the recommendation feed's "continue watching" rail is built from. Defaults to the
+   * same watch-progress store heartbeats write: a rail invented for a viewer nobody resolved is
+   * worse than an absent one, and a second map would resume from a table the player was not
+   * writing. Inject empty to pin the rail off in a test.
    */
   readonly continueWatching?: ContinueWatchingSource;
   /**
@@ -384,20 +385,23 @@ export async function buildApp(
     sessionViewer: viewerResolver,
   });
 
-  await app.register(discoveryRoutes, {
-    store: catalogStore,
-    viewerResolver: catalogViewerResolver,
-    continueWatching: dependencies.continueWatching ?? createEmptyContinueWatchingSource(),
-  });
-
-  // One progress store for heartbeats, history, drama marks, *and* the playback descriptor's
-  // `resumePositionSec`. A second map here would resume from a position the player had been
-  // reporting into a different table — the leftover C4 heartbeat slot just started writing.
+  // One progress store for heartbeats, history, drama marks, the playback descriptor's
+  // `resumePositionSec`, *and* the HOME continue-watching rail. A second map here would resume
+  // from a position the player had been reporting into a different table, and would leave the
+  // rail empty for a viewer whose player had been writing all along.
   const watchProgressStore =
     dependencies.watchProgressStore ??
     (durableDb === undefined
       ? createInMemoryWatchProgressStore()
       : createSqliteWatchProgressStore(durableDb));
+
+  await app.register(discoveryRoutes, {
+    store: catalogStore,
+    viewerResolver: catalogViewerResolver,
+    sessionViewer: viewerResolver,
+    continueWatching:
+      dependencies.continueWatching ?? createProgressContinueWatchingSource(watchProgressStore),
+  });
 
   await app.register(playbackRoutes, {
     factsPort: entitlementFactsPort,
