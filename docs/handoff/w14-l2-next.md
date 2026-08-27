@@ -96,6 +96,7 @@ Exit 1. An unknown argument exits 2.
 | `bc-0b570e4b` (`cursor/w14-work-c4-next-72c4`, G2.6) | Landed on `main` as `fe5405a` / `a8e1023` while this slot ran. `l2.yml` job `artifact`, `check:artifact`, `app/tools/artifact-budget.ts`. Merged in; both jobs kept. This slot does not touch those files except the workflow header and the docs that list every L2 job |
 | `bc-e35c1229` (GET `/v1/users/me`) | Skipped at pick. Landed as `f4a4b1c` / `33d149f`. Identity me-routes and ProfilePage. Not touched |
 | PLY-002 (`eec7c71`) | Already on `main` at pick. Not retaken |
+| C4-06 trade_order/create (`74fd7cd`) | Landed while this slot wrote the handoff. `trade-order-create.ts`. Merged in; ort, no overlap |
 
 `git diff origin/main -- .github/workflows/ci.yml` is empty.
 
@@ -103,23 +104,23 @@ Exit 1. An unknown argument exits 2.
 
 ## 5. Verification
 
-`pnpm verify` green on `a020e5c` after merging `origin/main` (`33d149f` users-me + G2.6). L1
-sequence unchanged: format → lint → typecheck → test:coverage → check:coverage → build →
-guardrails. `check:sast` is not in that sequence.
+`pnpm verify` green after merging `origin/main` (`74fd7cd` C4-06 trade_order/create, plus
+G2.6 and GET `/v1/users/me`). L1 sequence unchanged: format → lint → typecheck →
+test:coverage → check:coverage → build → guardrails. `check:sast` is not in that sequence.
 
 | Package | Tests |
 | --- | ---: |
 | `packages/shared` | 58 |
 | `packages/config` | 45 |
 | `packages/quality` | 102 |
-| `server` | 1,673 |
+| `server` | 1,705 |
 | `app` | 1,050 |
-| **Total** | **2,928** |
+| **Total** | **2,960** |
 
 Zero skipped. Thirty-five tests for G2.4 (30 library + 5 CLI). Coverage gate:
 
 ```
-coverage global lines 94.03% (12969/13793), branches 91.98%, core lines 98.13%, diff lines 91.78% (268/292)
+coverage global lines 94.08% (13095/13919), branches 92.06%, core lines 98.13%, diff lines 91.78% (268/292)
 coverage gate passed
 ```
 
