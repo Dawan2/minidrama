@@ -27,10 +27,10 @@ import type { Result } from '@minidrama/shared';
  * expires, so there is no refresh token to issue here and no sliding expiry: a session's lifetime is
  * fixed at issuance, and reading it does not extend it (`docs/12-api-contracts.md` §5).
  *
- * **Process-local.** This map dies with the process and is not shared between instances, so a
- * restart or a second replica invalidates every session it did not issue. That is survivable
- * precisely because the client's answer to a rejected session is to run silent login again — and it
- * is why the store is an interface: W7 replaces the map with Redis without touching a caller.
+ * **Default is process-local.** The in-memory map dies with the process, so a restart invalidates
+ * every session it issued. That is survivable because the client's answer to a rejected session is
+ * to run silent login again. `DATABASE_URL=sqlite:<path>` puts a SQLite table behind this same
+ * interface; a postgres URL is refused rather than rewritten to a file. Redis (T15) is not read.
  */
 
 export interface Session {

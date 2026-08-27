@@ -14,8 +14,10 @@ import type { SqliteDatabase } from './sqlite.js';
  * leave rollback as documentation.
  */
 
-const UNLOCKS_TABLE = `
-  SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'unlocks'
+const USER_TABLES = `
+  SELECT name FROM sqlite_master
+  WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'schema_migrations'
+  ORDER BY name
 `;
 
 let db: SqliteDatabase | undefined;
@@ -36,16 +38,16 @@ function memory(): SqliteDatabase {
 }
 
 function tables(connection: SqliteDatabase): string[] {
-  const rows = connection.prepare(UNLOCKS_TABLE).all();
+  const rows = connection.prepare(USER_TABLES).all();
   return rows.flatMap((row) => (typeof row['name'] === 'string' ? [row['name']] : []));
 }
 
 describe('migrateUp / migrateDown', () => {
-  it('creates the unlocks table on the way up', () => {
+  it('creates the unlocks and sessions tables on the way up', () => {
     const connection = memory();
 
-    expect(migrateUp(connection)).toEqual({ applied: ['0001_unlocks'] });
-    expect(tables(connection)).toEqual(['unlocks']);
+    expect(migrateUp(connection)).toEqual({ applied: ['0001_unlocks', '0002_sessions'] });
+    expect(tables(connection)).toEqual(['sessions', 'unlocks']);
   });
 
   it('is a no-op the second time', () => {
@@ -55,11 +57,11 @@ describe('migrateUp / migrateDown', () => {
     expect(migrateUp(connection)).toEqual({ applied: [] });
   });
 
-  it('drops the unlocks table on the way down', () => {
+  it('drops the sessions and unlocks tables on the way down', () => {
     const connection = memory();
     migrateUp(connection);
 
-    expect(migrateDown(connection)).toEqual({ applied: ['0001_unlocks'] });
+    expect(migrateDown(connection)).toEqual({ applied: ['0002_sessions', '0001_unlocks'] });
     expect(tables(connection)).toEqual([]);
   });
 
@@ -89,9 +91,25 @@ describe('migrateUp / migrateDown', () => {
 
     migrateDown(connection);
     expect(insert).toThrow(/no such table: unlocks/i);
+    expect(() =>
+      connection
+        .prepare(
+          `INSERT INTO sessions (fingerprint, user_id, expires_at_ms, created_at_ms)
+           VALUES ('fp', 'usr_1', 0, 0)`,
+        )
+        .run(),
+    ).toThrow(/no such table: sessions/i);
 
     migrateUp(connection);
     expect(insert().changes).toBe(1);
+    expect(
+      connection
+        .prepare(
+          `INSERT INTO sessions (fingerprint, user_id, expires_at_ms, created_at_ms)
+           VALUES ('fp', 'usr_1', 0, 0)`,
+        )
+        .run().changes,
+    ).toBe(1);
   });
 
   it('refuses an up file that has no matching down file', () => {
@@ -112,7 +130,7 @@ describe('migrateUp / migrateDown', () => {
 
     const second = openSqlite(path);
     db = second;
-    expect(tables(second)).toEqual(['unlocks']);
+    expect(tables(second)).toEqual(['sessions', 'unlocks']);
     expect(migrateUp(second)).toEqual({ applied: [] });
   });
 });
