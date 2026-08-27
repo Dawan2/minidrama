@@ -41,6 +41,8 @@
   "episode.price": "{n} عملة",
   "player.heading": "المشغل",
   "player.unavailable": "التشغيل غير متاح حاليًا. يرجى المحاولة مرة أخرى.",
+  "player.nextEpisode": "الحلقة التالية",
+  "player.lastEpisode": "كانت تلك الحلقة الأخيرة.",
   "state.loading": "جارٍ التحميل…",
   "state.retry": "أعد المحاولة",
   "state.retryableTitle": "انقطع الاتصال",
