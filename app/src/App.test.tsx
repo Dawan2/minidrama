@@ -15,6 +15,7 @@ import {
 import { favoritesHttpFailure, stubFavoritesApi } from './testing/favorites-fixtures';
 import { historyHttpFailure, stubHistoryApi, watchHistoryEntry } from './testing/history-fixtures';
 import { renderSurface } from './testing/render';
+import { stubWalletApi, walletHttpFailure } from './testing/wallet-fixtures';
 import type { StubHistoryApi } from './testing/history-fixtures';
 
 beforeEach(() => {
@@ -100,16 +101,25 @@ describe('App routing', () => {
 
   // The same rule as the history screen: there is no login screen to leave to, so a 401 is resolved
   // where the viewer already is.
-  it('keeps an unauthorised favourites read on its own screen', async () => {
-    const favoritesApi = stubFavoritesApi({ list: () => err(favoritesHttpFailure(401)) });
+  it('renders the wallet route', async () => {
+    renderAt('/wallet');
+    expect(await screen.findByTestId('wallet-page')).toBeDefined();
+    expect(screen.queryByTestId('fallback-page')).toBeNull();
+  });
+
+  it('keeps an unauthorised wallet read on its own screen', async () => {
+    const walletApi = stubWalletApi({
+      wallet: () => err(walletHttpFailure(401)),
+      transactions: () => err(walletHttpFailure(401)),
+    });
     const bridge = new MockBridge();
     renderSurface(<App bridge={bridge} />, {
       api: stubCatalogApi({ feed: () => ok(page([feedCard()])) }),
-      favoritesApi,
-      path: '/favorites',
+      walletApi,
+      path: '/wallet',
     });
 
-    expect(await screen.findByTestId('favorites-sign-in')).toBeDefined();
+    expect(await screen.findByTestId('wallet-sign-in')).toBeDefined();
     expect(screen.queryByTestId('fallback-page')).toBeNull();
   });
 });

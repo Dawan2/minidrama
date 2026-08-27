@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { err, ok } from '@minidrama/shared';
 
 import { ProfilePage } from './ProfilePage';
+import { offlineFailure } from '../testing/catalog-fixtures';
 import { renderSurface } from '../testing/render';
 import { stubSession } from '../testing/history-fixtures';
+import {
+  knownBalance,
+  stubWalletApi,
+  UNAVAILABLE_WALLET,
+  walletHttpFailure,
+} from '../testing/wallet-fixtures';
 
 /**
  * SCR-06, as far as it can honestly go today. The assertions worth having are about what the screen
- * refuses to invent: there is no balance, no VIP state and no real nickname, because there is no
- * endpoint behind any of them.
+ * refuses to invent: there is no VIP state and no real nickname, because there is no endpoint
+ * behind either of them. The wallet card quotes a number only when the server sent one.
  */
 describe('the profile shell', () => {
   it('names the session state it is rendering', () => {
@@ -94,10 +102,64 @@ describe('the profile entries', () => {
     expect(favorites.getAttribute('href')).toBe('/favorites');
   });
 
+  it('leads to the wallet screen', () => {
+    renderSurface(<ProfilePage />);
+
+    const wallet = screen.getByTestId('wallet-entry');
+    expect(wallet.textContent).toContain('Wallet');
+    expect(wallet.getAttribute('href')).toBe('/wallet');
+  });
+
   it('offers only the entries that lead somewhere', () => {
     renderSurface(<ProfilePage />);
 
     const links = screen.getByTestId('profile-entries').querySelectorAll('a');
-    expect([...links].map((link) => link.getAttribute('href'))).toEqual(['/history', '/favorites']);
+    expect([...links].map((link) => link.getAttribute('href'))).toEqual([
+      '/history',
+      '/favorites',
+      '/wallet',
+    ]);
+  });
+});
+
+describe('the profile wallet card', () => {
+  const signedIn = stubSession({ state: { status: 'AUTHENTICATED', openId: 'open_1' } });
+
+  it('quotes a balance the server sent', async () => {
+    const walletApi = stubWalletApi({
+      wallet: () => ok(knownBalance({ totalBalance: 15, coinBalance: 15, bonusBalance: 0 })),
+    });
+    renderSurface(<ProfilePage />, { session: signedIn, walletApi });
+
+    expect(await screen.findByTestId('wallet-balance')).toBeDefined();
+    expect(screen.getByTestId('wallet-balance').textContent).toContain('15 coins');
+  });
+
+  it('quotes no figure when the server exposes none, including a Beans-only body', async () => {
+    const walletApi = stubWalletApi({ wallet: () => ok(UNAVAILABLE_WALLET) });
+    renderSurface(<ProfilePage />, { session: signedIn, walletApi });
+
+    const card = await screen.findByTestId('wallet-balance-unavailable');
+    expect(card.textContent).toContain('Balance is not available yet');
+    expect(card.textContent).not.toMatch(/\d/);
+    expect(screen.getByTestId('profile-page').textContent).not.toMatch(/beans/i);
+  });
+
+  it('does not invent a zero when the endpoint is not deployed', async () => {
+    const walletApi = stubWalletApi({ wallet: () => err(walletHttpFailure(404)) });
+    renderSurface(<ProfilePage />, { session: signedIn, walletApi });
+
+    const card = await screen.findByTestId('wallet-balance-unavailable');
+    expect(card.textContent).not.toMatch(/\d/);
+    expect(screen.queryByTestId('wallet-balance')).toBeNull();
+  });
+
+  it('retries a transport failure in the card without blanking the entries', async () => {
+    const walletApi = stubWalletApi({ wallet: () => err(offlineFailure()) });
+    renderSurface(<ProfilePage />, { session: signedIn, walletApi });
+
+    expect(await screen.findByTestId('retryable-error')).toBeDefined();
+    expect(screen.getByTestId('wallet-entry')).toBeDefined();
+    expect(screen.getByTestId('history-entry')).toBeDefined();
   });
 });
