@@ -26,7 +26,7 @@ describe('refuseVideoReplace', () => {
   });
 
   it('does not return an HTMLElement of any kind, which would be a custom replacement', () => {
-    const result: HTMLElement | null = refuseVideoReplace(disallowedVideo(), 'third-party-player');
+    const result: unknown = refuseVideoReplace(disallowedVideo(), 'third-party-player');
     expect(result).toBeNull();
     expect(result instanceof HTMLElement).toBe(false);
   });
