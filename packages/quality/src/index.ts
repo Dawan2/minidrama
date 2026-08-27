@@ -113,12 +113,13 @@ export {
   USAGE as COMMITS_USAGE,
   buildLogArgv,
   buildMergeBaseArgv,
+  findTrackerIds,
   isConventionalSubject,
   parseCommitsArgs,
   parseGitSubjects,
   runCommitsCheck,
 } from './commits.js';
-export type { CommitSubject, CommitsCheckArgs } from './commits.js';
+export type { CommitRecord, CommitSubject, CommitsCheckArgs } from './commits.js';
 
 export {
   IT_TODO,
@@ -132,15 +133,3 @@ export {
   scanTestFile,
 } from './skips.js';
 export type { SkipCheckArgs, SkipHit } from './skips.js';
-
-export {
-  CONVENTIONAL_TYPES,
-  DEFAULT_FROM,
-  USAGE as COMMITS_USAGE,
-  evaluateCommit,
-  formatHit as formatCommitHit,
-  parseCommitArgs,
-  parseConventionalHeader,
-  runCommitCheck,
-} from './commits.js';
-export type { CommitCheckArgs, CommitHit, GitCommit } from './commits.js';

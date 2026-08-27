@@ -70,7 +70,9 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 
 **2026-08-27 (W16 C5-01 / D-20).** G1.7 is discharged by G2.5 Trivy (`pnpm check:sca`, L2 job `sca`). Critical findings fail; high findings with a published fix older than seven days fail. A second L1 `osv-scanner` / `npm audit` job would duplicate that engine.
 
-**2026-08-27 (W16 C5-01 remainder / D-20).** G1.9 is `pnpm check:commits`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. The range is merge-base with `origin/main` (or `--base`) through `HEAD`. Merge commits are skipped so absorbing `main` does not rewrite history. A prose subject is red. A comment that names Conventional Commits is not this gate.
+**2026-08-27 (W16 C5-01 remainder / D-20).** G1.9 is `pnpm check:commits`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. The range is merge-base with `origin/main` (or `--base`) through `HEAD`. Merge commits are skipped so absorbing `main` does not rewrite history. A prose subject is red. A Conventional header with no requirement/defect id (`D-20`, `G1.9`, `C5-01`, `#12`, …) is red. A comment that names Conventional Commits is not this gate.
+
+**2026-08-27 (W16 G1.9 leftover / D-20).** The format-only half landed first (`bc-72e30448` / `cf7ecd4`). This slot adds the 需求/缺陷编号 half: `feat: add a widget` is G1.9 red even though it is Conventional Commits. History on `main` is still not rewritten.
 
 ---
 
