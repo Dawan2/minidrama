@@ -68,11 +68,13 @@ export function Chrome({ children }: ChromeProps): React.JSX.Element {
       return;
     }
     let cancelled = false;
-    void bridge.setNavigationBarColor(palette.frontColor, palette.backgroundColor).then((result) => {
-      if (!cancelled) {
-        setNavBarApplied(result.ok);
-      }
-    });
+    void bridge
+      .setNavigationBarColor(palette.frontColor, palette.backgroundColor)
+      .then((result) => {
+        if (!cancelled) {
+          setNavBarApplied(result.ok);
+        }
+      });
     return () => {
       cancelled = true;
     };

@@ -118,7 +118,10 @@ describe('Chrome', () => {
     const homeColor = vi.spyOn(homeBridge, 'setNavigationBarColor');
     const { unmount } = renderChrome(homeBridge, '/home');
     await waitFor(() => {
-      expect(homeColor).toHaveBeenCalledWith(CHROME_NAV_BAR.frontColor, CHROME_NAV_BAR.backgroundColor);
+      expect(homeColor).toHaveBeenCalledWith(
+        CHROME_NAV_BAR.frontColor,
+        CHROME_NAV_BAR.backgroundColor,
+      );
     });
     expect(screen.getByTestId('chrome').getAttribute('data-nav-bar')).toBe('chrome');
     unmount();
