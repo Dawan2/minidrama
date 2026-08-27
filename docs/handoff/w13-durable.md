@@ -112,17 +112,17 @@ is not enough.
 
 ## 6. Verification
 
-`pnpm verify` green on this branch (first try, exit 0) before taking `origin/main`. After merging
-the seed-floor commit (`828dfab`, catalog fixtures only, no overlap) the same command is re-run
-before this lands on `main`.
+`pnpm verify` green on this branch (first try, exit 0). `origin/main` then moved to `828dfab`
+(seed floor, catalog fixtures only). Merged; server tests 1,362 (the five new catalogue tests
+plus this slice). No overlap.
 
 | Package | Tests |
 | --- | ---: |
 | `packages/shared` | 51 |
 | `packages/config` | 45 |
-| `server` | 1,357 |
+| `server` | 1,362 |
 | `app` | 805 |
-| **Total** | **2,258** |
+| **Total** | **2,263** |
 
 Guardrails passed against `app/dist`. Bundle `index-BfoN7A5C.js` 308.47 kB (gzip 96.08 kB).
 `node:sqlite` is experimental on Node 22 and prints a warning; it is not a failure.
