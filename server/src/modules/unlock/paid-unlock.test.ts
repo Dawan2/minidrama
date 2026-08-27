@@ -128,22 +128,37 @@ function readOrder(orderId: string, viewer = BUYER) {
   });
 }
 
+interface CallbackOptions {
+  readonly payerOpenId?: string;
+  readonly event?: string;
+  readonly secret?: string;
+  readonly signatureHeader?: string | null;
+}
+
 /** A redeem-success callback signed with the deployment's key, byte-identical on every call. */
-function callback(tradeOrderId: string, payerOpenId = BUYER) {
+function callback(tradeOrderId: string, options: CallbackOptions = {}) {
   const raw = JSON.stringify({
     client_key: CLIENT_KEY,
-    event: 'minis.trade_order.redeem.success',
+    event: options.event ?? 'minis.trade_order.redeem.success',
     create_time: NOW_SEC,
-    user_openid: payerOpenId,
+    user_openid: options.payerOpenId ?? BUYER,
     content: JSON.stringify({ trade_order_id: tradeOrderId, is_sandbox: false }),
   });
+
+  const signed = computeWebhookSignature(
+    Buffer.from(raw, 'utf8'),
+    options.secret ?? SECRET,
+    NOW_SEC,
+  );
+  const header =
+    options.signatureHeader === undefined ? `t=${NOW_SEC},s=${signed}` : options.signatureHeader;
 
   return app.inject({
     method: 'POST',
     url: TIKTOK_WEBHOOK_PATH,
     headers: {
       'content-type': 'application/json',
-      'tiktok-signature': `t=${NOW_SEC},s=${computeWebhookSignature(Buffer.from(raw, 'utf8'), SECRET, NOW_SEC)}`,
+      ...(header === null ? {} : { 'tiktok-signature': header }),
     },
     payload: raw,
   });
@@ -241,6 +256,61 @@ describe('a verified payment writes one unlock record', () => {
       'NEED_UNLOCK',
     );
     expect((await playbackAttempt(COIN_OR_VIP_EPISODE, OTHER_VIEWER)).statusCode).toBe(403);
+  });
+});
+
+/**
+ * Everything that is not a verified payment for this order, stated against the unlock table.
+ *
+ * `routes.test.ts` enumerates the ways a signature can fail and asserts the order stays `PENDING`.
+ * The order is a proxy: what an episode is played from is the receipt, and these are the cases where
+ * there must not be one. The assertion is that the table is *empty* — not that the response withheld
+ * something, and not that a status was left alone — because a grant written beside an order nobody
+ * advanced is still an episode given away.
+ */
+describe('a delivery that is not a verified payment for this order grants nothing', () => {
+  it.each([
+    ['no signature at all', { signatureHeader: null }],
+    ['a signature from another secret', { secret: 'attacker-secret' }],
+    ['a header that is not a signature', { signatureHeader: 'garbage' }],
+    ['an authentic payment by another account', { payerOpenId: OTHER_VIEWER }],
+    ['a refund rather than a redeem', { event: 'minis.trade_order.redeem.refund_success' }],
+  ])('writes no receipt for %s', async (_case, options: CallbackOptions) => {
+    const order = await openOrder();
+
+    await callback(order.payment.tradeOrderId, options);
+
+    expect(await unlockStore.list()).toEqual([]);
+    expect(body(await readOrder(order.orderId))).toMatchObject({
+      status: 'PENDING',
+      unlockGranted: false,
+    });
+    expect(accessReason(await episodeAccess(COIN_OR_VIP_EPISODE))).toBe('NEED_UNLOCK');
+    expect((await playbackAttempt(COIN_OR_VIP_EPISODE)).statusCode).toBe(403);
+  });
+
+  // A payment for a trade order this deployment never issued has no order to grant against, and
+  // inventing one from the open id on the envelope would grant an episode nobody bought.
+  it('writes no receipt for a trade order it never issued', async () => {
+    await openOrder();
+
+    await callback('tto_never_issued');
+
+    expect(await unlockStore.list()).toEqual([]);
+    expect((await playbackAttempt(COIN_OR_VIP_EPISODE)).statusCode).toBe(403);
+  });
+
+  // The order the payment names, and not the viewer's other open orders. A grant that widened to
+  // everything pending for the account would hand over episodes on one payment.
+  it('grants only the episode whose order was paid', async () => {
+    const paid = await openOrder(COIN_ONLY_EPISODE);
+    await openOrder(COIN_OR_VIP_EPISODE);
+
+    await callback(paid.payment.tradeOrderId);
+
+    expect(await unlockStore.list()).toHaveLength(1);
+    expect((await unlockStore.list())[0]).toMatchObject({ episodeId: COIN_ONLY_EPISODE });
+    expect((await playbackAttempt(COIN_OR_VIP_EPISODE)).statusCode).toBe(403);
   });
 });
 

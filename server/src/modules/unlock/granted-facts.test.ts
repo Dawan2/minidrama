@@ -130,10 +130,36 @@ describe('createGrantedUnlockFactsPort', () => {
     },
   );
 
-  // An anonymous request has no account to attach a receipt to, and the store is not keyed on
-  // anything an anonymous caller supplies. Passing it through is the only honest answer.
+  // An anonymous request has no account to attach a receipt to. Passing it through is the only
+  // honest answer.
   it('leaves an anonymous request anonymous', async () => {
     await grantEpisode();
+
+    const loaded = await load(createGrantedUnlockFactsPort(basePort(null), unlockStore), null);
+
+    expect(loaded.ok && loaded.value.viewer).toBeNull();
+  });
+
+  /**
+   * And the id on the *query* is not a substitute for the viewer the base port reported. This is the
+   * case that separates "there is no viewer" from "there is no receipt for the viewer": the store
+   * holds a receipt for the account named in the query, and the facts say there is no viewer at all.
+   *
+   * Without it, a decorator that synthesised a viewer out of `query.viewerId` passes every other
+   * assertion in this file — including the anonymous one, because nothing has ever bought anything
+   * as `anonymous` — and quietly turns a paid receipt into an entitlement for a request the data
+   * layer refused to attach an account to.
+   */
+  it('does not build a viewer out of the id the query named', async () => {
+    await grantEpisode('ep_1', 'usr_1');
+
+    const loaded = await load(createGrantedUnlockFactsPort(basePort(null), unlockStore), 'usr_1');
+
+    expect(loaded.ok && loaded.value.viewer).toBeNull();
+  });
+
+  it('does not attach a receipt bought by nobody', async () => {
+    await grantEpisode('ep_1', 'anonymous');
 
     const loaded = await load(createGrantedUnlockFactsPort(basePort(null), unlockStore), null);
 
