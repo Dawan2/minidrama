@@ -181,6 +181,7 @@ describe('contracts/openapi.yaml', () => {
         { method: 'post', path: '/v1/entitlement/episode-access' },
         { method: 'put', path: '/v1/progress/episodes/{episodeId}' },
         { method: 'get', path: '/v1/progress/episodes/{episodeId}' },
+        { method: 'get', path: '/v1/progress/dramas/{dramaId}' },
         { method: 'get', path: '/v1/users/me/watch-history' },
         { method: 'get', path: '/v1/search' },
         { method: 'get', path: '/v1/dramas/{dramaId}/favorite' },

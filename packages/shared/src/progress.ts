@@ -51,3 +51,46 @@ export interface EpisodeResumeView {
   /** Server time of the last accepted report, ISO 8601. Absent when nothing was ever reported. */
   readonly updatedAt?: string;
 }
+
+/**
+ * One stored row of `GET /v1/progress/dramas/{dramaId}` (`docs/12-api-contracts.md` §4.7).
+ *
+ * `episodeNumber` is the drama-wide running order (`globalEpisodeNumber`), the same number the
+ * picker grid displays. The per-season `episodeNumber` would name a different episode in every
+ * season past the first, which is how a watched mark lands on the wrong cell.
+ *
+ * Unwatched episodes are absent rather than listed with `completed: false`. The picker treats
+ * presence-of-`completed: true` as the mark, and an item for every episode of an 80-episode drama
+ * the viewer has never opened would look like a batch of "not watched" answers we do not have.
+ */
+export interface DramaProgressItem {
+  readonly episodeId: string;
+  readonly episodeNumber: number;
+  readonly positionSec: number;
+  readonly completed: boolean;
+}
+
+/**
+ * The newest accepted report under this drama, or `null` when `items` is empty.
+ *
+ * It is a pointer, not a second source of watched marks. The picker paints a cell watched only
+ * when that cell's id appears on an item with `completed: true`. Inferring "everything before
+ * `lastWatched.episodeNumber` is watched" is how a skip marks thirty cells the viewer never
+ * opened.
+ */
+export interface DramaLastWatched {
+  readonly episodeId: string;
+  readonly episodeNumber: number;
+  readonly positionSec: number;
+}
+
+/**
+ * Per-drama watch progress. `GET /v1/progress/dramas/{dramaId}`.
+ *
+ * `lastWatched` is always present as a key so "we looked and there is nothing" (`null`) is
+ * distinguishable from a truncated body that omitted the field.
+ */
+export interface DramaProgressView {
+  readonly items: readonly DramaProgressItem[];
+  readonly lastWatched: DramaLastWatched | null;
+}

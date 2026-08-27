@@ -12,11 +12,13 @@ import {
   stubCatalogApi,
   viewerAccess,
 } from '../testing/catalog-fixtures';
+import { dramaProgressItem, dramaProgressView, stubProgressApi } from '../testing/progress-fixtures';
 import { EpisodePicker } from './EpisodePicker';
 import { ROUTES } from '../routes/routes';
 import { renderSurface } from '../testing/render';
 import type { CatalogApi } from '../data/catalog-api';
 import type { EpisodeItem } from '@minidrama/shared';
+import type { ProgressApi } from '../data/progress-api';
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
 import type { StubCatalogApi } from '../testing/catalog-fixtures';
 
@@ -51,6 +53,7 @@ function renderPicker(
     readonly episodeId?: string;
     readonly capabilities?: PurchaseCapabilities;
     readonly onClose?: () => void;
+    readonly progressApi?: ProgressApi;
   } = {},
 ) {
   const onClose = options.onClose ?? vi.fn();
@@ -69,10 +72,20 @@ function renderPicker(
         }
       />
     </Routes>,
-    { api, path: `/play/${episodeId}` },
+    { api, path: `/play/${episodeId}`, progressApi: options.progressApi },
   );
 
   return { onClose };
+}
+
+function cellById(episodeId: string): HTMLElement | undefined {
+  return screen
+    .getAllByTestId('episode-picker-cell')
+    .find((cell) => cell.getAttribute('data-episode-id') === episodeId);
+}
+
+function cellWatched(episodeId: string): string | null {
+  return cellById(episodeId)?.getAttribute('data-watched') ?? null;
 }
 
 describe('PNL-01 loads the real episode list', () => {
@@ -276,19 +289,99 @@ describe('the panel is dismissable', () => {
 });
 
 describe('what the picker refuses to invent', () => {
-  it('never asks for a drama-level progress endpoint the contract does not have', async () => {
+  it('asks the drama-level progress endpoint, not a per-episode loop and not a catalogue guess', async () => {
     const api = scriptedApi(catalogEpisodes(4));
-    renderPicker(api);
+    const progressApi = stubProgressApi();
+    renderPicker(api, { progressApi });
     await screen.findByTestId('episode-picker-grid');
 
+    await waitFor(() => {
+      expect(progressApi.dramaProgressCalls).toEqual(['drm_test_0001']);
+    });
     expect(api.dramaCalls).toEqual([]);
     expect(api.feedCalls).toEqual([]);
-    expect(JSON.stringify(api)).not.toMatch(/progress\/dramas/);
+    expect(JSON.stringify(api)).not.toMatch(/progress\/episodes/);
   });
 
   it('does not quote a coin, Beans, or fiat amount on a cell', async () => {
     renderPicker(scriptedApi([lockedEpisodeItem({ priceCoins: 30 })]));
     const cell = await screen.findByTestId('episode-picker-cell');
     expect(cell.textContent).not.toMatch(/coin|Beans|\$|¢/i);
+  });
+});
+
+describe('watched marks come only from the drama-progress read', () => {
+  it('paints a mark on a completed item and not on an in-progress one', async () => {
+    const progressApi = stubProgressApi({
+      dramaProgress: () =>
+        ok(
+          dramaProgressView({
+            items: [
+              dramaProgressItem({
+                episodeId: 'ep_test_0001',
+                episodeNumber: 1,
+                completed: true,
+              }),
+              dramaProgressItem({
+                episodeId: 'ep_test_0002',
+                episodeNumber: 2,
+                positionSec: 12,
+                completed: false,
+              }),
+            ],
+            lastWatched: { episodeId: 'ep_test_0002', episodeNumber: 2, positionSec: 12 },
+          }),
+        ),
+    });
+    renderPicker(scriptedApi(catalogEpisodes(4)), { progressApi });
+
+    await waitFor(() => {
+      expect(cellWatched('ep_test_0001')).toBe('true');
+    });
+    expect(cellById('ep_test_0001')?.textContent).toMatch(/Watched/i);
+    expect(cellWatched('ep_test_0002')).toBe('false');
+    expect(cellById('ep_test_0002')?.textContent).not.toMatch(/Watched/i);
+  });
+
+  it('does not treat lastWatched as a watched-up-to range', async () => {
+    const progressApi = stubProgressApi({
+      dramaProgress: () =>
+        ok(
+          dramaProgressView({
+            items: [
+              dramaProgressItem({
+                episodeId: 'ep_test_0003',
+                episodeNumber: 3,
+                completed: true,
+              }),
+            ],
+            lastWatched: { episodeId: 'ep_test_0003', episodeNumber: 3, positionSec: 90 },
+          }),
+        ),
+    });
+    renderPicker(scriptedApi(catalogEpisodes(4)), { progressApi });
+
+    await waitFor(() => {
+      expect(cellWatched('ep_test_0003')).toBe('true');
+    });
+    expect(cellWatched('ep_test_0001')).toBe('false');
+    expect(cellWatched('ep_test_0002')).toBe('false');
+  });
+
+  it('omits every mark when the progress read fails, rather than guessing from episode numbers', async () => {
+    const progressApi = stubProgressApi({
+      dramaProgress: () => err(httpFailure(503)),
+    });
+    renderPicker(scriptedApi(catalogEpisodes(4)), { episodeId: 'ep_test_0003', progressApi });
+
+    await waitFor(() => {
+      expect(progressApi.dramaProgressCalls).toEqual(['drm_test_0001']);
+    });
+    await screen.findByTestId('episode-picker-grid');
+
+    for (const cell of screen.getAllByTestId('episode-picker-cell')) {
+      expect(cell.getAttribute('data-watched')).toBe('false');
+      expect(cell.textContent).not.toMatch(/Watched/i);
+    }
   });
 });

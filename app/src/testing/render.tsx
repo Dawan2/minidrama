@@ -5,6 +5,7 @@ import type { RenderResult } from '@testing-library/react';
 import { CatalogApiProvider } from '../data/catalog-api-context';
 import { FavoritesApiProvider } from '../data/favorites-api-context';
 import { HistoryApiProvider } from '../data/history-api-context';
+import { ProgressApiProvider } from '../data/progress-api-context';
 import { SearchApiProvider } from '../data/search-api-context';
 import { SessionProvider } from '../auth/session-context';
 import { UnlockApiProvider } from '../data/unlock-api-context';
@@ -12,12 +13,14 @@ import { WalletApiProvider } from '../data/wallet-api-context';
 import { stubCatalogApi } from './catalog-fixtures';
 import { stubFavoritesApi } from './favorites-fixtures';
 import { stubHistoryApi, stubSession } from './history-fixtures';
+import { stubProgressApi } from './progress-fixtures';
 import { stubSearchApi } from './search-fixtures';
 import { stubUnlockApi } from './unlock-fixtures';
 import { stubWalletApi } from './wallet-fixtures';
 import type { CatalogApi } from '../data/catalog-api';
 import type { FavoritesApi } from '../data/favorites-api';
 import type { HistoryApi } from '../data/history-api';
+import type { ProgressApi } from '../data/progress-api';
 import type { SearchApi } from '../data/search-api';
 import type { Session } from '../auth/session';
 import type { UnlockApi } from '../data/unlock-api';
@@ -53,6 +56,7 @@ export interface RenderSurfaceOptions {
   readonly favoritesApi?: FavoritesApi;
   readonly unlockApi?: UnlockApi;
   readonly walletApi?: WalletApi;
+  readonly progressApi?: ProgressApi;
   readonly session?: Session;
   readonly path?: string;
 }
@@ -69,7 +73,9 @@ export function renderSurface(
             <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
               <UnlockApiProvider api={options.unlockApi ?? stubUnlockApi()}>
                 <WalletApiProvider api={options.walletApi ?? stubWalletApi()}>
-                  <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+                  <ProgressApiProvider api={options.progressApi ?? stubProgressApi()}>
+                    <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+                  </ProgressApiProvider>
                 </WalletApiProvider>
               </UnlockApiProvider>
             </FavoritesApiProvider>

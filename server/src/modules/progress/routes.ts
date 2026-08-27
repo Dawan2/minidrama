@@ -30,10 +30,10 @@ import type { WatchProgressStore } from './store.js';
  *     (`docs/design/playback-contract.md` §3.1), while the write reports `positionSec`. §1 of
  *     `packages/shared/src/progress.ts` records why the two differ.
  *
- * Deliberately not here: `GET /progress/dramas/{dramaId}` and the continue-watching card. Both need
- * an episode-to-drama mapping, which belongs to `catalog` and is in flight in an adjacent slot
- * (`PRG-003`). The watch-history list needs that mapping too and is in `history-routes.ts`, where it
- * asks for it through a port rather than waiting for the module.
+ * The per-drama read is in `drama-routes.ts`: it needs the episode-to-drama mapping `catalog`
+ * owns, and it shares this module's store so a heartbeat the player just wrote is the row the
+ * picker marks. The continue-watching card is still not here — that is a feed rail, not a
+ * progress read.
  */
 
 export interface ProgressRouteOptions {
