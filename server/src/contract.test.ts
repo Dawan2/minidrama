@@ -190,6 +190,7 @@ describe('contracts/openapi.yaml', () => {
         { method: 'post', path: '/v1/payments/callbacks/tiktok' },
         { method: 'post', path: '/v1/unlock/coin-orders' },
         { method: 'get', path: '/v1/unlock/coin-orders/{orderId}' },
+        { method: 'get', path: '/v1/wallet' },
         { method: 'get', path: '/v1/dramas' },
         { method: 'get', path: '/v1/dramas/{dramaId}' },
         { method: 'get', path: '/v1/dramas/{dramaId}/episodes' },

@@ -20,9 +20,9 @@ import type { TranslationKey } from '../core/i18n';
  * SCR-09, the wallet screen.
  *
  * The five states of `docs/02-information-architecture.md` §8.1, plus the two this screen is
- * about: **no session** and **no figure**. The second is not an error. `GET /v1/wallet` is not
- * served today, and a missing coin balance is `UNAVAILABLE` rather than `0` — a viewer who has
- * recharged and sees an invented zero will not believe the next number
+ * about: **no session** and **no figure**. The second is not an error. `GET /v1/wallet` answers a
+ * figure only when the platform supplied one; a missing coin balance is `UNAVAILABLE` rather than
+ * `0` — a viewer who has recharged and sees an invented zero will not believe the next number
  * (`docs/plan/cycle-3-backlog.md` C3-04). The empty ledger is a required state, not an edge case
  * (`docs/02-screen-inventory.md` SCR-09).
  *
