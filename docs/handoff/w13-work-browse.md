@@ -105,10 +105,11 @@ No fiat, no Beans, no invented endpoint.
 - **SCR-10 / PNL-03.** Blocked on a Beans rate (`C3-09`) and `pay()`.
 - **SCR-11 VIP.** No subscription contract.
 - **C3-11.** G1.5 coverage, L1 `workflow_dispatch`, D-07 parity. Gate machinery.
-- **Remaining durable stores.** Orders and watch progress were in flight and were not touched.
-  Favourites, catalogue, search directory still in memory.
+- **Remaining durable stores.** Orders and watch progress landed on `main` while this slot
+  verified (`fcc6fd6`). Favourites, catalogue, and search directory still in memory.
 - **A tab bar.** SCR-02 / SCR-03 / SCR-06 are still linked, not tabbed.
 - **D9 on a device.** Unchanged.
 
-In flight at start: watch-progress sqlite (`bc-2fda0be7`), orders sqlite (`bc-d7eb8bf5`). This
-branch does not touch `server/`.
+In flight at start: watch-progress sqlite (`bc-2fda0be7`), orders sqlite (`bc-d7eb8bf5`). Both
+landed on `main` as `fcc6fd6` (`server/migrations/0004_*`, `0005_*`). This branch does not touch
+`server/`. The merge of `origin/main` was ort, no conflicts.
