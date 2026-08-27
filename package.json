@@ -21,6 +21,7 @@
     "check:guardrails": "pnpm --filter @minidrama/app run check:guardrails",
     "check:licenses": "pnpm --filter @minidrama/quality run check:licenses",
     "check:migrate": "pnpm --filter @minidrama/server run check:migrate",
+    "check:integration": "pnpm --filter @minidrama/server run check:integration",
     "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:guardrails"
   },
   "pnpm": {
