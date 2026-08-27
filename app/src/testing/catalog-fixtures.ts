@@ -125,6 +125,7 @@ export function page<T>(items: readonly T[], nextCursor: string | null = null): 
 export interface StubCatalogApiScript {
   readonly feed?: (request: FeedRequest, callIndex: number) => Result<Page<FeedCard>, ApiFailure>;
   readonly drama?: (dramaId: string, callIndex: number) => Result<DramaDetail, ApiFailure>;
+  readonly episode?: (episodeId: string, callIndex: number) => Result<EpisodeItem, ApiFailure>;
   readonly episodes?: (
     request: EpisodesRequest,
     callIndex: number,
@@ -134,6 +135,7 @@ export interface StubCatalogApiScript {
 export interface StubCatalogApi extends CatalogApi {
   readonly feedCalls: readonly FeedRequest[];
   readonly dramaCalls: readonly string[];
+  readonly episodeByIdCalls: readonly string[];
   readonly episodeCalls: readonly EpisodesRequest[];
 }
 
@@ -146,11 +148,13 @@ const UNSCRIPTED = apiFailure({
 export function stubCatalogApi(script: StubCatalogApiScript = {}): StubCatalogApi {
   const feedCalls: FeedRequest[] = [];
   const dramaCalls: string[] = [];
+  const episodeByIdCalls: string[] = [];
   const episodeCalls: EpisodesRequest[] = [];
 
   return {
     feedCalls,
     dramaCalls,
+    episodeByIdCalls,
     episodeCalls,
 
     fetchFeed: (request) => {
@@ -163,6 +167,12 @@ export function stubCatalogApi(script: StubCatalogApiScript = {}): StubCatalogAp
       const index = dramaCalls.length;
       dramaCalls.push(dramaId);
       return Promise.resolve(script.drama?.(dramaId, index) ?? err(UNSCRIPTED));
+    },
+
+    fetchEpisode: (episodeId) => {
+      const index = episodeByIdCalls.length;
+      episodeByIdCalls.push(episodeId);
+      return Promise.resolve(script.episode?.(episodeId, index) ?? err(UNSCRIPTED));
     },
 
     fetchEpisodes: (request) => {

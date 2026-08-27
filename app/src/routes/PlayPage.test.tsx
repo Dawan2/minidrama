@@ -1,11 +1,13 @@
 import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ok } from '@minidrama/shared';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from '../player/mock-veplayer';
 import { PlayPage } from './PlayPage';
 import { ROUTES } from './routes';
+import { episodeItem, page, stubCatalogApi } from '../testing/catalog-fixtures';
 import { renderSurface } from '../testing/render';
 
 beforeEach(() => {
@@ -117,5 +119,48 @@ describe('the player screen', () => {
     await waitFor(() => {
       expect(first.destroyed).toBe(true);
     });
+  });
+});
+
+describe('PNL-01 on the player', () => {
+  it('does not fetch episodes until the picker is opened', async () => {
+    const api = stubCatalogApi({
+      episode: () => ok(episodeItem()),
+      episodes: () => ok(page([episodeItem()])),
+    });
+    const bridge = await readyBridge();
+    renderSurface(
+      <Routes>
+        <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
+      </Routes>,
+      { api, path: '/play/ep_demo_0001' },
+    );
+    await player();
+
+    expect(api.episodeByIdCalls).toEqual([]);
+    expect(api.episodeCalls).toEqual([]);
+    expect(screen.queryByTestId('episode-picker')).toBeNull();
+  });
+
+  it('opens the picker from the player and dismisses it', async () => {
+    const api = stubCatalogApi({
+      episode: () => ok(episodeItem()),
+      episodes: () => ok(page([episodeItem(), episodeItem({ globalEpisodeNumber: 2 })])),
+    });
+    const bridge = await readyBridge();
+    renderSurface(
+      <Routes>
+        <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
+      </Routes>,
+      { api, path: '/play/ep_test_0001' },
+    );
+    await player();
+
+    fireEvent.click(screen.getByTestId('episode-picker-open'));
+    expect(await screen.findByTestId('episode-picker')).toBeDefined();
+    await screen.findByTestId('episode-picker-grid');
+
+    fireEvent.click(screen.getByTestId('episode-picker-close'));
+    expect(screen.queryByTestId('episode-picker')).toBeNull();
   });
 });
