@@ -13,6 +13,8 @@ export const API_ERROR_CODES = [
   'COMMON_RATE_LIMITED',
   'COMMON_INTERNAL_ERROR',
   'COMMON_SERVICE_UNAVAILABLE',
+  'COMMON_IDEMPOTENCY_KEY_REQUIRED',
+  'COMMON_IDEMPOTENCY_CONFLICT',
   'AUTH_REQUIRED',
   'AUTH_TOKEN_EXPIRED',
   'AUTH_PROVIDER_ERROR',
@@ -21,6 +23,10 @@ export const API_ERROR_CODES = [
   'EPISODE_LOCKED',
   'EPISODE_VIP_REQUIRED',
   'EPISODE_ASSET_UNAVAILABLE',
+  'UNLOCK_ALREADY_UNLOCKED',
+  'UNLOCK_POLICY_NOT_ALLOWED',
+  'PAYMENT_ORDER_NOT_FOUND',
+  'PAYMENT_CHANNEL_UNAVAILABLE',
   // Server-to-server only. It answers TikTok's webhook sender, never a client, and it is
   // deliberately the *only* code the callback returns on a verification failure so the response
   // cannot be used as an oracle for which check failed.
