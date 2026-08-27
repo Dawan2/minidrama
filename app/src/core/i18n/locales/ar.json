@@ -45,6 +45,7 @@
   "feed.ongoing": "مستمر",
   "drama.back": "رجوع",
   "drama.watchNow": "شاهد الآن",
+  "drama.continueWatching": "متابعة الحلقة {n}",
   "drama.episodes": "الحلقات",
   "drama.episodesEmpty": "لم تُنشر أي حلقة بعد.",
   "drama.episodeLabel": "الحلقة {n}",

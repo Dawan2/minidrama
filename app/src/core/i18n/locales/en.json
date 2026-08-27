@@ -45,6 +45,7 @@
   "feed.ongoing": "Ongoing",
   "drama.back": "Back",
   "drama.watchNow": "Watch now",
+  "drama.continueWatching": "Continue episode {n}",
   "drama.episodes": "Episodes",
   "drama.episodesEmpty": "No episodes have been released yet.",
   "drama.episodeLabel": "Episode {n}",
