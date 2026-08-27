@@ -1,0 +1,13 @@
+{
+  "diffLinePct": 80,
+  "globalLinePct": 60,
+  "globalBranchPct": 50,
+  "coreLinePct": 90,
+  "core": [
+    "server/src/modules/wallet/",
+    "server/src/modules/unlock/",
+    "server/src/modules/identity/",
+    "server/src/modules/entitlement/"
+  ],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.d.ts"]
+}

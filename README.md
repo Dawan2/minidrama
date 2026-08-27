@@ -13,7 +13,7 @@ Requires Node ≥ 22 and pnpm 10.
 
 ```bash
 pnpm install
-pnpm verify                            # the full gate: format, lint, types, tests, build, guardrails
+pnpm verify                            # the full gate: format, lint, types, tests+coverage, build, guardrails
 
 pnpm --filter @minidrama/app dev       # client at http://localhost:5173
 pnpm --filter @minidrama/server dev    # API at http://localhost:8080
@@ -36,6 +36,7 @@ value marked SERVER-ONLY must never appear in anything under `app/`.
 | `server/` | Fastify modular monolith |
 | `packages/shared` | Types shared by client and server |
 | `packages/config` | Trusted-domain registry; generates `app/minis.config.json` |
+| `packages/quality` | G2.8 license whitelist and G1.5 coverage gate |
 | `contracts/` | OpenAPI 3.1 — the source of truth for the HTTP surface |
 | `docs/` | Architecture, design, plan and engineering documentation |
 
@@ -60,14 +61,16 @@ Both are explained in full in [`docs/architecture/system-overview.md`](docs/arch
 pnpm lint                # ESLint, including the platform-constraint rules
 pnpm typecheck           # strict TypeScript across all packages
 pnpm test                # Vitest across all packages
+pnpm test:coverage       # the same tests, with V8 coverage reports
 pnpm build               # client bundle + server typecheck
 pnpm check:guardrails    # platform guardrails; requires the build — a missing app/dist fails
 pnpm check:licenses      # G2.8 license whitelist; requires the install — a missing store fails
+pnpm check:coverage      # G1.5 coverage floors; requires test:coverage — a missing report fails
 pnpm check:migrate       # G2.7 migrate up → down → up; a no-op down or up-only file fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
-L1 CI (`.github/workflows/ci.yml`) runs `pnpm verify` on every pull request and on every push to
-`main` or a `cursor/**` branch. L2 CI (`.github/workflows/l2.yml`) runs the G2.8 license whitelist
-and the G2.7 migrate check on the same events; it does not skip, filter, or `continue-on-error`
-the L1 suite. `check:migrate` is not folded into `verify`.
+L1 CI (`.github/workflows/ci.yml`) runs the verify sequence on every pull request, every push to
+`main` or a `cursor/**` branch, and on `workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`)
+runs the G2.8 license whitelist and the G2.7 migrate check on the same events; it does not skip,
+filter, or `continue-on-error` the L1 suite. `check:migrate` is not folded into `verify`.
