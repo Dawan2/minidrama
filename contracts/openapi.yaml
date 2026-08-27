@@ -41,6 +41,37 @@ paths:
               schema:
                 $ref: '#/components/schemas/Health'
 
+  /v1/config:
+    get:
+      operationId: getConfig
+      summary: Boot flags and the progress heartbeat interval
+      description: |
+        Returns `ConfigView`. Anonymous: browsing and a failed silent login still need a
+        config, and an anonymous `401` would look like "sign in to learn whether comments
+        exist".
+
+        The body is the conservative product state, not the design-doc example in
+        `docs/12-api-contracts.md` §4.10 that showed `comments: true`. Comments (PNL-04) and
+        ad-unlock (C4-08) are **off** because those surfaces are not on `main`. A `comments:
+        true` here would render an entry whose endpoints do not exist.
+
+        Legal URLs, ad-unit ids, a coin name and Beans are not in this response. C4/C5 URLs
+        are unpublished (SCR-12). GATE-4 has not named a unit id. Q-G-7 has not named a rate
+        (`C4-04`, `C4-06`, `C3-09`).
+
+        `public, max-age=60, stale-while-revalidate=300`: the answer is not per viewer
+        (`docs/design/api-contracts.md`). A shared cache holding it is the intended behaviour.
+      tags: [ops]
+      responses:
+        '200':
+          description: |
+            Conservative boot flags. `features.comments` and `features.adUnlock` are `false`
+            on this tree. `playback.progressHeartbeatSec` is 10.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigView'
+
   /v1/playback/sessions:
     post:
       operationId: createPlaybackSession
@@ -2249,6 +2280,42 @@ components:
           description: |
             The TikTok user identifier and our user primary key. Stable, and scoped to the client
             key rather than to a region (U-04).
+
+    ConfigView:
+      type: object
+      additionalProperties: false
+      required: [features, playback]
+      description: |
+        The body of `GET /v1/config`. Two feature flags and the progress heartbeat. Legal
+        URLs, ad-unit ids, a coin name, Beans and a wallet object are not properties of this
+        schema and must not be added. Inventing `comments: true` while PNL-04 is unbuilt is
+        the same lie as inventing `0 coins` (`C4-04`, `docs/handoff/w3-work-m.md` M16).
+      properties:
+        features:
+          type: object
+          additionalProperties: false
+          required: [comments, adUnlock]
+          properties:
+            comments:
+              type: boolean
+              description: |
+                PNL-04 is not on `main`. Live is `false`. A client that cannot read the
+                field treats it as `false` (AC-BOOT-4).
+            adUnlock:
+              type: boolean
+              description: |
+                C4-08 is not on `main`. No reward endpoint, no unit ids. Live is `false`.
+        playback:
+          type: object
+          additionalProperties: false
+          required: [progressHeartbeatSec]
+          properties:
+            progressHeartbeatSec:
+              type: integer
+              minimum: 1
+              description: |
+                Seconds between progress heartbeats. Live is 10, the interval the progress
+                write already documents.
 
     MeView:
       type: object

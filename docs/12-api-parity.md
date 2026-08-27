@@ -69,4 +69,4 @@ That gap stays a row. It is not closed by adding WeChat, Beans, or a second unlo
 | `DELETE /comments/{commentId}` | — | design-only | |
 | `PUT /comments/{commentId}/like` | — | design-only | |
 | `DELETE /comments/{commentId}/like` | — | design-only | |
-| `GET /config` | — | design-only | SCR-01 splash. Not invented as an OpenAPI path here |
+| `GET /config` | `GET /v1/config` | live | SCR-01 splash. Conservative flags: comments off, ads off, heartbeat 10 s. No legal URLs, ad-unit ids or Beans |

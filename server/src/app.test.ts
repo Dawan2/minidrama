@@ -228,6 +228,21 @@ describe('GET /v1/users/me/watch-history', () => {
   });
 });
 
+describe('GET /v1/config', () => {
+  it('answers 200 without a session, with comments and ads off', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/config' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      features: { comments: false, adUnlock: false },
+      playback: { progressHeartbeatSec: 10 },
+    });
+    expect(JSON.stringify(response.json())).not.toMatch(
+      /beans|termsUrl|privacyUrl|adUnitId|coinName|"wallet"/i,
+    );
+  });
+});
+
 describe('GET /v1/users/me', () => {
   it('refuses a request that carries no session', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/users/me' });

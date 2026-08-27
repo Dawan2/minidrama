@@ -18,3 +18,19 @@ export {
 export type { CoverageFloors, GateResult } from './coverage.js';
 
 export { documentedOperations, parseParityTable } from './parity.js';
+
+export {
+  BLOCKING_SEVERITIES,
+  REQUIRED_SAST_RULE_IDS,
+  USAGE as SAST_USAGE,
+  buildSemgrepArgv,
+  defaultRulesDir,
+  evaluateSemgrepJson,
+  formatFinding,
+  listSourceFiles,
+  loadSastRules,
+  missingRequiredRuleIds,
+  parseSastArgs,
+  runSastCheck,
+} from './sast.js';
+export type { SastCheckArgs, SastFinding, SastRule } from './sast.js';
