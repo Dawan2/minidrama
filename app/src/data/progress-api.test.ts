@@ -37,6 +37,11 @@ describe('the drama progress endpoint', () => {
     expect(JSON.stringify(getJson.mock.calls)).not.toMatch(/progress\/episodes/);
   });
 
+  it('narrows a successful body rather than passing the raw JSON through', async () => {
+    const result = await createProgressApi(httpStub(emptyView)).fetchDramaProgress('drm_test_0001');
+    expect(result).toEqual({ ok: true, value: emptyView });
+  });
+
   it('passes a transport failure through untouched, so the surface classifies it', async () => {
     const failure = apiFailure({ kind: 'HTTP', status: 401, message: 'no session' });
     const api = createProgressApi({
