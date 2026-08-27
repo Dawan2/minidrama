@@ -27,3 +27,9 @@ data/
 
 # Local CodeQL database from `pnpm check:codeql`
 .codeql-database/
+
+# Playwright (G2.3) local artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

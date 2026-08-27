@@ -17,10 +17,12 @@
     "check:sast": "tsx src/cli/check-sast.ts",
     "check:codeql": "tsx src/cli/check-codeql.ts",
     "check:sca": "tsx src/cli/check-sca.ts",
+    "check:smoke": "tsx src/cli/check-smoke.ts",
     "check:secrets": "tsx src/cli/check-secrets.ts",
     "check:contract": "tsx src/cli/check-contract.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.18.9",
     "@vitest/coverage-v8": "^3.2.4",
     "tsx": "^4.20.6",

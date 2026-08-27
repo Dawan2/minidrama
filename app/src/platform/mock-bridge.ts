@@ -14,6 +14,12 @@ import type {
 } from './types';
 import type { VePlayerConstructor } from '../player/veplayer-types';
 
+/** Viewer id the browser mock names. Must match `test-login.ts`'s `mock:<userId>` shape. */
+export const MOCK_BROWSER_USER_ID = 'usr_browser_local';
+
+/** Authorization code MockBridge hands the server. Not a platform token. */
+export const MOCK_BROWSER_AUTH_CODE = `mock:${MOCK_BROWSER_USER_ID}`;
+
 export interface MockBridgeOptions {
   /** Capabilities to report as missing, to exercise the degraded paths without a device. */
   readonly unavailable?: readonly CapabilityName[];
@@ -63,7 +69,10 @@ export class MockBridge implements PlatformBridge {
   }
 
   async login(): BridgeResult<LoginResult> {
-    return this.#guard('login', () => ok({ authCode: 'mock-auth-code' }));
+    // `mock:<userId>` is the only code the test-login port accepts. Production still refuses it
+    // (`createTiktokIdentityPort`). G2.3 turns test-login on so silent login is a real session,
+    // not a synthesised openId inside this mock.
+    return this.#guard('login', () => ok({ authCode: MOCK_BROWSER_AUTH_CODE }));
   }
 
   async getPlayerCtor(): BridgeResult<VePlayerConstructor> {

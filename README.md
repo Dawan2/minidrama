@@ -36,7 +36,7 @@ value marked SERVER-ONLY must never appear in anything under `app/`.
 | `server/` | Fastify modular monolith |
 | `packages/shared` | Types shared by client and server |
 | `packages/config` | Trusted-domain registry; generates `app/minis.config.json` |
-| `packages/quality` | G2.8 license whitelist, G1.5 coverage, G2.4 Semgrep + CodeQL, G2.5 Trivy |
+| `packages/quality` | G2.8 license whitelist, G1.5 coverage, G1.8 Gitleaks, G1.6 oasdiff, G2.4 Semgrep + CodeQL, G2.5 Trivy, G2.3 Playwright |
 | `contracts/` | OpenAPI 3.1 — the source of truth for the HTTP surface |
 | `docs/` | Architecture, design, plan and engineering documentation |
 
@@ -72,6 +72,7 @@ pnpm check:artifact      # G2.6 client ZIP / first-screen JS; empty files, maps,
 pnpm check:sast          # G2.4 Semgrep 14-security §2.1 rules; a missing binary fails
 pnpm check:codeql        # G2.4 CodeQL security-extended; a missing binary or high finding fails
 pnpm check:sca           # G2.5 Trivy lockfile SCA; a missing binary or CRITICAL finding fails
+pnpm check:smoke         # G2.3 Playwright P0 smoke; a missing binary, dist, or failed spec fails
 pnpm check:secrets       # G1.8 Gitleaks; a missing binary or a finding fails
 pnpm check:contract      # G1.6 oasdiff breaking; a missing binary or an ERR-level break fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
@@ -81,7 +82,7 @@ L1 CI (`.github/workflows/ci.yml`) runs G1.8 Gitleaks, then G1.6 oasdiff, then t
 sequence, on every pull request, every push to `main` or a `cursor/**` branch, and on
 `workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`) runs the G2.8 license whitelist, the
 G2.7 migrate check, the G2.2 sqlite integration check, the G2.6 artifact budget, the G2.4
-Semgrep + CodeQL SAST checks, and the G2.5 Trivy SCA check on the same events; it does not
-skip, filter, or `continue-on-error` the L1 suite. `check:migrate`, `check:integration`,
-`check:artifact`, `check:sast`, `check:codeql`, `check:sca`, `check:secrets`, and
-`check:contract` are not folded into `verify`.
+Semgrep + CodeQL SAST checks, the G2.5 Trivy SCA check, and the G2.3 Playwright smoke on the
+same events; it does not skip, filter, or `continue-on-error` the L1 suite.
+`check:migrate`, `check:integration`, `check:artifact`, `check:sast`, `check:codeql`,
+`check:sca`, `check:smoke`, `check:secrets`, and `check:contract` are not folded into `verify`.
