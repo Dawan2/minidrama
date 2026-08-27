@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@minidrama/shared';
 
 import { apiFailure } from './failure';
-import { createFavoritesApi, favoriteEndpoint, narrowFavoriteState } from './favorites-api';
+import {
+  FAVORITES_LIST_PATH,
+  createFavoritesApi,
+  favoriteEndpoint,
+  narrowFavoriteListItem,
+  narrowFavoriteState,
+} from './favorites-api';
 import type { HttpClient } from './http';
 
 function httpStub(overrides: Partial<HttpClient> = {}): HttpClient {
@@ -11,6 +17,12 @@ function httpStub(overrides: Partial<HttpClient> = {}): HttpClient {
     send: () => Promise.resolve(ok(undefined)),
     ...overrides,
   };
+}
+
+const AUGUST_1 = '2026-08-01T00:00:00.000Z';
+
+function listBody(items: unknown, nextCursor: string | null = null): unknown {
+  return { items, pageInfo: { nextCursor, hasMore: nextCursor !== null } };
 }
 
 describe('the favourite endpoint', () => {
@@ -22,6 +34,150 @@ describe('the favourite endpoint', () => {
   // addresses a different endpoint entirely.
   it('escapes an id that would otherwise change which endpoint is called', () => {
     expect(favoriteEndpoint('drm/1?x=2')).toBe('/v1/dramas/drm%2F1%3Fx%3D2/favorite');
+  });
+
+  it('reads the list from the viewer’s own path', () => {
+    expect(FAVORITES_LIST_PATH).toBe('/v1/users/me/favorites');
+  });
+});
+
+/**
+ * The read that replaced the fan-out. It answers for the viewer's whole list, which is the property
+ * the per-drama probes could not have: a followed drama the client did not think to ask about used to
+ * be missing from the screen entirely.
+ */
+describe('the favourites list read', () => {
+  it('asks the list endpoint with the page size the endpoint documents', async () => {
+    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(listBody([]))));
+    await createFavoritesApi(httpStub({ getJson })).listFavorites({ limit: 20 });
+
+    expect(getJson).toHaveBeenCalledWith('/v1/users/me/favorites', {
+      cursor: undefined,
+      limit: 20,
+    });
+  });
+
+  // Opaque, and echoed rather than parsed: it encodes a position in one specific ordering and means
+  // nothing outside it.
+  it('sends the cursor back verbatim', async () => {
+    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(listBody([]))));
+    await createFavoritesApi(httpStub({ getJson })).listFavorites({ cursor: 'MTc4Nzgz:drm_1' });
+
+    expect(getJson).toHaveBeenCalledWith('/v1/users/me/favorites', {
+      cursor: 'MTc4Nzgz:drm_1',
+      limit: undefined,
+    });
+  });
+
+  it('returns the rows in the order the server sent them, with the paging envelope', async () => {
+    const api = createFavoritesApi(
+      httpStub({
+        getJson: () =>
+          Promise.resolve(
+            ok(
+              listBody(
+                [
+                  { dramaId: 'drm_2', favoritedAt: AUGUST_1 },
+                  { dramaId: 'drm_1', favoritedAt: AUGUST_1 },
+                ],
+                'cursor_2',
+              ),
+            ),
+          ),
+      }),
+    );
+
+    const result = await api.listFavorites({});
+    expect(result.ok ? result.value.items.map((item) => item.dramaId) : null).toEqual([
+      'drm_2',
+      'drm_1',
+    ]);
+    expect(result.ok ? result.value.pageInfo : null).toEqual({
+      nextCursor: 'cursor_2',
+      hasMore: true,
+    });
+  });
+
+  /**
+   * A viewer who follows nothing is a `200` with no rows, and the client must hand that on as an
+   * empty list rather than as a failure — it is the empty state of SCR-08, and the one answer that
+   * must never be confused with a refusal.
+   */
+  it('reports an empty list as a value and not as a failure', async () => {
+    const api = createFavoritesApi(httpStub({ getJson: () => Promise.resolve(ok(listBody([]))) }));
+
+    const result = await api.listFavorites({});
+    expect(result).toEqual({
+      ok: true,
+      value: { items: [], pageInfo: { nextCursor: null, hasMore: false } },
+    });
+  });
+
+  it('passes a refusal straight through rather than reporting no favourites', async () => {
+    const failure = apiFailure({ kind: 'HTTP', status: 401, message: 'HTTP 401' });
+    const api = createFavoritesApi(httpStub({ getJson: () => Promise.resolve(err(failure)) }));
+
+    expect(await api.listFavorites({})).toEqual({ ok: false, error: failure });
+  });
+
+  it('reports a body that is not a page as MALFORMED', async () => {
+    const api = createFavoritesApi(httpStub({ getJson: () => Promise.resolve(ok({ items: [] })) }));
+
+    const result = await api.listFavorites({});
+    expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
+  });
+});
+
+/**
+ * The list row. The id is the row — it resolves to a card, it addresses the un-follow, and it keys
+ * the list — so it is strict; the timestamp drives nothing on this screen, so it is not.
+ */
+describe('narrowing a favourites list row', () => {
+  it('accepts the documented row', () => {
+    expect(narrowFavoriteListItem({ dramaId: 'drm_1', favoritedAt: AUGUST_1 })).toEqual({
+      dramaId: 'drm_1',
+      favoritedAt: AUGUST_1,
+    });
+  });
+
+  it('rejects a row with no drama id, which is a row with nothing to render or un-follow', () => {
+    for (const dramaId of [undefined, null, '', 7, { id: 'drm_1' }]) {
+      expect(narrowFavoriteListItem({ dramaId, favoritedAt: AUGUST_1 })).toBeNull();
+    }
+  });
+
+  // The order is the server's and the value is displayed nowhere, so losing the viewer's whole list
+  // over it would protect nothing.
+  it('keeps the row when the timestamp is unusable', () => {
+    for (const favoritedAt of [undefined, null, '', 12345, {}]) {
+      expect(narrowFavoriteListItem({ dramaId: 'drm_1', favoritedAt })).toEqual({
+        dramaId: 'drm_1',
+        favoritedAt: null,
+      });
+    }
+  });
+
+  it('rejects a row that is not an object', () => {
+    for (const value of [null, undefined, 'drm_1', 7, [{ dramaId: 'drm_1' }]]) {
+      expect(narrowFavoriteListItem(value)).toBeNull();
+    }
+  });
+
+  /**
+   * A malformed row costs the page, which is `narrowPage`'s rule everywhere in this client. It is the
+   * right trade here in a way it would not be for a feed: a favourites list silently one row short is
+   * indistinguishable from a drama the viewer never followed.
+   */
+  it('fails the whole page when one row has no drama id', async () => {
+    const api = createFavoritesApi(
+      httpStub({
+        getJson: () =>
+          Promise.resolve(ok(listBody([{ dramaId: 'drm_1', favoritedAt: AUGUST_1 }, {}]))),
+      }),
+    );
+
+    const result = await api.listFavorites({});
+    expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
   });
 });
 

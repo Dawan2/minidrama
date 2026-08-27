@@ -2,8 +2,15 @@ import { ok } from '@minidrama/shared';
 import type { Result } from '@minidrama/shared';
 
 import { apiFailure } from '../data/failure';
+import { page } from './catalog-fixtures';
 import type { ApiFailure } from '../data/failure';
-import type { FavoriteState, FavoritesApi } from '../data/favorites-api';
+import type {
+  FavoriteList,
+  FavoriteListItem,
+  FavoriteState,
+  FavoritesApi,
+  FavoritesListRequest,
+} from '../data/favorites-api';
 
 /**
  * Test doubles for the favourite endpoints.
@@ -26,35 +33,68 @@ export function unfollowedState(dramaId: string): FavoriteState {
   return { dramaId, favorited: false };
 }
 
+/** One row of the list endpoint's answer: an id and a follow date, and nothing about the drama. */
+export function favoriteListItem(
+  dramaId: string,
+  favoritedAt: string | null = null,
+): FavoriteListItem {
+  return { dramaId, favoritedAt };
+}
+
+/** A page of the list endpoint's answer, in the order the server sent it. */
+export function favoritesPage(
+  dramaIds: readonly string[],
+  nextCursor: string | null = null,
+): FavoriteList {
+  return page(
+    dramaIds.map((dramaId) => favoriteListItem(dramaId)),
+    nextCursor,
+  );
+}
+
 export interface StubFavoritesApiScript {
+  readonly list?: (
+    request: FavoritesListRequest,
+    callIndex: number,
+  ) => Result<FavoriteList, ApiFailure>;
   readonly read?: (dramaId: string, callIndex: number) => Result<FavoriteState, ApiFailure>;
   readonly add?: (dramaId: string, callIndex: number) => Result<void, ApiFailure>;
   readonly remove?: (dramaId: string, callIndex: number) => Result<void, ApiFailure>;
 }
 
 export interface StubFavoritesApi extends FavoritesApi {
+  readonly listCalls: readonly FavoritesListRequest[];
   readonly readCalls: readonly string[];
   readonly addCalls: readonly string[];
   readonly removeCalls: readonly string[];
 }
 
 /**
- * An unscripted read answers "not followed" and an unscripted write succeeds.
+ * An unscripted list is empty, an unscripted read answers "not followed" and an unscripted write
+ * succeeds.
  *
- * Both defaults are the *server's* documented answer rather than a failure, unlike the catalogue
+ * All three defaults are the *server's* documented answer rather than a failure, unlike the catalogue
  * stub's unscripted drama read. A drama that was never scripted is a test that forgot something; a
- * favourite that was never scripted is the ordinary case — most dramas are not followed — and a test
- * about one followed row should not have to script "false" for every other candidate.
+ * favourite that was never scripted is the ordinary case — most viewers follow nothing — and a test
+ * about a row should not have to describe a list to get one.
  */
 export function stubFavoritesApi(script: StubFavoritesApiScript = {}): StubFavoritesApi {
+  const listCalls: FavoritesListRequest[] = [];
   const readCalls: string[] = [];
   const addCalls: string[] = [];
   const removeCalls: string[] = [];
 
   return {
+    listCalls,
     readCalls,
     addCalls,
     removeCalls,
+
+    listFavorites: (request) => {
+      const index = listCalls.length;
+      listCalls.push(request);
+      return Promise.resolve(script.list?.(request, index) ?? ok(favoritesPage([])));
+    },
 
     readFavorite: (dramaId) => {
       const index = readCalls.length;
