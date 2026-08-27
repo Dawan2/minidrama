@@ -114,7 +114,23 @@ A skip to episode 3 would mark 1 and 2, which the viewer never opened.
 
 ## 4. Verify
 
-`pnpm verify` on this branch. Counts filled after the run.
+`pnpm verify` exited 0 on this branch at `560cdc6` (plus the typecheck follow-up). Format, lint,
+typecheck, test, build, guardrails all green.
+
+```
+$ pnpm test
+```
+
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 55 |
+| `packages/config` | 45 |
+| `packages/quality` | 37 |
+| `server` | 1,455 |
+| `app` | 897 |
+| **Total** | **2,489** |
+
+Artifact `dist/assets/index-C9wgv8sC.js` 325.20 kB / 99.77 kB gzip. Guardrails passed.
 
 ---
 
