@@ -6,9 +6,10 @@
 > **Item:** HomePage renders the `CONTINUE_WATCHING` rail from
 > `GET /v1/recommendations/feed?scene=HOME`, not a second guessed list. Empty /
 > anonymous stays the catalogue mix. Fail-closed if the section is missing.
-> **Not in scope:** G2.3 Playwright (`bc-9578758f`). Cycle-4 verify docs
-> (`bc-caaa9d68`). C4-03 Postgres. C4-07 VIP. Drama-detail `viewer.lastWatched`
-> CTA. Beans, enabling wallet top-up, inventing ad-unit ids. No pull request.
+> **Not in scope:** G2.3 Playwright (`bc-9578758f`, landed as `5ab02d1` while
+> this slot ran). Cycle-4 verify docs (`bc-caaa9d68`, landed). C4-03 Postgres.
+> C4-07 VIP. Drama-detail `viewer.lastWatched` CTA. Beans, enabling wallet
+> top-up, inventing ad-unit ids. No pull request.
 
 ---
 
@@ -105,8 +106,8 @@ and the `DRAMA` card in `data-testid="feed"`.
 | Who | Overlap |
 | --- | --- |
 | Continue-watching **source** (`546dfe6`) | Already on `main` at pick. Server discovery / progress. This slot does not edit `server/` |
-| G2.3 (`bc-9578758f`) | Playwright / `l2.yml`. This slot does not touch `.github/workflows/` |
-| Cycle-4 verify (`bc-caaa9d68`) | `docs/verify/`. This slot does not edit it |
+| G2.3 (`bc-9578758f`) | **Landed.** Playwright smoke on `main` at `5ab02d1`. `l2.yml`, `packages/quality/e2e/*`, `packages/quality/src/smoke*`. Merged in; no overlap with Home / `home-feed` |
+| Cycle-4 verify (`bc-caaa9d68`) | **Landed.** `docs/verify/cycle-4-report.md`. This slot does not edit it |
 
 `git diff origin/main -- .github/workflows/` is empty of this slot's work.
 
@@ -114,36 +115,38 @@ and the `DRAMA` card in `data-testid="feed"`.
 
 ## 5. Verification
 
-`pnpm verify` green on `6c6cdcd`. L1 sequence unchanged: format → lint →
+`pnpm verify` green on `6c6cdcd`, then again after merging `origin/main` (`5ab02d1`
+G2.3 Playwright + C4 verify report). L1 sequence unchanged: format → lint →
 typecheck → test:coverage → check:coverage → build → guardrails. G1.8
-`check:secrets` and G1.6 `check:contract` stay in `ci.yml`, not in
+`check:secrets`, G1.6 `check:contract`, and G2.3 `check:smoke` stay out of
 `pnpm verify`.
 
 | Package | Tests |
 | --- | ---: |
 | shared | 61 |
-| quality | 250 |
+| quality | 282 |
 | config | 45 |
 | server | 1,752 |
 | app | 1,130 |
-| **Total** | **3,238** |
+| **Total** | **3,270** |
 
-Zero skipped. Coverage gate:
+Zero skipped. Coverage gate after the G2.3 merge:
 
 ```
-coverage global lines 94.08% (15306/16269), branches 91.61%, core lines 95.50%, diff lines 100.00% (32/32)
+coverage global lines 94.06% (15768/16763), branches 91.28%, core lines 95.50%, diff lines 100.00% (32/32)
 coverage gate passed
 ```
 
-Guardrails passed against `app/dist` (`index-DYzQGS39.js` 354.09 kB / 108.17 kB
+Guardrails passed against `app/dist` (`index-DFMC6f1v.js` 354.12 kB / 108.20 kB
 gzip). Native `<video>` remains absent.
 
 ---
 
 ## 6. Left open
 
-- **G2.3 Playwright.** Left for `bc-9578758f`. Not faked with a grep.
-- **Cycle-4 verify report.** Left for `bc-caaa9d68`.
+- **G2.3 Playwright.** Closed by the sibling while this slot ran (`5ab02d1`).
+  Not retaken. Specs click through Home to profile; they do not assert the rail.
+- **Cycle-4 verify report.** Landed as `docs/verify/cycle-4-report.md`.
 - **Drama-detail continue-watching CTA.** `viewer.lastWatched` is still unused
   on `DramaPage`; inventing a resume from the episode list would be a guess.
 - **C4-03 / C4-07.** Postgres, VIP contract. Unchanged.
