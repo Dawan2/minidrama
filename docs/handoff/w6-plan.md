@@ -205,10 +205,24 @@ quoted next to the claims. The ones the rest of the plan rests on:
 | `r` has a search client and no search server | `git grep search -- server/src`, `app.ts` registrations, contract paths | no `/v1/search` on `r` |
 | 37 unique commits remain | `git rev-list --count HEAD..<each of 5 tips>` | 37 |
 
-The merge taken on this branch is docs-only, so `verify` is unaffected by it — the tree's code is
-byte-identical to `cursor/w5-verify-cycle-1-7ed1`, which is `cursor/w4-work-p-53de` plus one
-markdown file, and the report records that tree passing `verify` with 713 tests. This slot re-ran
-nothing, because it changed nothing that `verify` reads.
+The merge taken on this branch is docs-only, so the tree's code is byte-identical to
+`cursor/w5-verify-cycle-1-7ed1`:
+
+```
+$ git diff --name-only origin/cursor/w5-verify-cycle-1-7ed1 HEAD -- . ':(exclude)docs'
+$                                                                          # no output
+```
+
+`verify` was nonetheless re-run in full rather than argued about — **exit 0**, 41 test files, **713
+tests**, 0 failed, 0 skipped, and the build emits `dist/assets/index-B_KnFxaH.js` at 242.80 kB
+(78.07 kB gzipped). All four numbers match what `docs/verify/cycle-1-report.md` §5.1 records for the
+trunk, which is the intended result: a docs-only merge that changed a byte of the artifact would
+mean something was wrong with the claim that it is docs-only.
+
+Note that `docs/` and `*.md` are both in `.prettierignore`, so none of the three documents this slot
+produced is seen by `format:check`. That is pre-existing configuration and this slot did not change
+it, but it means the green result above says nothing about these documents — only that they did not
+disturb anything.
 
 ---
 
