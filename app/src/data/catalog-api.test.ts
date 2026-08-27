@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ok } from '@minidrama/shared';
 
-import { FEED_PATH, createCatalogApi, dramaEndpoint, episodesEndpoint } from './catalog-api';
+import { FEED_PATH, createCatalogApi, dramaEndpoint, episodeEndpoint, episodesEndpoint } from './catalog-api';
 import { apiFailure } from './failure';
 import {
   dramaDetail,
@@ -21,12 +21,14 @@ describe('catalogue endpoints', () => {
     expect(FEED_PATH).toBe('/v1/recommendations/feed');
     expect(dramaEndpoint('drm_1')).toBe('/v1/dramas/drm_1');
     expect(episodesEndpoint('drm_1')).toBe('/v1/dramas/drm_1/episodes');
+    expect(episodeEndpoint('ep_1')).toBe('/v1/episodes/ep_1');
   });
 
   // An id reaches the client from a deep link and is entirely untrusted. Interpolated raw, a slash
   // in it silently addresses a different endpoint.
   it('escapes a drama id that would otherwise change the path', () => {
     expect(dramaEndpoint('drm/1?x=2')).toBe('/v1/dramas/drm%2F1%3Fx%3D2');
+    expect(episodeEndpoint('ep/1?x=2')).toBe('/v1/episodes/ep%2F1%3Fx%3D2');
   });
 });
 
@@ -57,6 +59,13 @@ describe('the catalogue client', () => {
     });
   });
 
+  it('looks an episode up by the id the player route carries', async () => {
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(episodeItem())));
+    await createCatalogApi({ getJson }).fetchEpisode('ep_1');
+
+    expect(getJson).toHaveBeenCalledWith('/v1/episodes/ep_1');
+  });
+
   it('passes a transport failure through untouched', async () => {
     const failure = apiFailure({ kind: 'HTTP', status: 410, message: 'gone' });
     const api = createCatalogApi({ getJson: () => Promise.resolve({ ok: false, error: failure }) });
@@ -84,6 +93,10 @@ describe('the catalogue client', () => {
     const episodes = createCatalogApi(httpStub(page([episodeItem()])));
     const listed = await episodes.fetchEpisodes({ dramaId: 'drm_test_0001' });
     expect(listed.ok ? listed.value.items.length : null).toBe(1);
+
+    const one = createCatalogApi(httpStub(episodeItem({ title: 'The return' })));
+    const lookedUp = await one.fetchEpisode('ep_test_0001');
+    expect(lookedUp.ok ? lookedUp.value.title : null).toBe('The return');
   });
 });
 
@@ -197,5 +210,13 @@ describe('response narrowing', () => {
       expect(result.ok, reason).toBe(true);
       expect(result.ok ? result.value.items[0]?.viewerAccess.reason : null).toBe(reason);
     }
+  });
+
+  it('rejects a single-episode body with no viewerAccess rather than defaulting one', async () => {
+    const { viewerAccess: _dropped, ...withoutAccess } = episodeItem();
+    const result = await createCatalogApi(httpStub(withoutAccess)).fetchEpisode('ep_1');
+
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
   });
 });

@@ -747,6 +747,142 @@ a {
   font-size: 14px;
 }
 
+.player-picker {
+  display: inline-block;
+  margin-top: 12px;
+  margin-inline-start: 8px;
+  padding: 10px 20px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+}
+
+/* ------------------------------------------------------- episode picker */
+
+/*
+ * PNL-01 is an overlay, not a route: the same reason PNL-02 is. Rendering it over the player
+ * keeps playback underneath it, and closing it does not have to invent a history entry.
+ */
+.episode-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.episode-picker__scrim {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.6);
+  border: 0;
+}
+
+.episode-picker__sheet {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  padding: 20px 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
+  background: var(--surface-raised);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.episode-picker__title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.episode-picker__message {
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.episode-picker__groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.episode-picker__group {
+  padding: 6px 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.episode-picker__group--active {
+  color: var(--accent-text);
+  background: var(--accent);
+}
+
+.episode-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.episode-picker__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 8px 4px;
+  color: inherit;
+  background: var(--surface);
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.episode-picker__cell--current {
+  outline: 2px solid var(--accent);
+  background: var(--surface-raised);
+}
+
+.episode-picker__cell--locked {
+  color: var(--text-muted);
+}
+
+.episode-picker__number {
+  font-weight: 600;
+}
+
+.episode-picker__lock {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.episode-picker__close {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+}
+
 /* ---------------------------------------------------------- unlock panel */
 
 /*

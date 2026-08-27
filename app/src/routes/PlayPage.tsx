@@ -1,11 +1,13 @@
 import { Link, useParams } from 'react-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { PlaybackDescriptor } from '@minidrama/shared';
 
+import { EpisodePicker } from '../picker/EpisodePicker';
 import { PlayerSurface } from '../player/PlayerSurface';
 import { ROUTES, playPath } from './routes';
 import { translate } from '../core/i18n';
 import type { PlatformBridge } from '../platform/types';
+import type { PurchaseCapabilities } from '../catalog/access-presentation';
 
 /**
  * SCR-05, the player screen.
@@ -43,6 +45,7 @@ export interface PlayPageProps {
 
 export function PlayPage({ bridge }: PlayPageProps): React.JSX.Element {
   const { episodeId = demoEpisodeId(1) } = useParams();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   /**
    * Memoized because the surface treats a new playlist as a new album and rebuilds the player for
@@ -60,6 +63,16 @@ export function PlayPage({ bridge }: PlayPageProps): React.JSX.Element {
    */
   const current = playlist[index === -1 ? 0 : index];
   const next = index === -1 ? undefined : playlist[index + 1];
+
+  /**
+   * Probed per render, same reason as the drama page: a capability captured once at boot goes
+   * stale the moment the bridge finishes initialising, which is when a deep link into the player
+   * first renders.
+   */
+  const capabilities: PurchaseCapabilities = {
+    coin: bridge.canIUse('pay'),
+    vip: bridge.canIUse('createSubscription'),
+  };
 
   return (
     <main className="page page--play" data-testid="play-page" data-episode-id={current?.episodeId}>
@@ -97,6 +110,29 @@ export function PlayPage({ bridge }: PlayPageProps): React.JSX.Element {
           {translate('player.nextEpisode')}
         </Link>
       )}
+      {/*
+        PNL-01. The panel fetches the real episode list when it opens, so the demo album below
+        does not become a second catalogue. Opening is cheap; the lookup is the panel's.
+      */}
+      <button
+        className="player-picker"
+        data-testid="episode-picker-open"
+        type="button"
+        onClick={() => {
+          setPickerOpen(true);
+        }}
+      >
+        {translate('picker.open')}
+      </button>
+      {pickerOpen ? (
+        <EpisodePicker
+          capabilities={capabilities}
+          episodeId={episodeId}
+          onClose={() => {
+            setPickerOpen(false);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

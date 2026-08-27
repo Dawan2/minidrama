@@ -16,13 +16,16 @@ import type { HttpReader } from './http';
 /**
  * The catalogue read surface, as the client sees it.
  *
- * Three endpoints, all anonymous-capable (`docs/12-api-contracts.md` §4.3, §4.8). The interface is
+ * Four endpoints, all anonymous-capable (`docs/12-api-contracts.md` §4.3, §4.8). The interface is
  * declared separately from the HTTP implementation because every screen test in this slot supplies
  * its own: a page's five states are a property of the page, and asserting them through a stubbed
  * `fetch` would be testing the transport twice.
  *
  * The paths are the ones the server registered in Wave 2 slot D and are written out rather than
- * assembled, so a rename shows up in a diff of this file.
+ * assembled, so a rename shows up in a diff of this file. `GET /v1/episodes/{episodeId}` is the
+ * lookup the player route needs: a deep link carries one episode id and the drama is recovered
+ * from it (`docs/02-information-architecture.md` §5), which is why PNL-01 does not invent a
+ * second way to ask.
  */
 
 export const FEED_PATH = '/v1/recommendations/feed';
@@ -33,6 +36,10 @@ export function dramaEndpoint(dramaId: string): string {
 
 export function episodesEndpoint(dramaId: string): string {
   return `${dramaEndpoint(dramaId)}/episodes`;
+}
+
+export function episodeEndpoint(episodeId: string): string {
+  return `/v1/episodes/${encodeURIComponent(episodeId)}`;
 }
 
 export interface FeedRequest {
@@ -51,6 +58,7 @@ export interface EpisodesRequest {
 export interface CatalogApi {
   fetchFeed(request: FeedRequest): Promise<Result<Page<FeedCard>, ApiFailure>>;
   fetchDrama(dramaId: string): Promise<Result<DramaDetail, ApiFailure>>;
+  fetchEpisode(episodeId: string): Promise<Result<EpisodeItem, ApiFailure>>;
   fetchEpisodes(request: EpisodesRequest): Promise<Result<Page<EpisodeItem>, ApiFailure>>;
 }
 
@@ -69,6 +77,11 @@ export function createCatalogApi(http: HttpReader): CatalogApi {
     fetchDrama: async (dramaId) => {
       const body = await http.getJson(dramaEndpoint(dramaId));
       return body.ok ? narrow(body.value, narrowDramaDetail) : body;
+    },
+
+    fetchEpisode: async (episodeId) => {
+      const body = await http.getJson(episodeEndpoint(episodeId));
+      return body.ok ? narrow(body.value, narrowEpisodeItem) : body;
     },
 
     fetchEpisodes: async (request) => {
