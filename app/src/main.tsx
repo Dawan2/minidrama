@@ -1,17 +1,21 @@
 import { StrictMode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 
 import './styles/app.css';
 import { ANONYMOUS } from './auth/session';
 import { App } from './App';
-import { BootError } from './boot/BootError';
-import { SplashScreen } from './boot/SplashScreen';
-import { ClientConfigProvider } from './config/client-config-context';
+import {
+  configAfterLogin,
+  initFailureElement,
+  isInitFailure,
+  rootFor,
+  splashElement,
+  wrapWithClientConfig,
+} from './boot/sequence';
 import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
-import { createConfigApi, resolveClientConfig } from './data/config-api';
+import { createConfigApi } from './data/config-api';
 import { createFavoritesApi } from './data/favorites-api';
 import { createHistoryApi } from './data/history-api';
 import { createLoginTransport, createSessionTransport } from './data/transports';
@@ -61,13 +65,6 @@ import type { SessionStore } from './session/session-store';
  */
 const SILENT_LOGIN_TIMEOUT_MS = 5_000;
 
-let root: Root | undefined;
-
-function rootFor(container: HTMLElement): Root {
-  root ??= createRoot(container);
-  return root;
-}
-
 async function boot(): Promise<void> {
   const container = document.getElementById('root');
   if (!container) {
@@ -75,15 +72,15 @@ async function boot(): Promise<void> {
   }
 
   const view = rootFor(container);
-  view.render(<SplashScreen />);
+  view.render(splashElement());
 
   const clientKey = import.meta.env['VITE_TIKTOK_CLIENT_KEY'] ?? '';
   const bridge = createBridge(clientKey);
   const initResult = await bridge.init();
-  if (!initResult.ok) {
+  if (isInitFailure(initResult)) {
     // SCR-01: init failure is terminal. Nothing downstream is usable without the SDK.
     console.error('[boot] bridge init failed', initResult.error);
-    view.render(<BootError onRetry={() => void boot()} />);
+    view.render(initFailureElement(() => void boot()));
     return;
   }
 
@@ -165,7 +162,7 @@ async function boot(): Promise<void> {
   const meApi = createMeApi(http);
   const progressApi = createProgressApi(http);
   const playbackApi = createPlaybackApi(http);
-  const config = resolveClientConfig(await createConfigApi(http).fetchConfig());
+  const config = await configAfterLogin(createConfigApi(http));
 
   /**
    * The session the surfaces see. This is the seam `auth/session.ts` left for the identity slot,
@@ -199,7 +196,8 @@ async function boot(): Promise<void> {
 
   view.render(
     <StrictMode>
-      <ClientConfigProvider config={config}>
+      {wrapWithClientConfig(
+        config,
         <SessionProvider session={session}>
           <CatalogApiProvider api={api}>
             <SearchApiProvider api={search}>
@@ -222,8 +220,8 @@ async function boot(): Promise<void> {
               </HistoryApiProvider>
             </SearchApiProvider>
           </CatalogApiProvider>
-        </SessionProvider>
-      </ClientConfigProvider>
+        </SessionProvider>,
+      )}
     </StrictMode>,
   );
 }
