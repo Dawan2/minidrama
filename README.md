@@ -65,4 +65,5 @@ pnpm check:guardrails    # platform guardrails; run after build to include the b
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same sequence on every pull request.
+CI (`.github/workflows/ci.yml`) runs the same sequence on every pull request and on every push to
+`main` or a `cursor/**` branch, so work in progress is verified before it is proposed for merge.

@@ -2,11 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Wave branches are pushed for a long time before they ever become a pull request, so
+    # restricting pushes to main means the work is unverified for exactly as long as it matters.
+    branches:
+      - main
+      - 'cursor/**'
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Push and pull_request refs are deliberately left in separate groups: sharing one would let a
+  # branch push cancel the pull request's own check, which reads as a failed required check.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
