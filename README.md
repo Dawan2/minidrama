@@ -67,12 +67,12 @@ pnpm check:guardrails    # platform guardrails; requires the build — a missing
 pnpm check:licenses      # G2.8 license whitelist; requires the install — a missing store fails
 pnpm check:coverage      # G1.5 coverage floors; requires test:coverage — a missing report fails
 pnpm check:migrate       # G2.7 migrate up → down → up; a no-op down or up-only file fails
-pnpm check:integrate     # G2.2 sqlite integration; in-memory, postgres, or a stubbed 201 fails
+pnpm check:integration   # G2.2 HTTP + sqlite file; :memory: or postgres URL fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
 L1 CI (`.github/workflows/ci.yml`) runs the verify sequence on every pull request, every push to
 `main` or a `cursor/**` branch, and on `workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`)
-runs the G2.8 license whitelist, the G2.7 migrate check, and the G2.2 sqlite integration
+runs the G2.8 license whitelist, the G2.7 migrate check, and the G2.2 sqlite integration check
 on the same events; it does not skip, filter, or `continue-on-error` the L1 suite.
-`check:migrate` and `check:integrate` are not folded into `verify`.
+`check:migrate` and `check:integration` are not folded into `verify`.

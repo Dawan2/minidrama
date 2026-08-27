@@ -62,7 +62,7 @@ minidrama/
 ├── contracts/openapi.yaml      # OpenAPI 3.1 — the HTTP surface's source of truth
 ├── docs/                       # architecture, design, plan, engineering (this file)
 ├── .github/workflows/ci.yml    # L1: format, lint, types, tests+coverage, build, guardrails
-└── .github/workflows/l2.yml    # L2: G2.8 licenses + G2.7 migrate + G2.2 sqlite integrate; does not skip L1
+└── .github/workflows/l2.yml    # L2: G2.8 licenses + G2.7 migrate + G2.2 sqlite; does not skip L1
 ```
 
 This matches the Wave 2 target layout in `docs/architecture/tech-stack.md` §7, with the module
@@ -206,13 +206,13 @@ pnpm check:guardrails     # requires the build first; a missing app/dist fails t
 pnpm check:licenses       # G2.8; requires the install; a missing store fails the check
 pnpm check:coverage       # G1.5; requires test:coverage reports; a missing report fails the check
 pnpm check:migrate        # G2.7; up → down → up on a temp sqlite file; a no-op down fails
-pnpm check:integrate      # G2.2; assembled server against a sqlite file; in-memory / postgres fail
+pnpm check:integration    # G2.2; HTTP against a sqlite file; :memory: or postgres fails
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
 `pnpm verify` is exactly what L1 CI runs, in the same order. L2 (`check:licenses`, `check:migrate`,
-`check:integrate`) is a second workflow and is not folded into `verify`, so adding it cannot become
-a reason to skip a verify step.
+`check:integration`) is a second workflow and is not folded into `verify`, so adding it cannot
+become a reason to skip a verify step.
 
 ---
 

@@ -187,15 +187,44 @@ describe('locked episodes are intercepted at every entry', () => {
       api: playCatalog([free, locked]),
       playbackApi,
     });
-    await player();
+    const current = await player();
 
     fireEvent.click(await screen.findByTestId('player-next'));
 
     expect(await screen.findByTestId('unlock-panel')).toBeDefined();
-    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(locked.id);
-    expect(screen.getByTestId('play-page').dataset['state']).toBe('locked');
+    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(free.id);
+    expect(screen.getByTestId('play-page').dataset['state']).toBe('playing');
     expect(playbackApi.createCalls).toEqual([free.id, locked.id]);
-    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(0);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(1);
+    expect(current.destroyed).toBe(false);
+    expect(current.config.episodeId).toBe(free.id);
+    expect(current.config.vid).not.toMatch(/vid_demo_/);
+    expect(current.config.episodeId).not.toMatch(/ep_demo_/);
+  });
+
+  it('advances an entitled 连播 onto the next session, not a demo album', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const second = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi();
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: first.id,
+      api: playCatalog([first, second]),
+      playbackApi,
+    });
+    await player();
+
+    fireEvent.click(await screen.findByTestId('player-next'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(second.id);
+    });
+    expect((await player()).config.episodeId).toBe(second.id);
+    expect((await player()).config.vid).toBe(`vid_${second.id}`);
+    expect((await player()).config.vid).not.toMatch(/vid_demo_/);
+    expect(playbackApi.createCalls[0]).toBe(first.id);
+    expect(playbackApi.createCalls.slice(1)).toEqual([second.id, second.id]);
   });
 
   it('sessions a picker destination rather than playing the previous episode', async () => {
@@ -227,6 +256,78 @@ describe('locked episodes are intercepted at every entry', () => {
     });
     expect((await player()).config.episodeId).toBe(second.id);
     expect((await player()).config.vid).toBe(`vid_${second.id}`);
+  });
+
+  it('sessions a locked 切集 target without advancing VePlayer onto a demo album', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const locked = lockedEpisodeItem({ globalEpisodeNumber: 4, id: 'ep_test_0004' });
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) =>
+        episodeId === locked.id
+          ? err(lockedPlaybackFailure())
+          : ok(playbackDescriptor({ episodeId })),
+    });
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: first.id,
+      api: playCatalog([first, locked]),
+      playbackApi,
+    });
+    const current = await player();
+
+    fireEvent.click(screen.getByTestId('episode-picker-open'));
+    await screen.findByTestId('episode-picker-grid');
+    const destination = screen
+      .getAllByTestId('episode-picker-cell')
+      .find((cell) => cell.getAttribute('data-episode-id') === locked.id);
+    expect(destination).toBeDefined();
+    expect(destination!.tagName).not.toBe('A');
+    fireEvent.click(destination!);
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(first.id);
+    expect(screen.getByTestId('play-page').dataset['state']).toBe('playing');
+    expect(playbackApi.createCalls).toEqual([first.id, locked.id]);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(1);
+    expect(current.destroyed).toBe(false);
+    expect(current.config.episodeId).toBe(first.id);
+    expect(current.config.vid).not.toMatch(/vid_demo_/);
+    expect(screen.queryByTestId('episode-picker')).toBeNull();
+  });
+
+  it('still intercepts a stale playable picker cell at the session, not with a demo album', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const stale = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) =>
+        episodeId === stale.id
+          ? err(lockedPlaybackFailure())
+          : ok(playbackDescriptor({ episodeId })),
+    });
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: first.id,
+      api: playCatalog([first, stale]),
+      playbackApi,
+    });
+    await player();
+
+    fireEvent.click(screen.getByTestId('episode-picker-open'));
+    await screen.findByTestId('episode-picker-grid');
+    const destination = screen
+      .getAllByTestId('episode-picker-cell')
+      .find((cell) => cell.getAttribute('data-episode-id') === stale.id);
+    expect(destination).toBeDefined();
+    fireEvent.click(destination!);
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(stale.id);
+    expect(screen.getByTestId('play-page').dataset['state']).toBe('locked');
+    expect(playbackApi.createCalls).toEqual([first.id, stale.id]);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(0);
+    expect(screen.queryByTestId('player-container')).toBeNull();
   });
 });
 

@@ -57,6 +57,7 @@ function renderPicker(
     readonly episodeId?: string;
     readonly capabilities?: PurchaseCapabilities;
     readonly onClose?: () => void;
+    readonly onLockedAttempt?: (episode: EpisodeItem) => void;
     readonly progressApi?: ProgressApi;
   } = {},
 ) {
@@ -72,6 +73,9 @@ function renderPicker(
             capabilities={options.capabilities ?? BOTH}
             episodeId={episodeId}
             onClose={onClose}
+            {...(options.onLockedAttempt === undefined
+              ? {}
+              : { onLockedAttempt: options.onLockedAttempt })}
           />
         }
       />
@@ -202,6 +206,22 @@ describe('lock marks and navigation', () => {
 
     fireEvent.click(locked!);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('hands a commercially locked cell to the player as an attempt, not a route', async () => {
+    const items = [episodeItem(), lockedEpisodeItem({ globalEpisodeNumber: 4, priceCoins: 30 })];
+    const onLockedAttempt = vi.fn();
+    const { onClose } = renderPicker(scriptedApi(items), { onLockedAttempt });
+
+    const cells = await screen.findAllByTestId('episode-picker-cell');
+    const locked = cells.find((cell) => cell.getAttribute('data-episode-id') === 'ep_test_0004');
+    expect(locked?.tagName).toBe('BUTTON');
+    expect(locked?.getAttribute('href')).toBeNull();
+
+    fireEvent.click(locked!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onLockedAttempt).toHaveBeenCalledTimes(1);
+    expect(onLockedAttempt.mock.calls[0]?.[0]?.id).toBe('ep_test_0004');
   });
 
   it('treats UNAVAILABLE the same as locked, even when a stale price is present', async () => {

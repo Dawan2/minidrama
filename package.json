@@ -23,7 +23,7 @@
     "check:licenses": "pnpm --filter @minidrama/quality run check:licenses",
     "check:coverage": "pnpm --filter @minidrama/quality run check:coverage",
     "check:migrate": "pnpm --filter @minidrama/server run check:migrate",
-    "check:integrate": "pnpm --filter @minidrama/server run check:integrate",
+    "check:integration": "pnpm --filter @minidrama/server run check:integration",
     "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
   },
   "pnpm": {

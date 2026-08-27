@@ -1,0 +1,212 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import {
+  checkSqliteIntegration,
+  parseIntegrationArgs,
+  refuseDatabaseUrl,
+  runCheckIntegrationCli,
+  sqliteFileUrl,
+} from './check-integration.js';
+
+/**
+ * Reverse verification for G2.2. The L2 job runs the CLI; these fixtures are the injection that
+ * proves an in-memory path, a `:memory:` database, or a postgres URL turns the check red. A job
+ * that only `inject`s against one process is the D-01 shape for "real dependencies".
+ */
+
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+    if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+
+describe('refuseDatabaseUrl', () => {
+  it('fails when DATABASE_URL is unset', () => {
+    expect(refuseDatabaseUrl('')).toContain('unset DATABASE_URL is in-memory');
+  });
+
+  it('fails on :memory: rather than treating a connection as a file', () => {
+    expect(refuseDatabaseUrl('sqlite::memory:')).toContain(':memory: is not a database');
+    expect(refuseDatabaseUrl(':memory:')).toContain(':memory: is not a database');
+  });
+
+  it('fails on postgres rather than rewriting it to a file', () => {
+    expect(refuseDatabaseUrl('postgres://localhost/minidrama')).toContain('scheme "postgres"');
+    expect(refuseDatabaseUrl('postgres://localhost/minidrama')).toContain('not faked as a file');
+  });
+
+  it('fails on redis rather than starting a fake cache', () => {
+    expect(refuseDatabaseUrl('redis://localhost:6379')).toContain('scheme "redis"');
+  });
+});
+
+describe('checkSqliteIntegration', () => {
+  it('passes HTTP login and a favourite against a real sqlite file after a restart', async () => {
+    const dir = tempDir('check-integration-real-');
+    const result = await checkSqliteIntegration({
+      databaseUrl: sqliteFileUrl(join(dir, 'g22.sqlite')),
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      dramaId: 'drm_revenge_0001',
+      message:
+        'sqlite integration passed: HTTP service, file-backed session and favourite survived a restart',
+    });
+  });
+
+  it('fails when DATABASE_URL is unset rather than running in-memory stores', async () => {
+    const result = await checkSqliteIntegration({ databaseUrl: '' });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('unset DATABASE_URL is in-memory');
+  });
+
+  it('fails on :memory: rather than a bounce inside one process', async () => {
+    const result = await checkSqliteIntegration({ databaseUrl: 'sqlite::memory:' });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain(':memory: is not a database');
+  });
+
+  it('fails on a postgres URL rather than serving sqlite behind it', async () => {
+    const result = await checkSqliteIntegration({
+      databaseUrl: 'postgres://localhost/minidrama',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('scheme "postgres"');
+    expect(result.message).not.toContain('survived a restart');
+  });
+});
+
+describe('parseIntegrationArgs', () => {
+  it('rejects an unknown argument rather than ignoring it', () => {
+    expect(parseIntegrationArgs(['--allow-unknown'])).toEqual({
+      ok: false,
+      message: 'unknown argument: --allow-unknown',
+    });
+  });
+
+  it('rejects --db without a path', () => {
+    expect(parseIntegrationArgs(['--db'])).toEqual({
+      ok: false,
+      message: '--db requires a path',
+    });
+  });
+
+  it('rejects passing both --db and --database-url', () => {
+    expect(
+      parseIntegrationArgs(['--db', 'g22.sqlite', '--database-url', 'sqlite:g22.sqlite']),
+    ).toEqual({
+      ok: false,
+      message: 'pass --db or --database-url, not both',
+    });
+  });
+
+  it('turns --db into a sqlite URL', () => {
+    expect(parseIntegrationArgs(['--db', '/tmp/g22.sqlite'])).toEqual({
+      ok: true,
+      args: { databaseUrl: 'sqlite:/tmp/g22.sqlite' },
+    });
+  });
+
+  it('keeps --database-url as-is', () => {
+    expect(parseIntegrationArgs(['--database-url', 'sqlite:/tmp/g22.sqlite'])).toEqual({
+      ok: true,
+      args: { databaseUrl: 'sqlite:/tmp/g22.sqlite' },
+    });
+  });
+
+  it('omits the URL when no flags are passed, so the runner creates a temp file', () => {
+    expect(parseIntegrationArgs([])).toEqual({
+      ok: true,
+      args: { databaseUrl: undefined },
+    });
+  });
+});
+
+function capturingIo(): {
+  io: { stdout: { write(chunk: string): void }; stderr: { write(chunk: string): void } };
+  stdout: string;
+  stderr: string;
+} {
+  const captured = { stdout: '', stderr: '' };
+  return {
+    get stdout() {
+      return captured.stdout;
+    },
+    get stderr() {
+      return captured.stderr;
+    },
+    io: {
+      stdout: {
+        write(chunk: string) {
+          captured.stdout += chunk;
+        },
+      },
+      stderr: {
+        write(chunk: string) {
+          captured.stderr += chunk;
+        },
+      },
+    },
+  };
+}
+
+describe('runCheckIntegrationCli', () => {
+  it('returns 2 on an unknown argument', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli(['--allow-unknown'], captured.io);
+
+    expect(status).toBe(2);
+    expect(captured.stderr).toContain('unknown argument');
+    expect(captured.stdout).not.toContain('passed');
+  });
+
+  it('returns 1 on a postgres URL rather than rewriting it to a file', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli(
+      ['--database-url', 'postgres://localhost/minidrama'],
+      captured.io,
+    );
+
+    expect(status).toBe(1);
+    expect(captured.stderr).toContain('scheme "postgres"');
+    expect(captured.stdout).not.toContain('passed');
+  });
+
+  it('returns 1 on :memory:', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli(['--db', ':memory:'], captured.io);
+
+    expect(status).toBe(1);
+    expect(captured.stderr).toContain(':memory: is not a database');
+    expect(captured.stdout).not.toContain('passed');
+  });
+
+  it('returns 0 against a temp sqlite file', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli([], captured.io);
+
+    expect(status).toBe(0);
+    expect(captured.stdout).toContain('sqlite integration passed');
+    expect(captured.stderr).not.toContain('in-memory');
+  });
+});
