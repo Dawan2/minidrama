@@ -29,6 +29,7 @@ import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-po
 import { createUnavailableWatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { createCorsPolicy } from './core/origin-policy.js';
+import { createLoggerOptions, generateRequestId, registerRequestId } from './core/logging.js';
 import { discoveryRoutes } from './modules/discovery/routes.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
@@ -65,6 +66,7 @@ import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import type { WatchProgressStore } from './modules/progress/store.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
+import type { LogDestination } from './core/logging.js';
 
 /**
  * The modular monolith, assembled.
@@ -147,6 +149,11 @@ export interface AppDependencies {
   readonly favoritesStore?: FavoritesStore;
   readonly dramaDirectory?: DramaDirectory;
   readonly now?: () => number;
+  /**
+   * Where JSON log lines go. Unset is stdout, which is what a deployment gets. Tests pass a
+   * capture so they can assert the request id in the line and that a secret does not survive it.
+   */
+  readonly logDestination?: LogDestination;
 }
 
 export async function buildApp(
@@ -158,10 +165,14 @@ export async function buildApp(
   }
 
   const app = Fastify({
-    logger: { level: config.logLevel },
-    // Fastify's request id is the trace id we echo to clients until OpenTelemetry lands in W2.
-    genReqId: () => `req_${Math.random().toString(36).slice(2, 12)}`,
+    logger: createLoggerOptions(config.logLevel, dependencies.logDestination),
+    // Inbound ids are validated in `generateRequestId` rather than copied from a header as-is.
+    requestIdHeader: false,
+    genReqId: generateRequestId,
   });
+
+  // Before CORS so a refused origin still carries the id in the header and the error envelope.
+  registerRequestId(app);
 
   const credentials = dependencies.platformCredentials ?? loadPlatformCredentials();
   const now = dependencies.now ?? Date.now;

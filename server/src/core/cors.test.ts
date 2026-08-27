@@ -81,6 +81,7 @@ describe('an allowed origin', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.headers['access-control-allow-origin']).toBe(origin);
+      expect(response.headers['access-control-expose-headers']).toBe('x-request-id');
     }
   });
 
