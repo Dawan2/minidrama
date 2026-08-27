@@ -61,7 +61,7 @@ Every gate was run on this branch and passed.
 | Format | `pnpm format:check` | pass |
 | Lint | `pnpm lint` | pass, 0 errors, 0 warnings |
 | Types | `pnpm typecheck` | pass, 4 packages, strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` |
-| Tests | `pnpm test` | **276 passing, 0 skipped, 0 failing** — 92 app, 16 config, 8 shared, **160 server** (was 9) |
+| Tests | `pnpm test` | **278 passing, 0 skipped, 0 failing** — 92 app, 16 config, 8 shared, **162 server** (was 9) |
 | Build | `pnpm build` | pass — `assets/index-*.js` 242.80 kB (78.07 kB gzipped), unchanged |
 | Guardrails | `pnpm check:guardrails` | pass against the real built bundle |
 
@@ -69,18 +69,18 @@ The client bundle is byte-for-byte unchanged: nothing in this slot is reachable 
 `<video>` element was added, no player code was touched, and no existing test was weakened, skipped
 or deleted.
 
-### 2.2 Where the 151 new server tests go
+### 2.2 Where the 153 new server tests go
 
-They sum to 151; the remaining 9 of the 160 are the skeleton's own health, envelope and playback
+They sum to 153; the remaining 9 of the 162 are the skeleton's own health, envelope and playback
 tests, which were not modified.
 
 | Group | Tests | Protects |
 |---|---|---|
 | `webhook-signature.test.ts` | 34 | The algorithm: header parsing, the HMAC definition recomputed independently, and every rejection path including stale and future timestamps |
-| `webhook-routes.test.ts` | 32 | The wiring: raw bytes reaching the verifier, storage before parse, rejection before action, redelivery handling, and the absence of an oracle |
+| `webhook-routes.test.ts` | 33 | The wiring: raw bytes reaching the verifier, storage before parse, rejection before action, redelivery handling, and the absence of an oracle |
 | `webhook-events.test.ts` | 21 | Envelope typing, forward compatibility with unknown fields, idempotency key derivation |
 | `identity/routes.test.ts` | 17 | The fail-closed login path, provider and code validation, and failure-to-status mapping |
-| `event-store.test.ts` | 16 | Raw-payload fidelity, single-claimant idempotency, header allow-listing, capacity bound |
+| `event-store.test.ts` | 17 | Raw-payload fidelity, single-claimant idempotency, header allow-listing, capacity bound |
 | `signature-verifier.test.ts` | 8 | The seam: header casing, duplicated headers, and that a missing key produces refusal rather than a pass |
 | `credentials.test.ts` | 7 | That the secret is unreachable through JSON, spread, inspection or enumeration, and still readable by the verifier |
 | `config.test.ts` | 6 new | That the timestamp window cannot be turned into a formality by a bad value |
@@ -131,7 +131,8 @@ continues from `docs/handoff/w1-skeleton.md` §3.
 | S16 | **Framework-level 4xx keep their own status** instead of being flattened to 500 by the error handler | A 500 tells TikTok's sender that delivery failed, and it returns for 72 hours over a request we had already decided to refuse. This changes `server/src/app.ts` for every route, which is the one shared file this slot touches | One branch in the error handler |
 | S17 | **The identity port refuses every exchange** | The HTTP call to `open.tiktokapis.com` is a later slot's. A stub returning a synthesised `open_id` would issue real sessions for arbitrary strings — a working authentication bypass under a green test suite. The port distinguishes "no credentials" from "not built yet" in its logs and reports neither to the caller | Replace one function |
 | S18 | **The session token is opaque random bytes, not a JWT** | The JWT decision belongs with the session design. What is *not* a placeholder: the token is CSPRNG-generated and is not derived from `open_id`, both of which are tested, because a token that encodes the user identifier without a signature is a token an attacker can build | Additive |
-| S19 | **`contracts/openapi.yaml` gained a test rather than a lint rule** | The skeleton stated that a documented path always has a running handler. It was a convention; it is now enforced by dispatching every documented operation against the real app | None |
+| S19 | **The stored raw payload is a `Buffer`, not a string** | The signature covers bytes, so a stored event is re-verifiable only if the bytes survived. A string column that decodes and re-encodes substitutes U+FFFD for anything that is not valid UTF-8, and it does so silently — which would break replay in precisely the cases worth replaying. Two tests pin this, one at the store and one through the route | Type change in the interface and its two callers |
+| S20 | **`contracts/openapi.yaml` gained a test rather than a lint rule** | The skeleton stated that a documented path always has a running handler. It was a convention; it is now enforced by dispatching every documented operation against the real app | None |
 
 ---
 
@@ -172,9 +173,11 @@ cycle. `webhookIdempotencyKey` already gives you `trade_order:<id>`; make your c
 orders must never count as production revenue.
 
 **For whoever replaces the event store.** Implement `WebhookEventStore` against Postgres and pass it
-to `buildApp`. `claimIdempotencyKey` is the only method whose semantics matter: it must be a single
-atomic claim (a unique index and an insert, not a read-then-write), because the in-memory `Set` this
-slot uses is atomic only by accident of the single-threaded runtime.
+to `buildApp`. Two properties are load-bearing. `claimIdempotencyKey` must be a single atomic claim —
+a unique index and an insert, not a read-then-write — because the in-memory `Set` this slot uses is
+atomic only by accident of the single-threaded runtime. And `rawPayload` must round-trip as bytes; if
+the column is `jsonb` or `text`, a payload that is not valid UTF-8 comes back with replacement
+characters and the stored signature no longer verifies against it.
 
 **For whoever implements the OAuth exchange.** Replace `createTiktokIdentityPort` and nothing else.
 `identity` never sees a client secret and never builds a TikTok request, which is the property to

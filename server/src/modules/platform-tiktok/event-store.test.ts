@@ -5,7 +5,11 @@ import { createInMemoryWebhookEventStore, retainHeaders } from './event-store.js
 const RAW = '{"client_key":"awtest","content":"{}"}';
 
 function input(rawPayload = RAW) {
-  return { rawPayload, headers: {}, receivedAtMs: 1_700_000_000_000 };
+  return {
+    rawPayload: Buffer.from(rawPayload, 'utf8'),
+    headers: {},
+    receivedAtMs: 1_700_000_000_000,
+  };
 }
 
 describe('createInMemoryWebhookEventStore', () => {
@@ -13,7 +17,7 @@ describe('createInMemoryWebhookEventStore', () => {
     const store = createInMemoryWebhookEventStore();
     const record = await store.record(input());
 
-    expect(record.rawPayload).toBe(RAW);
+    expect(record.rawPayload.toString('utf8')).toBe(RAW);
     expect(record.source).toBe('TIKTOK');
     expect(record).toMatchObject({ verified: false, processed: false, idempotencyKey: null });
   });
@@ -22,7 +26,22 @@ describe('createInMemoryWebhookEventStore', () => {
     const store = createInMemoryWebhookEventStore();
     const spaced = `  ${RAW}\n`;
 
-    expect((await store.record(input(spaced))).rawPayload).toBe(spaced);
+    expect((await store.record(input(spaced))).rawPayload.toString('utf8')).toBe(spaced);
+  });
+
+  // The signature covers bytes, so a stored event is re-verifiable only if the bytes survived. A
+  // string column that decodes and re-encodes would substitute U+FFFD here and lose that.
+  it('keeps bytes that are not valid UTF-8', async () => {
+    const store = createInMemoryWebhookEventStore();
+    const bytes = Buffer.from([0x7b, 0x22, 0xff, 0xfe, 0x22, 0x7d]);
+
+    const record = await store.record({
+      rawPayload: bytes,
+      headers: {},
+      receivedAtMs: 1_700_000_000_000,
+    });
+
+    expect(record.rawPayload.equals(bytes)).toBe(true);
   });
 
   it('gives each delivery its own record, so a redelivery is still evidence', async () => {

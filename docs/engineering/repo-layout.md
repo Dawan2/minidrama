@@ -49,8 +49,11 @@ minidrama/
 │       ├── app.ts              # assembly + error envelope + 404 handler
 │       ├── config.ts           # environment, no secrets in code
 │       ├── core/errors.ts      # the single error envelope
+│       ├── contract.test.ts    # asserts every documented path has a handler
 │       └── modules/            # one directory per bounded context
 │           ├── health/
+│           ├── identity/       # silent login, session issuance
+│           ├── platform-tiktok/ # the sole TikTok adapter: webhook verification, identity port
 │           └── playback/
 ├── packages/
 │   ├── shared/                 # Result, error codes, playback descriptor — client and server
@@ -228,7 +231,8 @@ that leaked into a build fails loudly instead of talking to somebody else's host
 | Adding | Where it goes | What you must not skip |
 |---|---|---|
 | A platform capability | A method on `PlatformBridge` + both implementations | The conformance test iterates `BRIDGE_METHOD_NAMES`; a type-level check fails `typecheck` if you add a method without listing it |
-| An API endpoint | `server/src/modules/<context>/routes.ts` + `contracts/openapi.yaml` | The error envelope from `core/errors.ts`, and a `traceId` on every failure |
+| An API endpoint | `server/src/modules/<context>/routes.ts` + `contracts/openapi.yaml` | The error envelope from `core/errors.ts`, and a `traceId` on every failure. `contract.test.ts` dispatches every documented operation, so a path with no handler fails the suite |
+| An outbound TikTok call | `server/src/modules/platform-tiktok/` only | No other module may hold a client secret or build a TikTok request. Consumers get a port interface, as `identity` does |
 | A trusted domain | `packages/config/src/domains.ts`, then `pnpm gen:minis-config` | Register it in the Developer Portal too; CI fails if the generated file drifts |
 | A user-facing string | `app/src/core/i18n/locales/en.json` and every other locale | The parity test fails on a missing key in any locale, and English must never fall back to a raw key |
 | A page | `app/src/routes/` + an entry in `ROUTES` | Hash-mode paths only; unknown routes must reach `#/fallback`, which always offers a way home |

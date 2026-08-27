@@ -22,8 +22,15 @@ import { randomUUID } from 'node:crypto';
 export interface WebhookEventRecord {
   readonly id: string;
   readonly source: 'TIKTOK';
-  /** The request body exactly as received, never a re-serialisation. */
-  readonly rawPayload: string;
+  /**
+   * The request body exactly as received, never a re-serialisation.
+   *
+   * A `Buffer` rather than a string, because the signature covers bytes and a stored event is only
+   * re-verifiable if the bytes survived. A durable implementation must keep that property — a
+   * column that decodes, re-encodes or normalises the payload silently makes replay unreliable in
+   * exactly the cases worth replaying.
+   */
+  readonly rawPayload: Buffer;
   readonly headers: Readonly<Record<string, string>>;
   readonly receivedAtMs: number;
   readonly verified: boolean;
@@ -34,7 +41,7 @@ export interface WebhookEventRecord {
 }
 
 export interface RecordWebhookEventInput {
-  readonly rawPayload: string;
+  readonly rawPayload: Buffer;
   readonly headers: Readonly<Record<string, string>>;
   readonly receivedAtMs: number;
 }

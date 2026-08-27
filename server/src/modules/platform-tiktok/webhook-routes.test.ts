@@ -126,7 +126,7 @@ describe('POST /v1/payments/callbacks/tiktok — a valid signature', () => {
     const response = await post(body, signature(body));
 
     expect(response.statusCode).toBe(200);
-    expect((await eventStore.list())[0]?.rawPayload).toBe(body);
+    expect((await eventStore.list())[0]?.rawPayload.toString('utf8')).toBe(body);
   });
 });
 
@@ -277,17 +277,39 @@ describe('POST /v1/payments/callbacks/tiktok — the raw body is stored before a
     const body = rawEnvelope();
     await post(body, 'garbage');
 
-    expect((await eventStore.list())[0]).toMatchObject({
-      rawPayload: body,
-      source: 'TIKTOK',
-      verified: false,
+    const [record] = await eventStore.list();
+    expect(record).toMatchObject({ source: 'TIKTOK', verified: false });
+    expect(record?.rawPayload.toString('utf8')).toBe(body);
+  });
+
+  // The signature covers bytes, so anything that decodes or normalises the payload on the way to
+  // storage makes a stored event unverifiable — precisely when we most want to replay it.
+  it('stores bytes that are not valid UTF-8 exactly as they arrived', async () => {
+    const bytes = Buffer.concat([
+      Buffer.from('{"client_key":"awtest","raw":"', 'utf8'),
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from('"}', 'utf8'),
+    ]);
+    const header = `t=${NOW_SEC},s=${computeWebhookSignature(bytes, SECRET, NOW_SEC)}`;
+
+    const response = await app.inject({
+      method: 'POST',
+      url: TIKTOK_WEBHOOK_PATH,
+      headers: { 'content-type': 'application/json', 'tiktok-signature': header },
+      payload: bytes,
     });
+
+    // Authentic, and rejected only because the envelope is incomplete — not because of the bytes.
+    expect(response.statusCode).toBe(400);
+    const [record] = await eventStore.list();
+    expect(record?.verified).toBe(true);
+    expect(record?.rawPayload.equals(bytes)).toBe(true);
   });
 
   it('stores a body that is not JSON at all, rather than 400-ing before the store', async () => {
     await post('<html>not json</html>', 'garbage');
 
-    expect((await eventStore.list())[0]?.rawPayload).toBe('<html>not json</html>');
+    expect((await eventStore.list())[0]?.rawPayload.toString('utf8')).toBe('<html>not json</html>');
   });
 
   it('keeps the signature header so a stored event can be re-verified later', async () => {
@@ -349,7 +371,7 @@ describe('POST /v1/payments/callbacks/tiktok — the raw body is stored before a
     });
 
     expect(response.statusCode).toBe(200);
-    expect((await eventStore.list())[0]?.rawPayload).toBe(body);
+    expect((await eventStore.list())[0]?.rawPayload.toString('utf8')).toBe(body);
   });
 
   it('still rejects an unsigned body sent under a permissive content type', async () => {

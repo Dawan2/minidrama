@@ -76,7 +76,7 @@ export async function platformTiktokRoutes(
     const rawBody = (request as RawBodyRequest).rawBody ?? Buffer.alloc(0);
 
     const record = await eventStore.record({
-      rawPayload: rawBody.toString('utf8'),
+      rawPayload: rawBody,
       headers: retainHeaders(request.headers),
       receivedAtMs: now(),
     });
