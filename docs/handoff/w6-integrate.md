@@ -208,13 +208,15 @@ work.
 
 | # | Condition | State |
 |---:|---|---|
-| 1 | `main` contains the assembled product | see §8 |
-| 2 | `main` at or ahead of every C1 branch | every branch that existed at the start of this run is an ancestor of the integration branch |
-| 3 | CI green on `main` | pending the landing; this is the first run in project history either way |
+| 1 | `main` contains the assembled product | **done** — `e13fcac`, 359 files, 154 commits |
+| 2 | `main` at or ahead of every C1 branch | **done** — every branch except the three §7 defers is an ancestor of `main` |
+| 3 | CI green on `main` | **done** — run `33102020400`, success. First green run in project history |
 | 4 | CI runs on feature branches | **done** — `w6-work-ci-074b`, backlog T0-1 |
 | 5 | One contract, matching the routes | **done** — §5 |
 | 6 | The adjudications written down | **done** — §5 of the plan amended in place; A7 added |
 | 7 | The branches retired | **not done.** Deliberately: nothing was deleted from origin. §7 |
+
+Six of seven. Conditions 1–3 close **D-03** and **D-09**; condition 5 closes **D-04**.
 
 ---
 
@@ -260,8 +262,20 @@ The fast-forward property in plan §2.2 was re-checked immediately before the at
 behind. So the landing is a pointer move — the tree that lands is bit-for-bit the tree that verified
 green, and "the merge to main went wrong" is not an available failure mode.
 
-The outcome of the push, and what was done about it, is recorded in the commit that adds this
-section's result. If the push was refused, plan §2.5 applies: **do not open a pull request.** Ask
-the repository owner to lift the protection or add the integrator to its bypass list, and if that is
-impossible, amend `docs/plan/wave-protocol.md` §9 rather than leaving `main` empty for a second
-cycle. `cursor/integrate-cycle-2-e0f4` is then the tree to land, and it is pushed and green.
+**The push succeeded on the first attempt.** `main` is now `e13fcac`, 154 commits and 359 files, and
+`git rev-parse` reports it identical to `cursor/integrate-cycle-2-e0f4`. No pull request was opened
+and no merge commit was created. §2.5's contingency was not needed: the repository's branch
+protection state could not be read with the available token, so the plan was right that the first
+push is the probe — and the probe passed.
+
+**CI ran on `main` and went green.** Run `33102020400`, 2m22s. This is the first successful CI run in
+the project's history, on any branch or ref: until `w6-work-ci-074b` was merged the workflow
+triggered only on pushes to `main` and on pull requests, and the protocol produces neither during a
+wave. Every push to the integration branch since that merge also went green in CI, independently of
+the local `verify`.
+
+This closes §9 conditions 1, 2 and 3, and with them **D-03** and **D-09**. `docs/14-quality-gates.md`
+§0 R6 ("`main` is releasable at all times") is now a claim that could fail, which is the first time it
+has meant anything.
+
+Condition 7 is the one left open, deliberately — see §7 item 2.
