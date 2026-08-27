@@ -1,12 +1,15 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { createInMemoryFavoritesStore } from './modules/discovery/favorites.js';
 import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
+import { createSeedDramaDirectory } from './modules/discovery/dramas.js';
 import { createSessionIssuer } from './modules/identity/session.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import { createUnverifiableSessionResolver } from './modules/progress/viewer.js';
+import { discoveryRoutes } from './modules/discovery/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { identityRoutes } from './modules/identity/routes.js';
@@ -15,6 +18,8 @@ import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.j
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
 import { progressRoutes } from './modules/progress/routes.js';
+import type { DramaDirectory } from './modules/discovery/dramas.js';
+import type { FavoritesStore } from './modules/discovery/favorites.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { ServerConfig } from './config.js';
@@ -46,6 +51,13 @@ export interface AppDependencies {
   readonly identityPort?: PlatformIdentityPort;
   readonly sessionIssuer?: SessionIssuer;
   readonly watchProgressStore?: WatchProgressStore;
+  readonly favoritesStore?: FavoritesStore;
+  /**
+   * The dramas search and favourites can see. The default is a seed: there is no catalogue module on
+   * this branch, and `modules/discovery/dramas.ts` explains why the seam is a port rather than an
+   * invented catalogue.
+   */
+  readonly dramaDirectory?: DramaDirectory;
   /**
    * Turns a session token into a viewer. The default refuses every request, because this deployment
    * cannot verify a session yet — see `modules/progress/viewer.ts`. Tests that need an authenticated
@@ -118,6 +130,15 @@ export async function buildApp(
 
   await app.register(progressRoutes, {
     store: dependencies.watchProgressStore ?? createInMemoryWatchProgressStore(),
+    viewerResolver: dependencies.viewerResolver ?? createUnverifiableSessionResolver(),
+    now,
+  });
+
+  await app.register(discoveryRoutes, {
+    directory: dependencies.dramaDirectory ?? createSeedDramaDirectory(),
+    favorites: dependencies.favoritesStore ?? createInMemoryFavoritesStore(),
+    // The same seam watch progress owns, on that slot's instruction: one viewer resolver for the
+    // server, refusing by default, rather than one per module.
     viewerResolver: dependencies.viewerResolver ?? createUnverifiableSessionResolver(),
     now,
   });
