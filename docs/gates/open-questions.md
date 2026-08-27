@@ -36,6 +36,7 @@ business-track table (`docs/verify/cycle-2-report.md` §8, D-15). Rule-3 escalat
 | **Q-G-7** | Business (C3-09) | What Beans amount did a real (sandbox) trade order of a known coin price actually charge? | **unknown** | One observed pair (coins, Beans). No rate in types until then |
 | **Q-G-8** | Business (GATE-3) | Industry qualification / partner approval: submitted? Date? Result? | **unknown** | Submission date and outcome. **Do not invent a date** |
 | **Q-G-9** | User / business (GATE-0) | Where is the official requirements PDF, or an authenticated One Page export covering everything after §2.5? | **unknown** | File in the workspace, or view access for a named account |
+| **Q-G-10** | Device + AM (`PLY-002` / B-8) | On an independent Android Chromium WebView and iOS WKWebView, what is MSE (preload) availability, and does playback still start with no user-visible error when MSE is missing? Same questions inside TikTok WebView are `PLY-003` | **unknown** | A per-OS-version run on those hosts. jsdom / this CI host is not an answer. **Do not copy C1 research U-16 as a C3 probe.** Detail: `docs/gates/ply-002.md` |
 
 The six media-plane questions Q-MP-1…Q-MP-6 in `docs/plan/media-plane-decision.md` §8.2 remain the
 GATE-8 ask. Q-G-3 and Q-G-4 are Q-MP-1 and Q-MP-2 restated so they sit next to the other
