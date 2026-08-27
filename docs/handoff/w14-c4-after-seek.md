@@ -28,7 +28,7 @@ skipping items this assignment named in-flight:
 | G1.8 Gitleaks | on `main` |
 | Heartbeats / session resume / VePlayer seek | on `main` as `795baaf` |
 | G2.3 Playwright | in flight (`bc-9578758f`). Not this slot |
-| Post-G1.8 C4 | in flight (`bc-84ec4fdd`). Likely G1.6 / G1.7 / G1.10. Not this slot |
+| Post-G1.8 C4 | in flight at pick (`bc-84ec4fdd`); **landed as G1.6** `3cb724c` |
 | C4-03 T14 Postgres | do not fake |
 | C4-07 VIP | no contract; do not invent |
 
