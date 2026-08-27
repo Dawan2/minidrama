@@ -11,6 +11,17 @@ info:
     in `docs/12-api-contracts.md` and `docs/design/api-contracts.md`; endpoints move into this file
     as they are implemented, so a path in this document always has a running handler.
 
+    **Cross-origin access applies to every path below.** The client bundle is served by TikTok, so
+    the API is never the page's own origin and every browser call is a cross-origin call. A request
+    carrying an `Origin` header that is not on the server's configured allowlist is refused with
+    `403 COMMON_ORIGIN_NOT_ALLOWED` before routing — the response is the standard error envelope
+    and carries no `Access-Control-*` header — and the browser's `OPTIONS` preflight is answered by
+    the server rather than by any operation described here. There is no wildcard: an unconfigured
+    deployment allows no browser origin at all, which is an outage for the client and never a
+    quietly open API. Credentials are never allowed; the session is the `Authorization` header the
+    client attaches itself. `Idempotency-Key`, `Authorization` and `Content-Type` are the
+    non-safelisted request headers a preflight may ask for.
+
 servers:
   - url: https://api.example.invalid
     description: Placeholder. Real domains are registered in the Portal and generated from
