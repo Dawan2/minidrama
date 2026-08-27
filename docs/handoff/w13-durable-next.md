@@ -103,18 +103,20 @@ durable implementation is untested. Same trap as unlocks. Restored.
 
 ## 6. Verification
 
-`pnpm verify` green on this branch (first try, exit 0).
+`pnpm verify` green on this branch (first try, exit 0). `origin/main` then moved to `2aea931`
+(wallet GET API and episode picker). Merged; `server/src/app.ts` auto-merged (wallet routes next
+to unlock, sqlite wiring untouched). Server tests 1,452. No overlap with identity or migrations.
 
 | Package | Tests |
 | --- | ---: |
-| `packages/shared` | 51 |
+| `packages/shared` | 53 |
 | `packages/config` | 45 |
 | `packages/quality` | 37 |
-| `server` | 1,422 |
-| `app` | 857 |
-| **Total** | **2,412** |
+| `server` | 1,452 |
+| `app` | 882 |
+| **Total** | **2,469** |
 
-Guardrails passed against `app/dist`. Bundle `index-CQnFIqTJ.js` 318.14 kB (gzip 98.12 kB).
+Guardrails passed against `app/dist`. Bundle `index-ByxZPC2_.js` 323.28 kB (gzip 99.35 kB).
 `node:sqlite` is experimental on Node 22 and prints a warning; it is not a failure.
 
 ---
@@ -129,5 +131,6 @@ Guardrails passed against `app/dist`. Bundle `index-CQnFIqTJ.js` 318.14 kB (gzip
   does not add a no-op client.
 - **C3-05 D9.** Still the cheapest unblocked client item. Different files.
 
-Wallet GET API (`bc-5678f211`) and episode picker (`bc-1a2c6242`) were in flight at pick; they do
-not own `server/src/modules/identity/` or `server/migrations/`.
+Wallet GET API (`bc-5678f211`) and episode picker (`bc-1a2c6242`) landed on `main` as `2aea931`
+while this slot ran. This branch has taken them; `server/src/app.ts` auto-merged and the identity
+and migration files do not overlap.
