@@ -113,12 +113,13 @@ export {
   USAGE as COMMITS_USAGE,
   buildLogArgv,
   buildMergeBaseArgv,
+  findTrackerIds,
   isConventionalSubject,
   parseCommitsArgs,
   parseGitSubjects,
   runCommitsCheck,
 } from './commits.js';
-export type { CommitSubject, CommitsCheckArgs } from './commits.js';
+export type { CommitRecord, CommitSubject, CommitsCheckArgs } from './commits.js';
 
 export {
   IT_TODO,

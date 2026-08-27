@@ -8,14 +8,19 @@ import {
   CONVENTIONAL_SUBJECT,
   CONVENTIONAL_TYPES,
   DEFAULT_BASE,
+  LOG_FORMAT,
   USAGE,
   buildLogArgv,
   buildMergeBaseArgv,
   buildRevParseArgv,
   defaultGitRunner,
+  findTrackerIds,
+  formatHit,
   formatViolation,
+  hasTrackerId,
   isConventionalSubject,
   parseCommitsArgs,
+  parseGitRecords,
   parseGitSubjects,
   runCommitsCheck,
   type GitRunResult,
@@ -152,6 +157,30 @@ describe('parseGitSubjects', () => {
   });
 });
 
+describe('parseGitRecords / findTrackerIds', () => {
+  it('parses subject NUL body RS records so a footer is visible', () => {
+    const raw = 'feat: add detector\0Refs: D-20\n\x1eci(g1.9): wire the job\0\x1e';
+    expect(parseGitRecords(raw)).toEqual([
+      { subject: 'feat: add detector', body: 'Refs: D-20\n' },
+      { subject: 'ci(g1.9): wire the job', body: '' },
+    ]);
+  });
+
+  it('finds the ids this repository actually writes and ignores v1.0', () => {
+    expect(findTrackerIds('ci(g1.9): x\n\nRefs: D-20 C5-01 #12')).toEqual(
+      expect.arrayContaining(['g1.9', 'D-20', 'C5-01', '#12']),
+    );
+    expect(findTrackerIds('feat: bump v1.0 for 12 users')).toEqual([]);
+    expect(hasTrackerId('ci(g1.9): fail a prose subject', '')).toBe(true);
+    expect(hasTrackerId('feat: add a widget', '')).toBe(false);
+    expect(hasTrackerId('feat: add a widget', 'Refs: D-20\n')).toBe(true);
+  });
+
+  it('formats a missing-id hit so the log can be grepped', () => {
+    expect(formatHit('missing-id', 'feat: add a widget')).toBe('missing-id feat: add a widget');
+  });
+});
+
 describe('git argv', () => {
   it('asks git for the merge-base SHA, then no-merge subjects', () => {
     expect(buildRevParseArgv('origin/main')).toEqual([
@@ -161,7 +190,12 @@ describe('git argv', () => {
       'origin/main',
     ]);
     expect(buildMergeBaseArgv('main')).toEqual(['merge-base', 'main', 'HEAD']);
-    expect(buildLogArgv('abc123')).toEqual(['log', '--no-merges', '--format=%s', 'abc123..HEAD']);
+    expect(buildLogArgv('abc123')).toEqual([
+      'log',
+      '--no-merges',
+      `--format=${LOG_FORMAT}`,
+      'abc123..HEAD',
+    ]);
   });
 });
 
@@ -265,21 +299,45 @@ describe('runCommitsCheck', () => {
       ]),
     );
     expect(output.ok).toBe(true);
-    expect(output.stdout).toContain('commits passed (0 new commits vs origin/main, 0 prose)');
+    expect(output.stdout).toContain(
+      'commits passed (0 new commits vs origin/main, 0 prose, 0 missing-id)',
+    );
   });
 
-  it('passes when every unique commit is conventional', () => {
+  it('passes when every unique commit is conventional and carries a tracker id', () => {
     const root = tempDir('commits-ok-');
     const output = runCommitsCheck(
       { root, base: 'main', gitBin: 'git' },
       sequenceRunner([
         gitResult({ status: 0, stdout: 'aaa\n' }),
         gitResult({ status: 0, stdout: 'aaa\n' }),
-        gitResult({ status: 0, stdout: 'feat: add detector\nci: wire the L1 job\n' }),
+        gitResult({
+          status: 0,
+          stdout: 'feat(g1.9): add detector\nci: wire the D-20 L1 job\n',
+        }),
       ]),
     );
     expect(output.ok).toBe(true);
-    expect(output.stdout).toContain('commits passed (2 new commits vs main, 0 prose)');
+    expect(output.stdout).toContain(
+      'commits passed (2 new commits vs main, 0 prose, 0 missing-id)',
+    );
+  });
+
+  it('fails a conventional unique commit that has no requirement/defect id', () => {
+    const root = tempDir('commits-noid-');
+    const output = runCommitsCheck(
+      { root, base: 'main', gitBin: 'git' },
+      sequenceRunner([
+        gitResult({ status: 0, stdout: 'aaa\n' }),
+        gitResult({ status: 0, stdout: 'aaa\n' }),
+        gitResult({ status: 0, stdout: 'feat: add a widget\n' }),
+      ]),
+    );
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('commits failed (1)');
+    expect(output.stderr).toContain('missing-id');
+    expect(output.stderr).toContain('feat: add a widget');
+    expect(output.stderr).toContain('requirement/defect id');
   });
 
   it('fails a prose unique commit and quotes the subject — the reverse of rewriting it', () => {
@@ -292,14 +350,14 @@ describe('runCommitsCheck', () => {
         gitResult({
           status: 0,
           stdout:
-            'feat: add skip detection\nWire SCR-04 Continue watching from progress lastWatched.\n',
+            'feat(g1.9): add skip detection\nWire SCR-04 Continue watching from progress lastWatched.\n',
         }),
       ]),
     );
     expect(output.ok).toBe(false);
     expect(output.stderr).toContain('commits failed (1)');
-    expect(output.stderr).toContain('prose subjects are G1.9 red');
+    expect(output.stderr).toContain('prose');
     expect(output.stderr).toContain('Wire SCR-04 Continue watching from progress lastWatched.');
-    expect(output.stderr).not.toContain('feat: add skip detection');
+    expect(output.stderr).not.toContain('feat(g1.9): add skip detection');
   });
 });
