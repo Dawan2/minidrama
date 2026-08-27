@@ -1,21 +1,17 @@
-import { useCallback } from 'react';
 import { Link } from 'react-router';
 
 import { EmptyState, RetryableError, Skeleton, TerminalError } from '../components/states';
 import { FavoriteRow } from '../favorites/FavoriteRow';
 import { ROUTES } from './routes';
 import { SignInPrompt } from '../auth/SignInPrompt';
-import { collectFavorites } from '../favorites/favorite-collection';
-import { feedCandidateSource } from '../favorites/favorite-candidates';
-import { classifyFailure } from '../data/failure';
+import { loadFavoritesPage } from '../favorites/favorite-collection';
 import { presentSessionReadFailure } from '../data/session-read';
 import { translate } from '../core/i18n';
 import { useCatalogApi } from '../data/catalog-api-context';
 import { useFavoritesApi } from '../data/favorites-api-context';
-import { useResource } from '../data/use-resource';
-import type { ApiFailure, SurfaceError } from '../data/failure';
-import type { FavoritesList } from '../favorites/favorite-collection';
-import type { Resource } from '../data/use-resource';
+import { usePagedResource } from '../data/use-paged-resource';
+import type { FavoriteEntry } from '../favorites/favorite-collection';
+import type { PagedResourceHandle } from '../data/use-paged-resource';
 
 /**
  * SCR-08, the favourites screen.
@@ -25,139 +21,137 @@ import type { Resource } from '../data/use-resource';
  * own recovery (`data/session-read.ts`). The history screen (SCR-07) drew that distinction first;
  * this screen inherits it rather than re-deciding it.
  *
- * What is different here is where the list comes from. There is no `GET /v1/users/me/favorites`:
- * slot J shipped the three per-drama favourite verbs and deliberately left the list to the catalogue
- * (`docs/handoff/w2-work-j.md` §4). So the screen asks about the dramas it can see and keeps the ones
- * the viewer follows — `favorites/favorite-candidates.ts` has the reasoning and the honest limit,
- * which is that a followed drama outside the candidate page is not on this screen.
+ * The list comes from `GET /v1/users/me/favorites`, paged, and that is a change of substance rather
+ * than of plumbing. This screen used to be assembled by asking a page of the recommendation feed for
+ * candidate dramas and then probing each one, which meant a followed drama the feed page did not
+ * carry was **not on the viewer's favourites screen** — so the screen had to disclose, on every
+ * successful read including the empty state, that the list might not be the list. The endpoint
+ * answers for the whole list, so the disclosure is gone with the fan-out that made it necessary, and
+ * "you are not following anything yet" is now a claim this screen is in a position to make.
  *
- * That limit is **disclosed on screen, including on the empty state**, and it is the one piece of
- * copy on this page that is not optional. An incomplete favourites list is indistinguishable from a
- * drama the viewer never followed, so saying nothing reads as the product having lost something they
- * chose. "You follow nothing" is a claim this screen is not in a position to make.
+ * What the endpoint does not carry is the dramas themselves — it answers with ids and follow dates
+ * (`favorites/favorite-collection.ts`) — so each row is resolved through the catalogue. A row that
+ * does not resolve stays on screen, un-followable and marked, rather than being dropped: dropping it
+ * would put a hole back in a list that is finally complete.
  *
  * Like the history screen, it requests unconditionally even when the session state says the viewer is
  * anonymous. The session state decides what a screen *says*; the server decides what a viewer may
- * *see*. A client-side skip would make the client the authority on identity and would show a sign-in
- * prompt over a list the server would have returned.
+ * *see*. A client-side skip makes the client an authority on identity and shows a sign-in prompt over
+ * a list the server would have returned.
  */
+
+/** A favourites list holds one row per drama (S61's keyset), so the drama id identifies it. */
+function identifyEntry(entry: FavoriteEntry): string {
+  return entry.dramaId;
+}
+
 export function FavoritesPage(): React.JSX.Element {
   const catalog = useCatalogApi();
   const favorites = useFavoritesApi();
 
-  const load = useCallback(
-    () =>
-      collectFavorites({
-        candidates: feedCandidateSource(catalog),
-        readFavorite: (dramaId) => favorites.readFavorite(dramaId),
-      }),
-    [catalog, favorites],
+  const list = usePagedResource(
+    (cursor: string | undefined) =>
+      loadFavoritesPage(
+        {
+          listFavorites: (request) => favorites.listFavorites(request),
+          fetchDrama: (dramaId) => catalog.fetchDrama(dramaId),
+        },
+        cursor,
+      ),
+    identifyEntry,
+    'favorites',
   );
 
-  const { resource, reload } = useResource(load, 'favorites');
-
   return (
-    <main
-      className="page page--favorites"
-      data-testid="favorites-page"
-      data-state={stateOf(resource)}
-    >
+    <main className="page page--favorites" data-testid="favorites-page" data-state={stateOf(list)}>
       <Link className="page__back" to={ROUTES.me}>
         {translate('drama.back')}
       </Link>
       <h1 className="page__heading">{translate('favorites.heading')}</h1>
-      {renderFavorites(resource, reload)}
+      {renderFavorites(list)}
     </main>
   );
 }
 
 /**
  * The state, as an attribute, so the ways this screen can show no rows stay distinguishable from the
- * outside: an empty list, a missing session, an endpoint that is not deployed, a failed read, and a
- * read that answered for only some of the dramas it asked about.
+ * outside: an empty list, a missing session, an endpoint that is not deployed, and a failed read.
  *
  * The viewer sees the same empty state for `unavailable` and for a genuinely empty list, which is the
  * intended degradation; a test, a bug report or a future analytics event can still tell "we have not
  * built this" from "you follow nothing".
+ *
+ * `incomplete` is the one that is not about an empty screen: the rows are the viewer's whole list and
+ * at least one of them has no drama behind it, so what is on screen is complete as a list and
+ * incomplete as a set of cards.
  */
-function stateOf(resource: Resource<FavoritesList>): string {
-  if (resource.status === 'loading') {
+function stateOf(list: PagedResourceHandle<FavoriteEntry>): string {
+  if (list.status === 'loading') {
     return 'loading';
   }
-  if (resource.status === 'failed') {
-    return presentSessionReadFailure(resource.error.failure).kind.toLowerCase();
+  if (list.status === 'failed' && list.error !== null) {
+    return presentSessionReadFailure(list.error.failure).kind.toLowerCase();
   }
-
-  const { entries, unresolved } = resource.data;
-  if (entries.length === 0) {
-    return unresolved === null ? 'empty' : 'unresolved';
+  if (list.items.length === 0) {
+    return 'empty';
   }
-  return unresolved === null ? 'ready' : 'incomplete';
+  return list.items.some((entry) => entry.drama === null) ? 'incomplete' : 'ready';
 }
 
-function renderFavorites(resource: Resource<FavoritesList>, reload: () => void): React.JSX.Element {
-  if (resource.status === 'loading') {
+function renderFavorites(list: PagedResourceHandle<FavoriteEntry>): React.JSX.Element {
+  if (list.status === 'loading') {
     return <Skeleton rows={4} />;
   }
 
-  if (resource.status === 'failed') {
-    return renderReadFailure(resource.error, reload);
+  if (list.status === 'failed' && list.error !== null) {
+    return renderReadFailure(list);
   }
 
-  const { entries, unresolved } = resource.data;
+  if (list.items.length === 0) {
+    return emptyState();
+  }
 
   return (
     <>
-      {/*
-        An empty list with an unresolved probe is not the empty state. We asked about twenty dramas,
-        three did not answer, and "you are not following anything" is a claim about those three that
-        this screen cannot support.
-      */}
-      {entries.length === 0 && unresolved === null ? emptyState() : null}
-
-      {entries.length === 0 ? null : (
-        <ul className="favorites" data-testid="favorites-list">
-          {entries.map((entry) => (
-            <FavoriteRow entry={entry} key={entry.drama.id} />
-          ))}
-        </ul>
+      <ul className="favorites" data-testid="favorites-list">
+        {list.items.map((entry) => (
+          <FavoriteRow entry={entry} key={entry.dramaId} />
+        ))}
+      </ul>
+      {list.appendError === null ? null : renderAppendFailure(list)}
+      {list.nextCursor === null ? null : (
+        <button
+          className="feed__more"
+          type="button"
+          data-testid="load-more-favorites"
+          onClick={list.loadMore}
+          disabled={list.appending}
+        >
+          {translate(list.appending ? 'home.loadingMore' : 'home.loadMore')}
+        </button>
       )}
-
-      {/*
-        A probe that never answered, under the rows and never over them: once there is content on
-        screen, replacing it because one of twenty requests timed out costs the viewer the list to
-        tell them something a notice can say (`docs/handoff/w2-work-h.md` decision H9).
-      */}
-      {unresolved === null ? null : renderUnresolved(unresolved, reload)}
-
-      {/*
-        The candidate window, on every successful read and under whatever the body turned out to be.
-        It qualifies an empty list at least as much as a full one: a viewer who follows a drama the
-        feed page did not carry is being shown "you follow nothing" about a drama they chose.
-      */}
-      <p className="favorites__notice" data-testid="favorites-coverage">
-        {translate('favorites.partial')}
-      </p>
     </>
   );
 }
 
 /**
- * The read failed before there was a list, which is three different screens.
+ * The first page failed, which is three different screens.
  *
  * The classification is the shared one, so a `401` here means exactly what it means on the history
- * screen. `UNAVAILABLE` renders as the empty state on purpose: neither the favourite endpoints nor
- * the feed being deployed is the viewer's problem, and an error screen would ask them to do something
- * about our missing feature.
+ * screen. `UNAVAILABLE` renders as the empty state on purpose: the endpoint not being deployed is not
+ * the viewer's problem, and an error screen would ask them to do something about our missing feature.
  */
-function renderReadFailure(error: SurfaceError, reload: () => void): React.JSX.Element {
-  const presented = presentSessionReadFailure(error.failure);
+function renderReadFailure(list: PagedResourceHandle<FavoriteEntry>): React.JSX.Element {
+  if (list.error === null) {
+    return emptyState();
+  }
+  const presented = presentSessionReadFailure(list.error.failure);
 
   if (presented.kind === 'AUTH_REQUIRED') {
     return (
       <SignInPrompt
         messageKey="favorites.signInRequired"
-        onSignedIn={reload}
+        onSignedIn={list.reload}
         testId="favorites-sign-in"
       />
     );
@@ -168,7 +162,7 @@ function renderReadFailure(error: SurfaceError, reload: () => void): React.JSX.E
   }
 
   return presented.error.kind === 'RETRYABLE' ? (
-    <RetryableError error={presented.error} onRetry={reload} />
+    <RetryableError error={presented.error} onRetry={list.reload} />
   ) : (
     // The shared terminal copy is about a drama. Here the missing thing is the viewer's own list, so
     // the message is overridden and the reason is kept for the attribute.
@@ -181,26 +175,28 @@ function renderReadFailure(error: SurfaceError, reload: () => void): React.JSX.E
 }
 
 /**
- * A probe that never answered, told apart by whether asking again could change the answer.
+ * A failure while appending, under the rows and never over them: once there is content on screen,
+ * replacing it because page three failed costs the viewer their place to tell them something they can
+ * see (`docs/handoff/w2-work-h.md` decision H9).
  *
- * A timeout or a server fault is worth another read of the whole list, and the retry is the page's
- * reload rather than a per-drama repeat — a second attempt asks about every candidate, because by
- * then the answers we did get are stale too.
- *
- * A refused probe is not. A `400` about one drama id answers the same way for ever, and a retry
- * button on it is the mistake `data/failure.ts` exists to prevent. It still cannot be hidden: the
- * rows on screen are real and the list is still not known to be complete, so it degrades to the
- * notice — a sentence, and nothing to press.
+ * The `401` mapping holds here too. A session that expires mid-scroll is the same fact as one that
+ * was missing at the first page, and the recovery is the same — so it is a sign-in prompt under the
+ * rows, not a retry button that cannot succeed.
  */
-function renderUnresolved(failure: ApiFailure, reload: () => void): React.JSX.Element {
-  const error = classifyFailure(failure);
+function renderAppendFailure(list: PagedResourceHandle<FavoriteEntry>): React.JSX.Element | null {
+  if (list.appendError === null) {
+    return null;
+  }
 
-  return error.kind === 'RETRYABLE' ? (
-    <RetryableError error={error} onRetry={reload} />
+  const presented = presentSessionReadFailure(list.appendError.failure);
+  return presented.kind === 'AUTH_REQUIRED' ? (
+    <SignInPrompt
+      messageKey="favorites.signInRequired"
+      onSignedIn={list.loadMore}
+      testId="favorites-sign-in-more"
+    />
   ) : (
-    <p className="favorites__notice" data-testid="favorites-incomplete" role="alert">
-      {translate('favorites.incomplete')}
-    </p>
+    <RetryableError error={list.appendError} onRetry={list.loadMore} />
   );
 }
 

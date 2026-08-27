@@ -236,14 +236,17 @@ a {
   line-height: 1.35;
 }
 
-/* The candidate-window disclosure. Muted and unpressable: it is a limit of the screen, not an error
-   the viewer can clear, and a button on it would be a button that changes nothing. */
-.favorites__notice {
-  margin: 16px 0 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.4;
-  text-align: center;
+/* A row whose drama the catalogue did not resolve. It has no cover and nothing to tap, so it takes
+   the link's padding without the link's grid — and it keeps the row's height rather than collapsing,
+   because a favourite the viewer can still clear has to be big enough to aim at. */
+.favorite-row__unresolved {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-height: 96px;
+  padding: 10px;
+  min-width: 0;
 }
 
 /* A sign-in prompt inside a row is not the page-level one, so it does not get the page-level box. */

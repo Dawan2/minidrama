@@ -2,287 +2,235 @@ import { describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@minidrama/shared';
 import type { DramaSummary, Result } from '@minidrama/shared';
 
-import { collectFavorites, orderFavorites } from './favorite-collection';
-import { dramaSummary, offlineFailure } from '../testing/catalog-fixtures';
 import {
-  favoritesHttpFailure,
-  followedState,
-  unfollowedState,
-} from '../testing/favorites-fixtures';
+  FAVORITES_PAGE_LIMIT,
+  loadFavoritesPage,
+  resolveFavoriteEntries,
+} from './favorite-collection';
+import { dramaSummary, httpFailure, offlineFailure } from '../testing/catalog-fixtures';
+import { favoriteListItem, favoritesPage } from '../testing/favorites-fixtures';
 import type { ApiFailure } from '../data/failure';
-import type { FavoriteEntry } from './favorite-collection';
-import type { FavoriteState } from '../data/favorites-api';
-
-function candidates(...ids: readonly string[]): () => Promise<Result<DramaSummary[], ApiFailure>> {
-  return () => Promise.resolve(ok(ids.map((id) => dramaSummary({ id }))));
-}
-
-function followedAt(id: string, at: string): Result<FavoriteState, ApiFailure> {
-  return ok(followedState(id, at));
-}
+import type { FavoritesPageSource } from './favorite-collection';
 
 const AUGUST_1 = '2026-08-01T00:00:00.000Z';
-const AUGUST_2 = '2026-08-02T00:00:00.000Z';
-const AUGUST_3 = '2026-08-03T00:00:00.000Z';
 
-describe('collecting the viewer’s favourites', () => {
-  it('asks about every candidate the source offered', async () => {
-    const readFavorite = vi.fn((dramaId: string) => Promise.resolve(ok(unfollowedState(dramaId))));
+/** Resolves every drama asked about, so a test can be about something else. */
+function resolvesEverything(dramaId: string): Promise<Result<DramaSummary, ApiFailure>> {
+  return Promise.resolve(ok(dramaSummary({ id: dramaId, title: dramaId })));
+}
 
-    await collectFavorites({ candidates: candidates('drm_1', 'drm_2', 'drm_3'), readFavorite });
+function source(overrides: Partial<FavoritesPageSource> = {}): FavoritesPageSource {
+  return {
+    listFavorites: () => Promise.resolve(ok(favoritesPage([]))),
+    fetchDrama: resolvesEverything,
+    ...overrides,
+  };
+}
 
-    expect(readFavorite.mock.calls.map(([id]) => id)).toEqual(['drm_1', 'drm_2', 'drm_3']);
-  });
+describe('loading a page of favourites', () => {
+  it('asks the list endpoint rather than probing dramas one at a time', async () => {
+    const listFavorites = vi.fn(() => Promise.resolve(ok(favoritesPage(['drm_1', 'drm_2']))));
 
-  it('keeps only the dramas the server said this viewer follows', async () => {
-    const result = await collectFavorites({
-      candidates: candidates('drm_1', 'drm_2'),
-      readFavorite: (dramaId) =>
-        Promise.resolve(
-          dramaId === 'drm_1' ? followedAt('drm_1', AUGUST_1) : ok(unfollowedState(dramaId)),
-        ),
-    });
+    const result = await loadFavoritesPage(source({ listFavorites }), undefined);
 
-    expect(result.ok ? result.value.entries.map((entry) => entry.drama.id) : null).toEqual([
+    expect(listFavorites).toHaveBeenCalledTimes(1);
+    expect(result.ok ? result.value.items.map((entry) => entry.dramaId) : null).toEqual([
       'drm_1',
+      'drm_2',
     ]);
   });
 
-  it('reports an empty list when the viewer follows none of the candidates', async () => {
-    const result = await collectFavorites({
-      candidates: candidates('drm_1', 'drm_2'),
-      readFavorite: (dramaId) => Promise.resolve(ok(unfollowedState(dramaId))),
-    });
+  it('asks for the page size the endpoint documents, and no cursor on the first page', async () => {
+    const listFavorites = vi.fn(() => Promise.resolve(ok(favoritesPage([]))));
 
-    expect(result.ok ? result.value : null).toMatchObject({
-      entries: [],
-      candidates: 2,
-      answered: 2,
-      unresolved: null,
+    await loadFavoritesPage(source({ listFavorites }), undefined);
+
+    expect(listFavorites).toHaveBeenCalledWith({ limit: FAVORITES_PAGE_LIMIT });
+  });
+
+  it('passes a cursor on for a further page', async () => {
+    const listFavorites = vi.fn(() => Promise.resolve(ok(favoritesPage([]))));
+
+    await loadFavoritesPage(source({ listFavorites }), 'cursor_2');
+
+    expect(listFavorites).toHaveBeenCalledWith({ limit: FAVORITES_PAGE_LIMIT, cursor: 'cursor_2' });
+  });
+
+  /**
+   * The order is the endpoint's: `favoritedAt` descending with the drama id as a tiebreak, applied
+   * inside the keyset the cursor pages through. A client-side re-sort would be a second opinion about
+   * an order the pages are already cut along, and two pages sorted independently do not concatenate.
+   */
+  it('keeps the server’s order rather than re-sorting the rows', async () => {
+    const result = await loadFavoritesPage(
+      source({
+        listFavorites: () => Promise.resolve(ok(favoritesPage(['drm_c', 'drm_a', 'drm_b']))),
+      }),
+      undefined,
+    );
+
+    expect(result.ok ? result.value.items.map((entry) => entry.dramaId) : null).toEqual([
+      'drm_c',
+      'drm_a',
+      'drm_b',
+    ]);
+  });
+
+  it('carries the paging envelope through untouched', async () => {
+    const result = await loadFavoritesPage(
+      source({
+        listFavorites: () => Promise.resolve(ok(favoritesPage(['drm_1'], 'cursor_2'))),
+      }),
+      undefined,
+    );
+
+    expect(result.ok ? result.value.pageInfo : null).toEqual({
+      nextCursor: 'cursor_2',
+      hasMore: true,
     });
   });
 
-  it('reports an empty list without a single request when there are no candidates', async () => {
-    const readFavorite = vi.fn((dramaId: string) => Promise.resolve(ok(unfollowedState(dramaId))));
+  it('carries the follow date without displaying or sorting by it', async () => {
+    const result = await loadFavoritesPage(
+      source({
+        listFavorites: () =>
+          Promise.resolve(
+            ok({
+              items: [favoriteListItem('drm_1', AUGUST_1)],
+              pageInfo: { nextCursor: null, hasMore: false },
+            }),
+          ),
+      }),
+      undefined,
+    );
 
-    const result = await collectFavorites({ candidates: candidates(), readFavorite });
-
-    expect(result.ok ? result.value.entries : null).toEqual([]);
-    expect(readFavorite).not.toHaveBeenCalled();
+    expect(result.ok ? result.value.items[0]?.favoritedAt : null).toBe(AUGUST_1);
   });
 
-  it('carries the candidate source’s failure rather than reporting no favourites', async () => {
-    const failure = offlineFailure();
-    const result = await collectFavorites({
-      candidates: () => Promise.resolve(err(failure)),
-      readFavorite: (dramaId) => Promise.resolve(ok(unfollowedState(dramaId))),
-    });
+  /**
+   * The list read's failure is the page's failure, unchanged. A `401` is a missing session and not an
+   * empty list, and that split belongs to `data/session-read.ts` — reported as an empty page here, it
+   * would tell a viewer whose token expired that their favourites were thrown away.
+   */
+  it('passes the list read’s failure through rather than reporting no favourites', async () => {
+    const failure = httpFailure(401);
+    const result = await loadFavoritesPage(
+      source({ listFavorites: () => Promise.resolve(err(failure)) }),
+      undefined,
+    );
 
     expect(result).toEqual({ ok: false, error: failure });
   });
 
-  it('bounds the number of probes in flight', async () => {
+  it('resolves no drama at all for an empty list', async () => {
+    const fetchDrama = vi.fn(resolvesEverything);
+
+    const result = await loadFavoritesPage(source({ fetchDrama }), undefined);
+
+    expect(result.ok ? result.value.items : null).toEqual([]);
+    expect(fetchDrama).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The list carries ids, so a row is resolved through the catalogue before it can be drawn. What must
+ * not happen is for that step to decide *which* favourites the viewer has: resolving is a rendering
+ * step, and a drama that will not resolve subtracts a card and never a row.
+ */
+describe('resolving the rows of a page', () => {
+  it('asks the catalogue about each row in the list’s order', async () => {
+    const fetchDrama = vi.fn(resolvesEverything);
+
+    await resolveFavoriteEntries(
+      [favoriteListItem('drm_1'), favoriteListItem('drm_2'), favoriteListItem('drm_3')],
+      fetchDrama,
+    );
+
+    expect(fetchDrama.mock.calls.map(([id]) => id)).toEqual(['drm_1', 'drm_2', 'drm_3']);
+  });
+
+  it('attaches the drama the catalogue answered with', async () => {
+    const entries = await resolveFavoriteEntries([favoriteListItem('drm_1')], resolvesEverything);
+
+    expect(entries[0]?.drama?.id).toBe('drm_1');
+  });
+
+  /**
+   * The row keeps its place and its un-follow button. The server leaves a delisted drama in the list
+   * on purpose — the row is why the drama is on the viewer's screen — and dropping it here would put
+   * back exactly the hole the fan-out was deleted for.
+   */
+  it('keeps a row whose drama the catalogue could not resolve', async () => {
+    const entries = await resolveFavoriteEntries(
+      [favoriteListItem('drm_1'), favoriteListItem('drm_gone'), favoriteListItem('drm_2')],
+      (dramaId) =>
+        dramaId === 'drm_gone'
+          ? Promise.resolve(err(httpFailure(410)))
+          : resolvesEverything(dramaId),
+    );
+
+    expect(entries.map((entry) => entry.dramaId)).toEqual(['drm_1', 'drm_gone', 'drm_2']);
+    expect(entries[1]?.drama).toBeNull();
+  });
+
+  it('keeps a row whose drama read merely failed, for the same reason', async () => {
+    const entries = await resolveFavoriteEntries([favoriteListItem('drm_1')], () =>
+      Promise.resolve(err(offlineFailure())),
+    );
+
+    expect(entries).toEqual([{ dramaId: 'drm_1', drama: null, favoritedAt: null }]);
+  });
+
+  /**
+   * A WebView holds around six connections per host, and the client's 10s timeout starts when the
+   * request is made rather than when it is sent — so a whole page requested at once means the tail can
+   * time out having never left the device.
+   */
+  it('bounds the number of drama reads in flight', async () => {
     let inFlight = 0;
     let peak = 0;
 
-    const result = await collectFavorites({
-      candidates: candidates('a', 'b', 'c', 'd', 'e', 'f', 'g'),
-      concurrency: 3,
-      readFavorite: async (dramaId) => {
+    await resolveFavoriteEntries(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => favoriteListItem(id)),
+      async (dramaId) => {
         inFlight += 1;
         peak = Math.max(peak, inFlight);
         await Promise.resolve();
         inFlight -= 1;
-        return ok(unfollowedState(dramaId));
+        return ok(dramaSummary({ id: dramaId }));
       },
-    });
+      3,
+    );
 
     expect(peak).toBe(3);
-    expect(result.ok ? result.value.answered : null).toBe(7);
-  });
-});
-
-/**
- * The two failures that mean the same thing for every candidate. Asking nineteen more times
- * produces nineteen more of the same answer and a slower screen.
- */
-describe('a failure that ends the whole read', () => {
-  it('stops at the first 401 instead of probing the rest', async () => {
-    const readFavorite = vi.fn((dramaId: string) =>
-      Promise.resolve(
-        dramaId === 'drm_1'
-          ? err(favoritesHttpFailure(401))
-          : (ok(unfollowedState(dramaId)) as Result<FavoriteState, ApiFailure>),
-      ),
-    );
-
-    const result = await collectFavorites({
-      candidates: candidates('drm_1', 'drm_2', 'drm_3'),
-      concurrency: 1,
-      readFavorite,
-    });
-
-    expect(result.ok ? null : result.error.status).toBe(401);
-    expect(readFavorite).toHaveBeenCalledTimes(1);
-  });
-
-  // On this branch there is no discovery module on the server, so every probe answers 404 from the
-  // not-found handler. The screen should reach its empty state in one request, not twenty.
-  it('stops at the first missing-endpoint status', async () => {
-    for (const status of [404, 405, 501]) {
-      const readFavorite = vi.fn(() => Promise.resolve(err(favoritesHttpFailure(status))));
-
-      const result = await collectFavorites({
-        candidates: candidates('drm_1', 'drm_2', 'drm_3'),
-        concurrency: 1,
-        readFavorite,
-      });
-
-      expect(result.ok, String(status)).toBe(false);
-      expect(readFavorite, String(status)).toHaveBeenCalledTimes(1);
-    }
   });
 
   /**
-   * A session that expires mid-fan-out ends the read even though earlier probes succeeded. Showing
-   * the rows collected so far under a sign-in prompt would present a fragment of the list as the
-   * list, on the screen whose one job is to keep those two apart.
+   * Rows are collected in the list's order and not in the order the reads resolve. A list that
+   * reorders itself according to which drama came back first moves a row out from under the viewer's
+   * finger.
    */
-  it('ends the read even when rows were already found', async () => {
-    const result = await collectFavorites({
-      candidates: candidates('drm_1', 'drm_2'),
-      concurrency: 1,
-      readFavorite: (dramaId) =>
-        dramaId === 'drm_1'
-          ? Promise.resolve(followedAt('drm_1', AUGUST_1))
-          : Promise.resolve(err(favoritesHttpFailure(401))),
-    });
-
-    expect(result.ok).toBe(false);
-  });
-});
-
-/**
- * A probe that timed out is neither. The read goes on, and the answer says it is incomplete — a hole
- * in this list is indistinguishable from a drama the viewer never followed, which reads as the
- * product having silently un-followed something.
- */
-describe('a probe failure that is neither', () => {
-  it('keeps the rows it did resolve and reports the read as incomplete', async () => {
-    const result = await collectFavorites({
-      candidates: candidates('drm_1', 'drm_2', 'drm_3'),
-      concurrency: 1,
-      readFavorite: (dramaId) =>
-        dramaId === 'drm_2'
-          ? Promise.resolve(err(offlineFailure()))
-          : Promise.resolve(followedAt(dramaId, AUGUST_1)),
-    });
-
-    expect(result.ok ? result.value.entries.map((entry) => entry.drama.id) : null).toEqual([
-      'drm_1',
-      'drm_3',
-    ]);
-    expect(result.ok ? result.value.unresolved?.kind : null).toBe('OFFLINE');
-    expect(result.ok ? result.value.answered : null).toBe(2);
-  });
-
-  it('goes on probing rather than giving up on the remaining candidates', async () => {
-    const readFavorite = vi.fn((dramaId: string) =>
-      dramaId === 'drm_1'
-        ? Promise.resolve(err(offlineFailure()) as Result<FavoriteState, ApiFailure>)
-        : Promise.resolve(ok(unfollowedState(dramaId))),
+  it('keeps the order of the rows when a later read resolves first', async () => {
+    const entries = await resolveFavoriteEntries(
+      [favoriteListItem('drm_slow'), favoriteListItem('drm_fast')],
+      async (dramaId) => {
+        if (dramaId === 'drm_slow') {
+          await Promise.resolve();
+          await Promise.resolve();
+        }
+        return ok(dramaSummary({ id: dramaId }));
+      },
     );
 
-    await collectFavorites({
-      candidates: candidates('drm_1', 'drm_2', 'drm_3'),
-      concurrency: 1,
-      readFavorite,
-    });
-
-    expect(readFavorite).toHaveBeenCalledTimes(3);
+    expect(entries.map((entry) => entry.dramaId)).toEqual(['drm_slow', 'drm_fast']);
   });
 
-  // The first one, so the reported failure is the one whose trace id is oldest and most likely to
-  // still be findable in a log.
-  it('reports the first unresolved failure and not the last', async () => {
-    const result = await collectFavorites({
-      candidates: candidates('drm_1', 'drm_2'),
-      concurrency: 1,
-      readFavorite: (dramaId) =>
-        Promise.resolve(
-          err(
-            dramaId === 'drm_1'
-              ? favoritesHttpFailure(500, { traceId: 'trace_first' })
-              : favoritesHttpFailure(503, { traceId: 'trace_second' }),
-          ),
-        ),
-    });
+  it('carries each row’s follow date onto its entry', async () => {
+    const entries = await resolveFavoriteEntries(
+      [favoriteListItem('drm_1', AUGUST_1), favoriteListItem('drm_2')],
+      resolvesEverything,
+    );
 
-    expect(result.ok ? result.value.unresolved?.traceId : null).toBe('trace_first');
-  });
-
-  it('reports a malformed row as unresolved rather than as an un-followed drama', async () => {
-    const result = await collectFavorites({
-      candidates: candidates('drm_1'),
-      readFavorite: () =>
-        Promise.resolve(err({ ...offlineFailure(), kind: 'MALFORMED' } as ApiFailure)),
-    });
-
-    expect(result.ok ? result.value : null).toMatchObject({ entries: [], answered: 0 });
-    expect(result.ok ? result.value.unresolved?.kind : null).toBe('MALFORMED');
-  });
-});
-
-describe('the order of the list', () => {
-  function entry(id: string, favoritedAt: string | null): FavoriteEntry {
-    return { drama: dramaSummary({ id }), favoritedAt };
-  }
-
-  it('puts the most recently followed first, which is the order SCR-08 reads in', () => {
-    const ordered = orderFavorites([
-      entry('drm_1', AUGUST_1),
-      entry('drm_3', AUGUST_3),
-      entry('drm_2', AUGUST_2),
-    ]);
-
-    expect(ordered.map((row) => row.drama.id)).toEqual(['drm_3', 'drm_2', 'drm_1']);
-  });
-
-  /**
-   * Without the tiebreak the order of two rows followed in the same millisecond is the order the
-   * probes happened to resolve in, which changes between renders and moves a row out from under the
-   * viewer's finger.
-   */
-  it('breaks a tie by drama id so the order is stable across renders', () => {
-    const ordered = orderFavorites([entry('drm_b', AUGUST_1), entry('drm_a', AUGUST_1)]);
-    expect(ordered.map((row) => row.drama.id)).toEqual(['drm_a', 'drm_b']);
-  });
-
-  // Promoting the rows we know least about to the top of the screen would be the alternative.
-  it('sorts a row with no usable timestamp last', () => {
-    const ordered = orderFavorites([
-      entry('drm_1', null),
-      entry('drm_2', AUGUST_1),
-      entry('drm_3', 'not a date'),
-    ]);
-
-    expect(ordered.map((row) => row.drama.id)).toEqual(['drm_2', 'drm_1', 'drm_3']);
-  });
-
-  // Text order agrees with time order for the server's own format and disagrees for an offset one.
-  it('compares timestamps as instants rather than as text', () => {
-    const ordered = orderFavorites([
-      entry('drm_early', '2026-08-02T01:00:00.000Z'),
-      entry('drm_late', '2026-08-02T05:00:00.000+03:00'),
-    ]);
-
-    expect(ordered.map((row) => row.drama.id)).toEqual(['drm_late', 'drm_early']);
-  });
-
-  it('leaves the input alone', () => {
-    const input = [entry('drm_1', AUGUST_1), entry('drm_2', AUGUST_2)];
-    orderFavorites(input);
-
-    expect(input.map((row) => row.drama.id)).toEqual(['drm_1', 'drm_2']);
+    expect(entries.map((entry) => entry.favoritedAt)).toEqual([AUGUST_1, null]);
   });
 });
