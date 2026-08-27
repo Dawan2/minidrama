@@ -14,9 +14,11 @@ import { randomUUID } from 'node:crypto';
  *     investigated from a counter alone.
  *
  * The interface is async so the Postgres `platform_webhook_event` table drops in behind it without
- * changing a single caller. This in-memory implementation is bounded and is a Wave 2 skeleton: it
- * gives the route real semantics to be tested against, and it forgets everything on restart, which
- * is acceptable only because TikTok retries for 72 hours.
+ * changing a single caller. The in-memory implementation is bounded and is the default; it forgets
+ * everything on restart. `DATABASE_URL=sqlite:<path>` puts a SQLite table behind this same
+ * interface (the same file as unlock receipts and sessions); a postgres URL is refused rather than
+ * rewritten to a file. A restart that kept the receipt and lost the idempotency claim would honour
+ * a redelivery as a new payment.
  */
 
 export interface WebhookEventRecord {
@@ -96,13 +98,13 @@ export function retainHeaders(
   return retained;
 }
 
-export interface InMemoryWebhookEventStoreOptions {
-  /** Oldest records are dropped past this bound so a flood cannot exhaust the heap. */
+export interface WebhookEventStoreOptions {
+  /** Oldest records are dropped past this bound so a flood cannot exhaust the heap (or the file). */
   readonly capacity?: number;
 }
 
 export function createInMemoryWebhookEventStore(
-  options: InMemoryWebhookEventStoreOptions = {},
+  options: WebhookEventStoreOptions = {},
 ): WebhookEventStore {
   const capacity = options.capacity ?? 1000;
   const records = new Map<string, WebhookEventRecord>();
