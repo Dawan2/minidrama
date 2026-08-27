@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { continueWatchingCard, dramaSummary, feedCard } from '../testing/catalog-fixtures';
@@ -63,7 +64,8 @@ describe('HomePage source', () => {
   // scan of the catalogue) is how an anonymous viewer would see someone else's resume, or a
   // signed-in viewer would see a rail the server had already dropped.
   it('does not import history or progress as a second continue-watching source', () => {
-    const source = readFileSync(new URL('../routes/HomePage.tsx', import.meta.url), 'utf8');
+    // Vitest runs this package with cwd = `app/`. jsdom's `import.meta.url` is not a file: URL.
+    const source = readFileSync(join(process.cwd(), 'src/routes/HomePage.tsx'), 'utf8');
     expect(source).not.toMatch(/history-api|progress-api|fetchWatchHistory|lastWatched/);
   });
 });
