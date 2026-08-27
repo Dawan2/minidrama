@@ -91,9 +91,20 @@ export class MockBridge implements PlatformBridge {
   }
 
   async getMenuButtonRect(): BridgeResult<MenuButtonRect> {
-    return this.#guard('getMenuButtonBoundingClientRect', () =>
-      ok({ top: 8, right: 368, bottom: 40, left: 280, width: 88, height: 32 }),
-    );
+    return this.#guard('getMenuButtonBoundingClientRect', () => {
+      // 88×32 capsule, 8px from the top and from the right of *this* viewport. A fixed
+      // 375-wide rect would measure as hundreds of pixels of inset in jsdom's 1024-wide
+      // window, which is not a capsule — it is a layout bug the product code would then
+      // faithfully apply.
+      const width = 88;
+      const height = 32;
+      const top = 8;
+      const margin = 8;
+      const viewportWidth = globalThis.innerWidth ?? 375;
+      const right = viewportWidth - margin;
+      const left = right - width;
+      return ok({ top, right, bottom: top + height, left, width, height });
+    });
   }
 
   #guard<T>(

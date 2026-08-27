@@ -10,7 +10,8 @@
  *    the user nothing.
  * 2. Layout is padded by `env(safe-area-inset-*)`. The TikTok capsule button sits over the top
  *    right of every screen and the notch sits over the top of some devices (IA §2 P3); content
- *    under either is content the user cannot reach.
+ *    under either is content the user cannot reach. `--capsule-safe-area` starts at 96px and is
+ *    overwritten from `getMenuButtonRect` by `chrome/Chrome.tsx` when the capability exists.
  */
 
 :root {
@@ -23,6 +24,7 @@
   --accent-text: #ffffff;
   --radius: 12px;
   --gap: 12px;
+  /* Fallback until Chrome measures `getMenuButtonRect`. A missing measurement stays this, never 0. */
   --capsule-safe-area: 96px;
 }
 
