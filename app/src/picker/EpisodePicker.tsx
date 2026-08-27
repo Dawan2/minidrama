@@ -29,7 +29,9 @@ import type { SurfaceError } from '../data/failure';
  *
  * Lock marks come from `viewerAccess` on every episode item. A locked cell is not a destination
  * — switching into a wall is the J16 exception the picker is not allowed to perform. A playable
- * cell is a `replace` link, so a walk through forty episodes is still one history entry.
+ * cell is a `replace` link, so a walk through forty episodes is still one history entry. A
+ * commercially locked cell is an *attempt*: the player mints `POST /v1/playback/sessions` for
+ * that id and a 403 opens PNL-02 on the episode already on screen, never a demo album.
  *
  * Empty is not a state this panel has (`docs/02-screen-inventory.md` PNL-01). A drama with no
  * episodes yet is a content grid with nothing in it, and closing the panel is the way out.
@@ -52,12 +54,18 @@ export interface EpisodePickerProps {
   readonly episodeId: string;
   readonly capabilities: PurchaseCapabilities;
   readonly onClose: () => void;
+  /**
+   * A commercially locked cell. Not a route: the player asks the session endpoint, and a 403
+   * opens PNL-02 without tearing down the episode that is already playing.
+   */
+  readonly onLockedAttempt?: (episode: EpisodeItem) => void;
 }
 
 export function EpisodePicker({
   episodeId,
   capabilities,
   onClose,
+  onLockedAttempt,
 }: EpisodePickerProps): React.JSX.Element {
   const api = useCatalogApi();
   const current = useResource(() => api.fetchEpisode(episodeId), `picker-episode:${episodeId}`);
@@ -92,7 +100,14 @@ export function EpisodePicker({
         <h2 className="episode-picker__title" id={TITLE_ID}>
           {translate('picker.title')}
         </h2>
-        {renderBody(current.resource, episodeId, capabilities, current.reload, onClose)}
+        {renderBody(
+          current.resource,
+          episodeId,
+          capabilities,
+          current.reload,
+          onClose,
+          onLockedAttempt,
+        )}
         <button
           className="episode-picker__close"
           data-testid="episode-picker-close"
@@ -112,6 +127,7 @@ function renderBody(
   capabilities: PurchaseCapabilities,
   reload: () => void,
   onClose: () => void,
+  onLockedAttempt: ((episode: EpisodeItem) => void) | undefined,
 ): React.JSX.Element {
   if (resource.status === 'loading') {
     return <Skeleton rows={4} />;
@@ -127,6 +143,7 @@ function renderBody(
       currentEpisodeId={episodeId}
       dramaId={resource.data.dramaId}
       onClose={onClose}
+      {...(onLockedAttempt === undefined ? {} : { onLockedAttempt })}
     />
   );
 }
@@ -168,11 +185,13 @@ function EpisodeGrid({
   currentEpisodeId,
   capabilities,
   onClose,
+  onLockedAttempt,
 }: {
   readonly dramaId: string;
   readonly currentEpisodeId: string;
   readonly capabilities: PurchaseCapabilities;
   readonly onClose: () => void;
+  readonly onLockedAttempt?: (episode: EpisodeItem) => void;
 }): React.JSX.Element {
   const api = useCatalogApi();
   const progressApi = useProgressApi();
@@ -269,6 +288,7 @@ function EpisodeGrid({
             key={episode.id}
             onClose={onClose}
             watched={watched.has(episode.id)}
+            {...(onLockedAttempt === undefined ? {} : { onLockedAttempt })}
           />
         ))}
       </ul>
@@ -284,12 +304,14 @@ function EpisodeCell({
   watched,
   capabilities,
   onClose,
+  onLockedAttempt,
 }: {
   readonly episode: EpisodeItem;
   readonly current: boolean;
   readonly watched: boolean;
   readonly capabilities: PurchaseCapabilities;
   readonly onClose: () => void;
+  readonly onLockedAttempt?: (episode: EpisodeItem) => void;
 }): React.JSX.Element {
   const presentation = presentEpisodeAccess(episode.viewerAccess, capabilities);
   const label = translate('drama.episodeLabel', undefined, { n: episode.globalEpisodeNumber });
@@ -319,6 +341,11 @@ function EpisodeCell({
   );
 
   const watchedSuffix = watched ? `. ${translate('picker.watched')}` : '';
+  const lockLabel = `${label}. ${translate('picker.locked')}${watchedSuffix}`;
+  const attempt = onLockedAttempt;
+  const commercialLock =
+    attempt !== undefined &&
+    (presentation.action === 'UNLOCK' || presentation.action === 'SUBSCRIBE');
 
   return (
     <li>
@@ -342,9 +369,27 @@ function EpisodeCell({
         >
           {marks}
         </Link>
+      ) : commercialLock ? (
+        <button
+          className={className}
+          data-testid="episode-picker-cell"
+          data-episode-id={episode.id}
+          data-locked="true"
+          data-current={current ? 'true' : 'false'}
+          data-watched={watched ? 'true' : 'false'}
+          data-action={presentation.action}
+          type="button"
+          aria-label={lockLabel}
+          onClick={() => {
+            onClose();
+            attempt?.(episode);
+          }}
+        >
+          {marks}
+        </button>
       ) : (
-        // Not a destination. A locked or unavailable episode is a statement on the grid, not a
-        // navigation that lands the player on a wall (J16) or a purchase this panel does not take.
+        // Not a destination. Unavailable or unpurchasable stays a mark: this panel does not
+        // navigate into a wall (J16) and does not take a purchase it cannot complete.
         <span
           className={className}
           data-testid="episode-picker-cell"
@@ -353,7 +398,7 @@ function EpisodeCell({
           data-current={current ? 'true' : 'false'}
           data-watched={watched ? 'true' : 'false'}
           data-action={presentation.action}
-          aria-label={`${label}. ${translate('picker.locked')}${watchedSuffix}`}
+          aria-label={lockLabel}
         >
           {marks}
         </span>

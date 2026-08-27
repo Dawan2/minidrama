@@ -1,11 +1,12 @@
-import { Link, useParams } from 'react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ok } from '@minidrama/shared';
 import type { EpisodeItem, Page, PlaybackDescriptor } from '@minidrama/shared';
 
 import { EpisodePicker } from '../picker/EpisodePicker';
 import { PlayerSurface } from '../player/PlayerSurface';
 import { RetryableError, Skeleton, TerminalError } from '../components/states';
+import { gateAdvance } from './advance-gate';
 import { ROUTES, playPath } from './routes';
 import { translate } from '../core/i18n';
 import { UnlockPanel } from '../unlock/UnlockPanel';
@@ -22,10 +23,10 @@ import type { UnlockPacing } from '../unlock/coin-unlock';
 /**
  * SCR-05, the player screen.
  *
- * The screen owns the *queue*; the player owns playback. Tapping "next episode" changes the route,
- * the route changes which episode is current, and a new session is minted for that id. A locked
- * attempt is intercepted here — 连播, 深链, and 切集 all land on this route — and opens PNL-02
- * rather than playing a placeholder album (`docs/verify/cycle-3-report.md` D-16).
+ * The screen owns the *queue*; the player owns playback. A deep link mints a session for the
+ * *route* episode (D-16). 连播 and 切集 mint a session for the *next* episode *before* VePlayer
+ * is told to move: a 403 opens PNL-02 on top of the episode that is already on screen (`AC-PL-5`)
+ * and never constructs a demo album (`docs/verify/cycle-3-report.md` D-16 remainder).
  *
  * The descriptor comes only from `POST /v1/playback/sessions`. There is no client-built playlist:
  * a demo album would play a catalogue id the server had refused. Fail-closed: a session that does
@@ -51,13 +52,17 @@ export interface PlayPageProps {
 
 export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Element {
   const { episodeId = '' } = useParams();
+  const navigate = useNavigate();
   const playbackApi = usePlaybackApi();
   const catalogApi = useCatalogApi();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [unlockDismissed, setUnlockDismissed] = useState(false);
+  const [advanceUnlock, setAdvanceUnlock] = useState<EpisodeItem | null>(null);
+  const advancingRef = useRef(false);
 
   useEffect(() => {
     setUnlockDismissed(false);
+    setAdvanceUnlock(null);
   }, [episodeId]);
 
   const session = useResource(
@@ -101,6 +106,30 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     catalogEpisode !== null &&
     episodes.resource.status === 'ready' &&
     session.resource.status === 'ready';
+  const overlayEpisode =
+    locked && catalogEpisode !== null && !unlockDismissed
+      ? catalogEpisode
+      : advanceUnlock !== null && !unlockDismissed
+        ? advanceUnlock
+        : null;
+
+  async function attemptAdvance(target: EpisodeItem): Promise<void> {
+    if (target.id === episodeId || advancingRef.current) {
+      return;
+    }
+    advancingRef.current = true;
+    setAdvanceUnlock(null);
+    const gate = await gateAdvance(playbackApi, target.id);
+    advancingRef.current = false;
+    if (gate.kind === 'LOCKED') {
+      setUnlockDismissed(false);
+      setAdvanceUnlock(target);
+      return;
+    }
+    if (gate.kind === 'ENTITLED') {
+      await navigate(playPath(target.id), { replace: true });
+    }
+  }
 
   return (
     <main
@@ -135,9 +164,16 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
             {translate('player.lastEpisode')}
           </p>
         ) : (
-          <Link className="player-next" data-testid="player-next" replace to={playPath(next.id)}>
+          <button
+            className="player-next"
+            data-testid="player-next"
+            type="button"
+            onClick={() => {
+              void attemptAdvance(next);
+            }}
+          >
             {translate('player.nextEpisode')}
-          </Link>
+          </button>
         )
       ) : null}
       <button
@@ -157,20 +193,25 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
           onClose={() => {
             setPickerOpen(false);
           }}
+          onLockedAttempt={(episode) => {
+            setPickerOpen(false);
+            void attemptAdvance(episode);
+          }}
         />
       ) : null}
-      {locked && catalogEpisode !== null && !unlockDismissed ? (
+      {overlayEpisode === null ? null : (
         <UnlockPanel
           bridge={bridge}
           capabilities={capabilities}
-          episode={catalogEpisode}
+          episode={overlayEpisode}
           onClose={() => {
             setUnlockDismissed(true);
+            setAdvanceUnlock(null);
           }}
           onEntitlementChanged={session.reload}
           {...(unlockPacing === undefined ? {} : { pacing: unlockPacing })}
         />
-      ) : null}
+      )}
     </main>
   );
 }
@@ -178,8 +219,8 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
 /**
  * The next episode in viewing order, from the catalogue, not from a client-built album.
  *
- * Locked or not: 连播 is an attempt, and the session endpoint is what refuses it. Skipping a
- * locked neighbour here would make autoplay look open while the gate was never asked.
+ * Locked or not: 连播 is an attempt, and `gateAdvance` is what refuses it. Skipping a locked
+ * neighbour here would make autoplay look open while the gate was never asked.
  */
 export function nextCatalogEpisode(
   current: EpisodeItem,
