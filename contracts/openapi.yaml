@@ -1,0 +1,139 @@
+openapi: 3.1.0
+info:
+  title: Minidrama API
+  version: 0.0.0
+  description: |
+    Wave 1 skeleton contract. This document is the single source of truth for the HTTP surface:
+    the server validates against it and the client types are generated from it, so the two cannot
+    drift (`docs/architecture/tech-stack.md` T13).
+
+    Only the endpoints that exist in the skeleton are described here. The full surface is designed
+    in `docs/12-api-contracts.md` and `docs/design/api-contracts.md`; endpoints move into this file
+    as they are implemented, so a path in this document always has a running handler.
+
+servers:
+  - url: https://api.example.invalid
+    description: Placeholder. Real domains are registered in the Portal and generated from
+      packages/config/src/domains.ts.
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe
+      tags: [ops]
+      responses:
+        '200':
+          description: The service is up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /v1/playback/sessions:
+    post:
+      operationId: createPlaybackSession
+      summary: Issue a playback descriptor for an episode
+      description: |
+        Returns the identifiers VePlayer needs. It does **not** return a media URL, a signed URL
+        or a quality ladder — definition selection belongs to the player, and delivery belongs to
+        BytePlus (correction A4, `docs/architecture/system-overview.md` §1.1).
+
+        This endpoint owns the commercial gate only. The platform independently enforces
+        moderation state, online version, listing state and client authorization, and may refuse
+        an episode this endpoint approved.
+      tags: [playback]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlaybackSessionRequest'
+      responses:
+        '201':
+          description: The viewer is entitled; play with these identifiers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackDescriptor'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          description: |
+            The viewer is not entitled. `details.unlockOptions` drives the unlock panel. This is a
+            commercial denial and must never be conflated with a platform block, which is an
+            incident rather than a conversion opportunity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, service, uptimeSec]
+      properties:
+        status:
+          type: string
+          const: ok
+        service:
+          type: string
+        uptimeSec:
+          type: integer
+          minimum: 0
+
+    CreatePlaybackSessionRequest:
+      type: object
+      required: [episodeId]
+      properties:
+        episodeId:
+          type: string
+          minLength: 1
+
+    PlaybackDescriptor:
+      type: object
+      required: [albumId, episodeId, vid, resumePositionSec]
+      properties:
+        albumId:
+          type: string
+        episodeId:
+          type: string
+        vid:
+          type: string
+          description: BytePlus video id, produced by the platform media-asset pipeline.
+        playAuthToken:
+          type: string
+          description: |
+            Only required by TikTok clients below 44.5.0. Short-lived; fetched lazily and never
+            cached beyond its validity.
+        resumePositionSec:
+          type: integer
+          minimum: 0
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, traceId]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            traceId:
+              type: string
+              description: Echoed so a user report maps to a server trace.
+            details:
+              type: [object, 'null']
+              additionalProperties: true
+
+  responses:
+    Error:
+      description: The request failed. The envelope is identical for every error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
