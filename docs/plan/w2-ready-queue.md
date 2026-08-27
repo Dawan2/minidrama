@@ -12,6 +12,11 @@
 > difference is itemized in §6 so P1 can write it back into the backlog at the C2 planning wave (`PLN-002`, W6).
 > No other slot's file is modified by this document; the evidence behind each change is in
 > `docs/plan/w1-conflict-register.md`.
+>
+> **Amended 2026-08-27 by W2 · plan slot P2** (branch `cursor/w2-plan-p2-media-plane-d4a6`), additively: §1.1, §4.7,
+> three rows in §5, §6.1, two rows in §9 and a row in §10. P1's §§2–4.6 are untouched — no task's owner,
+> dependency, target file, acceptance criterion or gate was edited, and in particular nothing belonging to a slot
+> that is currently running was redefined. The queue is 27 tasks: P1's 24, plus P2's three in §4.7.
 
 ---
 
@@ -42,6 +47,27 @@ one coverage task. All ten survive. What it is missing is everything the later W
 Net: ten tasks become twenty-four, of which two are scaffolding and the rest are adjudications, specifications and
 writebacks. That ratio is correct for the first implement wave of a cycle whose exit criterion is "specification
 baseline frozen" (`docs/plan/wave-protocol.md` §5.1, C1).
+
+## 1.1 What the P2 amendment adds, and why it could not wait for W6
+
+Between P1 writing this queue and the wave starting, the Wave 1 official-research slot's branch was merged
+(`docs/handoff/w2-work-b.md`) and one of its findings does not fit anywhere in §4 as written. Finding **`F-2`**,
+gap **`G-R1`**: the One Page §3 notice of 2026-06-25 says the BytePlus media-storage-and-player programme is a
+**pilot**, and that developers outside the pilot "can continue to use their own solutions" until notified. This
+queue — like corrections A1–A3, and like `PLY-020`, `CTR-009`, `CTR-011` and `INF-009` — is written as though the
+VePlayer mandate were in force today.
+
+Nothing in §4 becomes wrong. What is missing is that **the assumption is not recorded as an assumption, and it has
+no gate and no carrier**. That is precisely the failure this queue's §6 was created to prevent, and the register's
+own standing warning is that "the failure mode this project should fear is an item quietly losing its carrier the
+way corrections A1–A6 did". Deferring it to `PLN-002` at W6 would repeat that failure with a bigger blast radius,
+because by W6 the media-ops specification is written and the ingest implementation is being scheduled.
+
+So the amendment does three things and deliberately no more: it gives the question a gate (`GATE-8`), it gives
+engineering a stated default to build against while the gate is open (`D-MP-1` — build exactly what §4 already
+says, and do not implement ingest), and it records the fail-closed rules that keep §4's guardrail work valid in
+either outcome. All three live in `docs/plan/media-plane-decision.md`, which is P2's file. **No task in §4 changes
+owner, wave, dependency, target file, acceptance criterion or gate.**
 
 ---
 
@@ -168,6 +194,29 @@ mapping (PS-2) needs `PLY-020`'s output. The resolution is to split rather than 
 `docs/product/sitemap-and-ia.md` §12, which is already final, and the PS-2 mapping paragraph moves to `IA-003` in
 W3. If `PLY-020` lands early in W2, P2 may fold it back in. `PLN-002` should record whichever happened.
 
+### 4.7 Tier 6 — the media-plane assumption (supporting, slot P2)
+
+Added by the P2 amendment (§1.1). Permitted in an implement wave on exactly the same footing as §4.6 —
+`docs/plan/wave-protocol.md` §3.4, with `GOV-006` fixing the rule that contradicts it. All three write files that
+P2 owns or that this amendment creates. **None of them touches a file owned by a slot that is currently running:**
+the media-plane record is new, and the product documents are P2's under §2.
+
+One ownership row is owed and is not taken unilaterally: `docs/plan/media-plane-decision.md` is a new file, §2's
+table predates it, and §2 belongs to P1 with X-16 asking P3 to adopt or amend the table. The claim is **P2**, on
+the same reasoning that gives P1 the two files its own pass created. It should be added when P3 adopts the table,
+or at `PLN-002`, whichever comes first.
+
+| # | ID | Task | Slot | Deps | Writes to | Acceptance criterion | Gate |
+|---|---|---|---|---|---|---|---|
+| 25 | `GOV-008` **New** | Register `GATE-8` — BytePlus/VePlayer pilot versus generally available — and put the question to the account manager | **P2**+BIZ | — | `docs/plan/media-plane-decision.md` §2, §7, §8; proposed amendments to `docs/plan/wave-protocol.md` §6 for P3 and to `docs/plan/w1-conflict-register.md` §7 and §9 for P1 | `GATE-8` exists with all four required elements — what it blocks, what it explicitly does not block, its release condition and its status — and its "does not block" column names cycle C1 in full, so no W2 task can be read as gated by it; the evidence for both readings is recorded with a source per item, including the three mutually exclusive possibilities about whether the `<video>` replacement behaviour is live and how it is scoped, which is the sub-question that decides the rest; the ask is six questions, each answerable in one sentence, led by the date from which our `client_key` may ingest rather than by pilot membership, because that is the one with a calendar attached; the zero-regret BytePlus pre-registration is named as startable today; `G-R1` and `F-2` are recorded as carried by this task, and `docs/handoff/w2-work-b.md`'s stale-statement `W2B-S3` is answered rather than left open | — |
+| 26 | `GOV-009` **New** | Adopt the interim engineering default `D-MP-1` and the fail-closed standing rules `SR-1`…`SR-9` | **P2** | — | `docs/plan/media-plane-decision.md` §3–§6 | Four options are stated with the cost of being wrong for each, and the adopted one wins on dominance rather than preference; the dual-path option is recorded as **rejected** with the reason, so it is not re-proposed as prudence; `D-MP-1` states what is built, what is specified and what is not built, as instructions naming the slot each binds; `SR-1`…`SR-9` each name an enforcement point and a reverse verification, and no rule relaxes an existing guardrail in either direction — `SR-4` forbids relaxation explicitly, `SR-5` and `SR-6` close two paths that were previously convention only; the seven fail-open forms in today's guardrail set are enumerated with a proposed check each, each checked against the actual rule set rather than assumed, and handed to slot C as an amendment rather than applied; the listing-time scenario is walked row by row, separating what the default makes free from the one exposure it does not (content lead time); a plane-independent versus plane-dependent split is given so that later waves do not re-litigate the independent half | — |
+| 27 | `IA-005` **New** | Product state for "no player available", and one blocked family at version granularity | **P2** | `IA-002` | `docs/02-screen-inventory.md`, `docs/02-information-architecture.md` | A terminal "playback unavailable" state exists for the case where `TTMinis.getPlayer` is absent or an instance cannot be constructed, with its own copy, and the information architecture states that it has **no** edge to any alternative playback path (`SR-2`, `AC-CAP-1`, `AC-CAP-2` — an unavailable capability has no entry point rather than a disabled one); it is distinguishable in copy from the below-44.5.0 and below-minimum-library-version cases that `IA-002` adds for IAG-11, and from `blocked`; platform-blocked and our own takedown share one state family with distinct reasons so that neither copy nor metrics nor the operations alert has to be rebuilt if the media plane changes (`SR-8`); the blocked copy is written so it remains true at `(albumId, version)` granularity, because one rejected episode dark-screens every episode in that version | — |
+
+**Why `IA-004` is W3 and not here.** The conditionality audit (`SR-9`) checks that every P2 document either names
+`GATE-8` where a statement holds only under the platform plane or is listed as plane-independent. It has to run
+*after* `IA-001` and `IA-002` have rewritten those documents, otherwise it audits text that is about to change.
+Same-slot, next wave, no cross-slot serialization — the same resolution §4.6 used for `IA-003`.
+
 ---
 
 ## 5. New identifiers registered
@@ -193,9 +242,22 @@ owned by P2, and **`OBS`** for observability, which `OBS-001` already used witho
 | `GOV-005` | GOV | `GATE-7` EIS and five gate amendments | W2 | P1+BIZ | — |
 | `GOV-006` | GOV | Namespace remediation, X-16 … X-18, VF-4 | W2 | P1 | — |
 | `GOV-007` | GOV | Re-raise the free-episode cost guardrail against BytePlus-side controls, since PS-4's mechanism was invalidated by COR-1 | W6 | P1+P3 | — |
+| `GOV-008` | GOV | Register `GATE-8` and put the media-plane question to the account manager | W2 | **P2**+BIZ | — |
+| `GOV-009` | GOV | Adopt `D-MP-1` and the fail-closed rules `SR-1`…`SR-9` | W2 | **P2** | — |
+| `IA-004` | IA | Media-plane conditionality audit of the P2 documentation set (`SR-9`) | W3 | **P2** | — |
+| `IA-005` | IA | "No player available" state and one blocked family at version granularity | W2 | **P2** | — |
 
 Thirteen of these enter W2 and one enters W3; `GOV-007` is deliberately deferred to the C2 planning wave. Applying
 all fifteen takes the backlog from 142 tasks to 157.
+
+**P2 amendment.** The four rows below `GOV-007` are added by §1.1: three enter W2 and `IA-004` enters W3. Applying
+all nineteen takes the backlog from 142 tasks to 161. Two notes for the `PLN-002` write-back. First, `GOV-008` and
+`GOV-009` are `GOV`-domain tasks with **P2** as the primary slot, which is new — every existing `GOV` task is
+P1's — and it is deliberate: the domain is 治理闸门, governance and gates, which is what a gate registration is,
+and inventing a media-plane domain prefix would add an eighth namespace to the seven `GOV-006` is already
+remediating. Second, all four are plan-slot tasks landing in an implement wave, which `docs/plan/backlog.md` §1
+rule 1 forbids as literally written and `docs/plan/wave-protocol.md` §3.4 permits; they are covered by the same
+`GOV-006` fix as §4.6's tasks and add no new exception.
 
 ---
 
@@ -221,6 +283,27 @@ follows from a correction or conflict in `docs/plan/w1-conflict-register.md`.
 | `wave-protocol.md` §5.1 C3 exit criterion | — | "MSE/EME probe conclusion written back, B-3 downgraded" becomes the preload-scope formulation and cites `B-8` | COR-1, N-2 |
 | `wave-protocol.md` §6 gate table | — | Six gate amendments plus `GATE-7`, per `GOV-005` | §7 of the conflict register |
 
+### 6.1 Media-plane amendments registered by the P2 pass
+
+Same status as §6 — **registered, not applied** — with one addition that matters while the wave is running. Rows
+marked *in flight* address a task that is believed to be executing right now. Those are **inputs for the owning
+slot to accept or reject in its own handoff, not changes to an acceptance criterion already being worked.** The
+full reasoning for each is in `docs/plan/media-plane-decision.md` §9, which carries the same identifiers.
+
+| # | Task / file | Owner | Amendment | Status |
+|---|---|---|---|---|
+| `P2-MP-1` | `QA-004` | C | Close the seven fail-open forms in `media-plane-decision.md` §5.3. **First:** `app/tools/cli/check-guardrails.ts` prints a note and **exits 0** when `app/dist` is absent, so the strongest check in the set can stop running while CI stays green — and `INF-009` is about to move the hard-coded artifact path. **Second:** an **allow-listed** runtime dependency set in place of the five-package ban list, which is what turns an enumeration into a proof. Then computed `createElement` arguments; media-tag tokens in emitted strings and markup (`innerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`); `new Audio()` / `MediaSource` / `ManagedMediaSource` / `HTMLMediaElement` outside the player façade; shadow-DOM wrappers; and `<source>` plus every emitted `.html` in the document-integrity check. Purely additive | Registered for W2 |
+| `P2-MP-2` | `QA-004` | C | `SR-5`: `setValidateVideoReplaceElement` is a banned identifier in `app/src/**` while `GATE-8` is open. It is a mitigation, not a design, and it is the one API whose presence would make the `<video>` ban negotiable | Registered for W2 |
+| `P2-MP-3` | `CTR-009` | B | The claim in `docs/handoff/w2-work-b.md` §7 that the descriptor "survives `G-R1` in either direction" is right about the endpoint and overstated about the payload: `{ albumId, episodeId, vid }` cannot drive playback from storage we control. Consider a one-member discriminated union now, so a later addition is additive rather than breaking after `CTR-008` generates types. This does **not** put a second player in the bundle — `SR-2` fixes an unrecognised discriminant as a terminal error, never a fallback | *In flight* — input only |
+| `P2-MP-4` | `CTR-011` | B | `SR-7`: keep specifying the media-ops surface, and do not let a wave schedule its **implementation** while `GATE-8` is open. §4.3's W3 target is specification, so it is already consistent; this records why it must stay that way | *In flight* — input only |
+| `P2-MP-5` | `PLY-020` | A | `SR-2`: carry a terminal "no player available" state alongside `blocked`, with no outgoing edge to any playback path, so `errorTerminal`'s no-outgoing-edge property covers the missing-capability case too | *In flight* — input only |
+| `P2-MP-6` | `wave-protocol.md` §6 | P3 | Adopt `GATE-8`, including the observation that it is the first gate whose **unfavourable** resolution creates work rather than releasing it, which changes how §6's discipline rule 3 should read it | Registered for W2 |
+| `P2-MP-7` | `w1-conflict-register.md` §7, §9 | P1 | Adopt `GATE-8`; record `G-R1`/`F-2` as carried by `GOV-008`, and answer stale statement `W2B-S3` | Registered for W2 |
+| `P2-MP-8` | `architecture/system-overview.md` §1.1 | P3 | Corrections A1–A3 gain a conditionality note naming `GATE-8` (`SR-9`). They are not wrong — they describe the destination — but they read as present-tense fact, which is how the pilot notice went unnoticed for a whole wave | Registered for W2 |
+| `P2-MP-9` | `architecture/risks.md` | P3 | Risk `M-1` prices drift within the platform plane and not the plane question itself. Add it, with the options in `media-plane-decision.md` §3 as the contingency | Registered for W2 |
+| `P2-MP-10` | `GOV-007` | P1+P3 | The free-episode cost guardrail's urgency is plane-dependent. If `GATE-8` resolves against the platform plane, delivery cost becomes ours and `GOV-007` moves earlier than W6 | Registered for W6 |
+| `P2-MP-11` | `wave-protocol.md` §8 | P3 | `SR-4` (no guardrail is weakened by a gate resolving, in either direction) and `SR-6` (no plan may cite an unobtained exemption as a mitigation) are protocol-level statements and belong with the constant prohibitions, if P3 agrees | Registered for W2 |
+
 ---
 
 ## 7. Deliberately not in W2
@@ -230,7 +313,10 @@ follows from a correction or conflict in `docs/plan/w1-conflict-register.md`.
 | `GOV-002` — obtain the authenticated One Page | Gate-type, no fixed wave. Its ask is now concrete rather than "obtain the PDF": see `docs/plan/w1-conflict-register.md` §8.4. Questions 2 and 6 are the two worth escalating first |
 | `QA-005` event dictionary, `QA-006` content grading | Cycle C2 planning-wave output (W6), by design |
 | `QA-011` a11y adjudication (X-12) | Cycle C4 implement wave (W17), by design. It is not urgent, but it is release-blocking, so it must not slip past C4 |
-| `GOV-007` free-episode cost guardrail | Needs the BytePlus-side control surface, which `CTR-011` is only now specifying. W6 |
+| `GOV-007` free-episode cost guardrail | Needs the BytePlus-side control surface, which `CTR-011` is only now specifying. W6. **Amended:** its urgency is also plane-dependent — see `P2-MP-10` |
+| Any BytePlus ingest, moderation-submission or listing **implementation** | Blocked by `GATE-8` and forbidden by `SR-7`. Specifying the surface (`CTR-011`) continues; implementing it against APIs our `client_key` may not be permitted to call does not. The staging bucket for masters and posters is the one exception, because it is needed in both outcomes |
+| Any own-media pipeline — transcoding, CDN, signed URLs, key endpoint | Option MP-B is not adopted, `PBK-002` stays withdrawn, and `D-MP-1` forbids leaving a placeholder for it. If `GATE-8` resolves against the platform plane, it becomes a new deliverable behind a new gate, on its own branch, with the mainline guardrails unchanged (`SR-4`) |
+| `IA-004` conditionality audit | W3 — it must run after `IA-001` and `IA-002` rewrite the documents it audits. See the note at the end of §4.7 |
 | X-03 privacy-baseline regionalization | Scheduled for C10 via `PLN-010`. **Flagged:** if Europe or the US is in the launch set, EIS makes information-sharing scope a review object far earlier than cycle 10, and this should be pulled forward. The decision belongs with the region decision, blocker B-4 |
 | Any `app/` or `server/` feature code | W2's job is to freeze the specification baseline; the only code is the monorepo skeleton and shared configuration. Cycle C1's exit criterion is a frozen baseline, not a running application (`docs/plan/wave-protocol.md` §5.1) |
 | Anything behind `GATE-1` … `GATE-7` | No gate is released. `docs/design/minis-integration.md` §9 establishes that the browse–play–progress path depends on none of them, which is why W2 is full of work despite that |
@@ -267,21 +353,31 @@ The single highest-cost delay in the wave is `CTR-009`. It is small — one endp
 transcribes it, `CTR-008` generates types from it, and every server task from C3 onward compiles against those
 types. If it is wrong, the error is found in C3 by a player that cannot be built.
 
+**`GATE-8` is not on this path, and that is the point of registering it now.** Nothing in the diagram above waits
+on the media-plane answer: the client chain, the contract chain, the bridge chain and the gate chain all produce
+the same artefacts either way (`media-plane-decision.md` §6.1). What waits on it is content — ingest, moderation
+and listing — which is a separate chain with a two-week platform lead time that no engineering effort compresses,
+and which does not enter the backlog until cycle C11. The reason to open the gate in W2 rather than when that
+chain starts is that its release condition is a conversation with an account manager we may not yet have
+(`G-R20`), and the lead time on establishing that relationship is unknown and entirely outside our control.
+
 ---
 
 ## 9. Self-check
 
 | # | Check | Result |
 |---|---|---|
-| 1 | Every task has all eight backlog columns | Pass — 24 tasks, no empty cell |
-| 2 | Every dependency resolves to a task in this queue or to one already complete | Pass — `GOV-001` and `GOV-004` are `[x]` in `docs/plan/backlog.md` §4.1; all others are in §4 above |
-| 3 | No cross-slot dependency inside W2 | **One found and resolved by splitting**: `IA-001` → `PLY-020`. See the note at the end of §4.6. `INF-009` is co-owned `P3+A+B`, so `INF-001` (slot A) depending on it satisfies the slot-overlap rule |
+| 1 | Every task has all eight backlog columns | Pass — 27 tasks (P1's 24, plus §4.7's three), no empty cell |
+| 2 | Every dependency resolves to a task in this queue or to one already complete | Pass — `GOV-001` and `GOV-004` are `[x]` in `docs/plan/backlog.md` §4.1; all others are in §4 above. `IA-005`'s only dependency, `IA-002`, is in §4.6 and shares its slot |
+| 3 | No cross-slot dependency inside W2 | **One found and resolved by splitting**: `IA-001` → `PLY-020`. See the note at the end of §4.6. `INF-009` is co-owned `P3+A+B`, so `INF-001` (slot A) depending on it satisfies the slot-overlap rule. §4.7 adds none — `GOV-008` and `GOV-009` have no dependencies and `IA-005` depends only on a same-slot task |
 | 4 | Every acceptance criterion states how it is proven | Pass — each names the document section, the identifier or the reverse-verification that settles it |
 | 5 | Every file written in W2 has exactly one owning slot | Pass, under the §2 table. `CTR-005` and `INF-009` are co-owned tasks, not co-owned files: each file has one writer |
 | 6 | No task lowers a threshold, removes a test, weakens a gate, or adds an exemption | Pass. `QA-004` and `CTR-004` both make requirements **stricter** than the design set proposed — `AC-MON-6` replaces D-AC-4's "trust the client and log it", and `AC-CMP-5` replaces MI-3's post-upload discovery of E9 |
 | 7 | Every W1 finding has a carrier | Pass — cross-checked against `docs/plan/w1-conflict-register.md` §9, which enumerates 65 items, 63 of them still needing action; each maps to a task here, to a later wave with a named carrier, or to a gate |
-| 8 | No queued task depends on an unreleased gate | Pass — the gate column is `—` for all 24. `GOV-003` and `GOV-005` **track** gates, they are not blocked by them |
-| 9 | The plan-slot tasks in §4.6 are permitted in an implement wave | Pass under `docs/plan/wave-protocol.md` §3.4; conflict X-18 records that `docs/plan/backlog.md` §1 rule 1 contradicts it, and `GOV-006` fixes the rule in this same wave |
+| 8 | No queued task depends on an unreleased gate | Pass — the gate column is `—` for all 27, including the three added by §4.7. `GOV-003`, `GOV-005` and `GOV-008` **track** gates, they are not blocked by them, and `GATE-8`'s "explicitly does not block" column names cycle C1 in full so that this stays true |
+| 9 | The plan-slot tasks in §4.6 and §4.7 are permitted in an implement wave | Pass under `docs/plan/wave-protocol.md` §3.4; conflict X-18 records that `docs/plan/backlog.md` §1 rule 1 contradicts it, and `GOV-006` fixes the rule in this same wave. §4.7 adds no new exception |
+| 10 | *(P2)* The amendment redefines nothing owned by a running slot | Pass — §§2–4.6 are byte-identical to P1's version; every consequence for a running slot is in §6.1 marked *in flight* and is an input. Verifiable with `git diff` against `cursor/w2-work-b-1a8e`, which shows additions only |
+| 11 | *(P2)* The amendment lowers no threshold and weakens no guardrail | Pass — `P2-MP-1` and `P2-MP-2` make the build gates **stricter**, `SR-4` forbids relaxation in either direction, and `SR-7` removes an implementation from the schedule without removing the specification. Nothing is exempted; the one experiment that touches the banned element (`media-plane-decision.md` §8.3) is fenced to a never-merged branch and explicitly does not relax the mainline |
 
 ---
 
@@ -290,3 +386,4 @@ types. If it is wrong, the error is found in C3 by a player that cannot be built
 | Date | Wave · slot | Change |
 |---|---|---|
 | 2026-08-27 | W2 · P1 | First version. Extended the backlog's ten-task W2 queue to twenty-four; created fifteen identifiers and two domain prefixes; assigned owners and file ownership including the three previously unowned documentation trees; registered fourteen amendments to already-planned tasks, of which one withdrawal (`PBK-002`) and one rewrite (`PLY-001`) follow from correction COR-1/COR-2 |
+| 2026-08-27 | W2 · P2 | Additive amendment for the media-plane assumption (`G-R1` / `F-2`), which arrived with the research merge after P1's pass and had no gate and no carrier. Added §1.1, §4.7 with three P2 tasks, four identifiers in §5, eleven registered amendments in §6.1, four rows in §7, two self-check rows in §9. The queue is 27 tasks. §§2–4.6 unchanged; nothing owned by a running slot was redefined; the reasoning is in `docs/plan/media-plane-decision.md` |
