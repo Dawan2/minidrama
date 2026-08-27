@@ -133,7 +133,7 @@ describe('Chrome', () => {
 
     const playBridge = await readyBridge();
     const playColor = vi.spyOn(playBridge, 'setNavigationBarColor');
-    renderChrome(playBridge, '/play/ep_demo_0001');
+    renderChrome(playBridge, '/play/ep_test_0001');
     await waitFor(() => {
       expect(playColor).toHaveBeenCalledWith(
         IMMERSIVE_NAV_BAR.frontColor,
@@ -155,7 +155,7 @@ describe('App chrome on every route', () => {
 
   it('wraps the player, the wallet, and the fallback the same way', async () => {
     const bridge = new MockBridge();
-    const { unmount: unmountPlay } = renderApp(bridge, '/play/ep_demo_0001');
+    const { unmount: unmountPlay } = renderApp(bridge, '/play/ep_test_0001');
     expect(await screen.findByTestId('chrome')).toBeDefined();
     expect(screen.getByTestId('play-page')).toBeDefined();
     expect(screen.getByTestId('chrome').getAttribute('data-nav-bar')).toBe('immersive');

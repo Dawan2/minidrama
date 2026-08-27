@@ -1,14 +1,34 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ok } from '@minidrama/shared';
+import { err, ok } from '@minidrama/shared';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from '../player/mock-veplayer';
-import { PlayPage } from './PlayPage';
+import { PlayPage, nextCatalogEpisode } from './PlayPage';
 import { ROUTES } from './routes';
-import { episodeItem, page, stubCatalogApi } from '../testing/catalog-fixtures';
+import { apiFailure } from '../data/failure';
+import {
+  episodeItem,
+  httpFailure,
+  lockedEpisodeItem,
+  page,
+  stubCatalogApi,
+  viewerAccess,
+} from '../testing/catalog-fixtures';
+import {
+  lockedPlaybackFailure,
+  playbackDescriptor,
+  playbackHttpFailure,
+  stubPlaybackApi,
+  vipPlaybackFailure,
+} from '../testing/playback-fixtures';
 import { renderSurface } from '../testing/render';
+import type { EpisodeItem } from '@minidrama/shared';
+import type { CatalogApi } from '../data/catalog-api';
+import type { PlaybackApi } from '../data/playback-api';
 
 beforeEach(() => {
   MockVePlayer.reset();
@@ -20,33 +40,75 @@ async function readyBridge(): Promise<MockBridge> {
   return bridge;
 }
 
-function renderPlayer(bridge: MockBridge, episodeId = 'ep_demo_0001') {
+function playCatalog(episodes: readonly EpisodeItem[]): CatalogApi {
+  return stubCatalogApi({
+    episode: (episodeId) => {
+      const found = episodes.find((item) => item.id === episodeId);
+      return found === undefined ? err(httpFailure(404)) : ok(found);
+    },
+    episodes: () => ok(page([...episodes])),
+  });
+}
+
+function renderPlayer(options: {
+  readonly bridge: MockBridge;
+  readonly episodeId?: string;
+  readonly api?: CatalogApi;
+  readonly playbackApi?: PlaybackApi;
+}) {
+  const episodeId = options.episodeId ?? 'ep_test_0001';
   return renderSurface(
     <Routes>
-      <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
+      <Route path={ROUTES.play} element={<PlayPage bridge={options.bridge} />} />
     </Routes>,
-    { path: `/play/${episodeId}` },
+    {
+      api: options.api ?? playCatalog([episodeItem()]),
+      playbackApi: options.playbackApi ?? stubPlaybackApi(),
+      path: `/play/${episodeId}`,
+    },
   );
 }
 
 async function player(): Promise<MockVePlayer> {
   await waitFor(() => {
-    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(1);
   });
-  return MockVePlayer.instances[0]!;
+  return MockVePlayer.instances.find((instance) => !instance.destroyed)!;
 }
 
 describe('the player screen', () => {
-  it('opens on the episode named in the route', async () => {
-    renderPlayer(await readyBridge(), 'ep_demo_0003');
+  it('asks the server for a session of the route episode, not a demo album', async () => {
+    const playbackApi = stubPlaybackApi();
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: 'ep_test_0003',
+      api: playCatalog([episodeItem({ globalEpisodeNumber: 3 })]),
+      playbackApi,
+    });
 
-    expect((await player()).config.episodeId).toBe('ep_demo_0003');
-    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe('ep_demo_0003');
+    expect((await player()).config.episodeId).toBe('ep_test_0003');
+    expect((await player()).config.vid).toBe('vid_ep_test_0003');
+    expect(playbackApi.createCalls).toEqual(['ep_test_0003']);
+    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe('ep_test_0003');
     expect(screen.getByTestId('player-episode-label').textContent).toBe('Episode 3');
   });
 
+  it('plays the session descriptor with VePlayer, never a client-invented vid', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) =>
+        ok(playbackDescriptor({ episodeId, vid: 'v02realasset', albumId: 'drm_real' })),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+
+    const instance = await player();
+    expect(instance.config.vid).toBe('v02realasset');
+    expect(instance.config.albumId).toBe('drm_real');
+    expect(instance.config.vid).not.toMatch(/vid_demo_/);
+    expect(instance.config.episodeId).not.toMatch(/ep_demo_/);
+  });
+
   it('carries no native media element, on a screen whose whole job is media', async () => {
-    renderPlayer(await readyBridge());
+    renderPlayer({ bridge: await readyBridge() });
     await player();
 
     expect(screen.getByTestId('play-page').querySelectorAll('video, audio, iframe')).toHaveLength(
@@ -57,62 +119,8 @@ describe('the player screen', () => {
     );
   });
 
-  it('advances the retained player when the viewer moves to the next episode', async () => {
-    renderPlayer(await readyBridge(), 'ep_demo_0001');
-    const first = await player();
-
-    fireEvent.click(screen.getByTestId('player-next'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe('ep_demo_0002');
-    });
-    await waitFor(() => {
-      expect(first.playNextCount).toBe(1);
-    });
-    // The point of the whole slot: the next episode is a call on the player that is already
-    // running, not a second player.
-    expect(MockVePlayer.instances).toHaveLength(1);
-    expect(first.destroyed).toBe(false);
-    expect(first.currentEpisodeId).toBe('ep_demo_0002');
-  });
-
-  it('keeps one instance across a walk through several episodes', async () => {
-    renderPlayer(await readyBridge(), 'ep_demo_0001');
-    const first = await player();
-
-    fireEvent.click(screen.getByTestId('player-next'));
-    await waitFor(() => {
-      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe('ep_demo_0002');
-    });
-    fireEvent.click(screen.getByTestId('player-next'));
-    await waitFor(() => {
-      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe('ep_demo_0003');
-    });
-
-    await waitFor(() => {
-      expect(first.currentEpisodeId).toBe('ep_demo_0003');
-    });
-    expect(MockVePlayer.instances).toHaveLength(1);
-    expect(first.playNextCount).toBe(2);
-  });
-
-  it('offers no next episode at the end of the album', async () => {
-    renderPlayer(await readyBridge(), 'ep_demo_0006');
-    await player();
-
-    expect(screen.queryByTestId('player-next')).toBe(null);
-    expect(screen.getByTestId('player-queue-end')).toBeDefined();
-  });
-
-  it('opens an unknown episode at the start of the album rather than on an error', async () => {
-    renderPlayer(await readyBridge(), 'ep_not_in_this_album');
-
-    expect((await player()).config.episodeId).toBe('ep_demo_0001');
-    expect(screen.queryByTestId('player-unavailable')).toBe(null);
-  });
-
   it('destroys the player on the way out of the screen', async () => {
-    const { unmount } = renderPlayer(await readyBridge());
+    const { unmount } = renderPlayer({ bridge: await readyBridge() });
     const first = await player();
 
     unmount();
@@ -122,38 +130,199 @@ describe('the player screen', () => {
   });
 });
 
+describe('locked episodes are intercepted at every entry', () => {
+  it('opens the unlock overlay on a locked deep link and does not start the player', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: () => err(lockedPlaybackFailure()),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: 'ep_test_0004',
+      api: playCatalog([lockedEpisodeItem()]),
+      playbackApi,
+    });
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('play-page').dataset['state']).toBe('locked');
+    expect(screen.queryByTestId('player-container')).toBeNull();
+    expect(MockVePlayer.instances).toHaveLength(0);
+    expect(playbackApi.createCalls).toEqual(['ep_test_0004']);
+  });
+
+  it('opens the VIP overlay, not the coin one, when the session answers EPISODE_VIP_REQUIRED', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: () => err(vipPlaybackFailure()),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: 'ep_test_0005',
+      api: playCatalog([
+        episodeItem({
+          globalEpisodeNumber: 5,
+          viewerAccess: viewerAccess('NEED_VIP'),
+          unlockPolicy: 'VIP_ONLY',
+        }),
+      ]),
+      playbackApi,
+    });
+
+    expect((await screen.findByRole('dialog')).getAttribute('data-offer')).toBe('VIP');
+    expect(screen.queryByTestId('unlock-confirm')).toBeNull();
+    expect(MockVePlayer.instances).toHaveLength(0);
+  });
+
+  it('sessions the next catalogue episode on 连播, and a lock there does not play demo content', async () => {
+    const free = episodeItem({ globalEpisodeNumber: 1 });
+    const locked = lockedEpisodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) =>
+        episodeId === locked.id
+          ? err(lockedPlaybackFailure())
+          : ok(playbackDescriptor({ episodeId })),
+    });
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: free.id,
+      api: playCatalog([free, locked]),
+      playbackApi,
+    });
+    await player();
+
+    fireEvent.click(await screen.findByTestId('player-next'));
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(locked.id);
+    expect(screen.getByTestId('play-page').dataset['state']).toBe('locked');
+    expect(playbackApi.createCalls).toEqual([free.id, locked.id]);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(0);
+  });
+
+  it('sessions a picker destination rather than playing the previous episode', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const second = episodeItem({ globalEpisodeNumber: 2 });
+    const playbackApi = stubPlaybackApi();
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: first.id,
+      api: playCatalog([first, second]),
+      playbackApi,
+    });
+    await player();
+
+    fireEvent.click(screen.getByTestId('episode-picker-open'));
+    await screen.findByTestId('episode-picker-grid');
+    const destination = screen
+      .getAllByTestId('episode-picker-cell')
+      .find((cell) => cell.getAttribute('data-episode-id') === second.id);
+    expect(destination).toBeDefined();
+    fireEvent.click(destination!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(second.id);
+    });
+    await waitFor(() => {
+      expect(playbackApi.createCalls).toEqual([first.id, second.id]);
+    });
+    expect((await player()).config.episodeId).toBe(second.id);
+    expect((await player()).config.vid).toBe(`vid_${second.id}`);
+  });
+});
+
+describe('fail-closed session refusals', () => {
+  it('does not start the player when the session call fails', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: () => err(playbackHttpFailure(503, 'EPISODE_ASSET_UNAVAILABLE')),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+
+    expect(await screen.findByTestId('retryable-error')).toBeDefined();
+    expect(screen.queryByTestId('player-container')).toBeNull();
+    expect(screen.queryByTestId('unlock-panel')).toBeNull();
+    expect(MockVePlayer.instances).toHaveLength(0);
+  });
+
+  it('does not start the player on a missing episode', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: () => err(playbackHttpFailure(404, 'CONTENT_NOT_FOUND')),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: 'ep_not_in_catalogue',
+      api: stubCatalogApi({ episode: () => err(httpFailure(404)) }),
+      playbackApi,
+    });
+
+    expect(await screen.findByTestId('terminal-error')).toBeDefined();
+    expect(screen.getByTestId('terminal-error').getAttribute('data-reason')).toBe('NOT_FOUND');
+    expect(screen.queryByTestId('player-container')).toBeNull();
+    expect(MockVePlayer.instances).toHaveLength(0);
+  });
+
+  it('refuses a 201 whose body is a media URL rather than handing it to VePlayer', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: () =>
+        err(
+          apiFailure({
+            kind: 'MALFORMED',
+            message: 'the response did not match the contract',
+          }),
+        ),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+
+    expect(await screen.findByTestId('retryable-error')).toBeDefined();
+    expect(MockVePlayer.instances).toHaveLength(0);
+  });
+});
+
+describe('the catalogue queue', () => {
+  it('offers no next episode at the end of the catalogue, not at the end of a demo album', async () => {
+    const last = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: last.id,
+      api: playCatalog([episodeItem({ globalEpisodeNumber: 1 }), last]),
+    });
+    await player();
+
+    expect(screen.queryByTestId('player-next')).toBeNull();
+    expect(screen.getByTestId('player-queue-end')).toBeDefined();
+  });
+
+  it('names the next catalogue episode, including a locked one', () => {
+    const current = episodeItem({ globalEpisodeNumber: 1 });
+    const locked = lockedEpisodeItem({ globalEpisodeNumber: 4 });
+    expect(nextCatalogEpisode(current, [current, locked])?.id).toBe(locked.id);
+    expect(nextCatalogEpisode(locked, [current, locked])).toBeUndefined();
+  });
+});
+
 describe('PNL-01 on the player', () => {
-  it('does not fetch episodes until the picker is opened', async () => {
+  it('looks the route episode up for the queue, and does not open the picker by itself', async () => {
     const api = stubCatalogApi({
       episode: () => ok(episodeItem()),
       episodes: () => ok(page([episodeItem()])),
     });
-    const bridge = await readyBridge();
-    renderSurface(
-      <Routes>
-        <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
-      </Routes>,
-      { api, path: '/play/ep_demo_0001' },
-    );
+    renderPlayer({
+      bridge: await readyBridge(),
+      api,
+      playbackApi: stubPlaybackApi(),
+    });
     await player();
 
-    expect(api.episodeByIdCalls).toEqual([]);
-    expect(api.episodeCalls).toEqual([]);
+    expect(api.episodeByIdCalls).toEqual(['ep_test_0001']);
     expect(screen.queryByTestId('episode-picker')).toBeNull();
   });
 
   it('opens the picker from the player and dismisses it', async () => {
-    const api = stubCatalogApi({
-      episode: () => ok(episodeItem()),
-      episodes: () => ok(page([episodeItem(), episodeItem({ globalEpisodeNumber: 2 })])),
+    const api = playCatalog([episodeItem(), episodeItem({ globalEpisodeNumber: 2 })]);
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: 'ep_test_0001',
+      api,
     });
-    const bridge = await readyBridge();
-    renderSurface(
-      <Routes>
-        <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
-      </Routes>,
-      { api, path: '/play/ep_test_0001' },
-    );
     await player();
 
     fireEvent.click(screen.getByTestId('episode-picker-open'));
@@ -162,5 +331,21 @@ describe('PNL-01 on the player', () => {
 
     fireEvent.click(screen.getByTestId('episode-picker-close'));
     expect(screen.queryByTestId('episode-picker')).toBeNull();
+  });
+});
+
+/**
+ * The mutation D-16 exists to catch. Restoring `demoPlaylist()` in PlayPage.tsx — even as a
+ * fallback when the session call fails — must fail this scan. Behavioural tests above already
+ * fail if the player starts without a session; this one fails if the fixture is merely present.
+ */
+describe('the demo album does not ship', () => {
+  it('is absent from PlayPage production source', () => {
+    const source = readFileSync(join(process.cwd(), 'src/routes/PlayPage.tsx'), 'utf8');
+    expect(source).not.toMatch(/demoPlaylist/);
+    expect(source).not.toMatch(/ep_demo_/);
+    expect(source).not.toMatch(/vid_demo_/);
+    expect(source).not.toMatch(/album_demo_/);
+    expect(source).not.toMatch(/DEMO_ALBUM_ID|DEMO_EPISODE_COUNT|demoEpisodeId/);
   });
 });

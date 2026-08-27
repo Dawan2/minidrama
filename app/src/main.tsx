@@ -17,10 +17,12 @@ import { createSessionRecovery } from './session/session-recovery';
 import { createSessionStore } from './session/session-store';
 import { createSilentLogin } from './session/silent-login';
 import { createUnlockApi } from './data/unlock-api';
-import { createWalletApi } from './data/wallet-api';
+import { createPlaybackApi } from './data/playback-api';
 import { createProgressApi } from './data/progress-api';
+import { createWalletApi } from './data/wallet-api';
 import { FavoritesApiProvider } from './data/favorites-api-context';
 import { HistoryApiProvider } from './data/history-api-context';
+import { PlaybackApiProvider } from './data/playback-api-context';
 import { ProgressApiProvider } from './data/progress-api-context';
 import { SearchApiProvider } from './data/search-api-context';
 import { SessionProvider } from './auth/session-context';
@@ -116,7 +118,7 @@ async function boot(): Promise<void> {
   }
 
   /**
-   * One transport, six API clients. The history, favourites and wallet reads are session-scoped
+   * One transport, seven API clients. The history, favourites and wallet reads are session-scoped
    * and the catalogue and search reads are not, so they are separate interfaces — but they share the
    * timeout, the single automatic retry, the envelope handling and now the session header, which is
    * the whole reason `http.ts` exists.
@@ -143,6 +145,7 @@ async function boot(): Promise<void> {
   const favoritesApi = createFavoritesApi(http);
   const walletApi = createWalletApi(http);
   const progressApi = createProgressApi(http);
+  const playbackApi = createPlaybackApi(http);
 
   /**
    * The session the surfaces see. This is the seam `auth/session.ts` left for the identity slot,
@@ -184,9 +187,11 @@ async function boot(): Promise<void> {
                 <UnlockApiProvider api={unlockApi}>
                   <WalletApiProvider api={walletApi}>
                     <ProgressApiProvider api={progressApi}>
-                      <HashRouter>
-                        <App bridge={bridge} />
-                      </HashRouter>
+                      <PlaybackApiProvider api={playbackApi}>
+                        <HashRouter>
+                          <App bridge={bridge} />
+                        </HashRouter>
+                      </PlaybackApiProvider>
                     </ProgressApiProvider>
                   </WalletApiProvider>
                 </UnlockApiProvider>

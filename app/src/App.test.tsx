@@ -45,7 +45,7 @@ describe('App routing', () => {
   });
 
   it('renders the player route', async () => {
-    renderAt('/play/ep_demo_0001');
+    renderAt('/play/ep_test_0001');
     expect(await screen.findByTestId('play-page')).toBeDefined();
     await waitFor(() => {
       expect(screen.getByTestId('player-surface')).toBeDefined();
