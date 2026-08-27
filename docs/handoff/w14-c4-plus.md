@@ -106,11 +106,28 @@ only.
 
 ## 5. Verification
 
-`pnpm verify` on this branch after merging `origin/main` (`38ac2c4`). Numbers in the follow-up
-commit once the suite finishes.
-
-L1 sequence unchanged: format → lint → typecheck → test:coverage → check:coverage → build →
+`pnpm verify` green on this branch after merging `origin/main` (`38ac2c4` G2.4 + C4-06). L1
+sequence unchanged: format → lint → typecheck → test:coverage → check:coverage → build →
 guardrails.
+
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 61 |
+| `packages/quality` | 102 |
+| `packages/config` | 45 |
+| `server` | 1,717 |
+| `app` | 1,074 |
+| **Total** | **2,999** |
+
+Zero skipped. Coverage gate:
+
+```
+coverage global lines 94.06% (13245/14081), branches 92.12%, core lines 98.13%, diff lines 81.82% (171/209)
+coverage gate passed
+```
+
+Guardrails passed against `app/dist` (`index-DN-vXqml.js` 344.91 kB / 105.62 kB gzip). Native
+`<video>` remains absent.
 
 ---
 
