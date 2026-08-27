@@ -68,6 +68,91 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/progress/episodes/{episodeId}:
+    parameters:
+      - name: episodeId
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+    put:
+      operationId: reportEpisodeProgress
+      summary: Report a watch position
+      description: |
+        Upsert of one `(viewer, episode)` position. Called on a heartbeat while playing and once on
+        exit, so it is the highest-frequency authenticated endpoint in the product.
+
+        Deliberately tolerant (`docs/12-error-catalog.md` §8). Conflicts between devices are
+        resolved last-write-wins on `clientUpdatedAt`, and a report that loses is ignored and still
+        answered `204`: it is not a client error, and reporting it as one would teach the client to
+        retry a report it is right to have dropped.
+
+        A position slightly past `durationSec` is clamped to it — the last `timeupdate` of an
+        episode routinely lands a hair past the end. A position far past it is refused with
+        `PROGRESS_INVALID_POSITION`, because clamping it would let one call mark any episode
+        complete. `completed` is computed server-side from the ratio and a client-supplied
+        `completed` is ignored.
+      tags: [progress]
+      security:
+        - bearerSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchProgressReport'
+      responses:
+        '204':
+          description: |
+            The report was accepted. Empty body — the client already knows the position it sent, and
+            the stored position may legitimately differ from it after a merge.
+        '400':
+          description: |
+            `COMMON_VALIDATION_FAILED` names the offending field. `PROGRESS_INVALID_POSITION`
+            carries `details.positionSec` and `details.durationSec`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: |
+            No verifiable session. One status and one code for a missing, rejected and unverifiable
+            credential alike, so the endpoint is not an oracle. The client runs silent login and
+            retries once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: getEpisodeResumePosition
+      summary: Where this viewer should resume
+      description: |
+        Answers `200` with `resumePositionSec: 0` and `recorded: false` when the viewer has never
+        watched the episode. A `404` would make the first play of every episode handle an error.
+
+        The response is `private, no-store`: a resume position is per viewer, and a shared cache
+        holding one is a cross-user leak waiting for a misconfigured proxy.
+      tags: [progress]
+      security:
+        - bearerSession: []
+      responses:
+        '200':
+          description: The viewer's position. `resumePositionSec` is the player's `startTime`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeResumeView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: No verifiable session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/auth/login:
     post:
       operationId: login
@@ -216,6 +301,70 @@ components:
           type: integer
           minimum: 0
 
+    WatchProgressReport:
+      type: object
+      required: [positionSec, durationSec, clientUpdatedAt]
+      description: |
+        The write shape. It says `positionSec` — an observation about the past — while the read says
+        `resumePositionSec`, an instruction about the future and the same key the playback descriptor
+        carries.
+      properties:
+        positionSec:
+          type: integer
+          minimum: 0
+          description: Whole seconds. Clamped to `durationSec`; refused if far beyond it.
+        durationSec:
+          type: integer
+          minimum: 1
+          description: |
+            The duration the player loaded. Sent with every report because the completion rule, the
+            clamp and the refusal are all relations between the two values, and the asset's length is
+            something the player knows and we do not.
+        clientUpdatedAt:
+          type: string
+          format: date-time
+          description: |
+            The client's clock when the position was observed. The last-write-wins key: two devices
+            are adjudicated on this rather than on arrival order, which is a property of the network.
+            A value implausibly far in the future is pulled back to server time.
+        completed:
+          type: boolean
+          deprecated: true
+          description: |
+            Accepted and ignored. Completion is computed server-side from the ratio; a client that
+            could set it could inflate a completion metric.
+
+    EpisodeResumeView:
+      type: object
+      required: [episodeId, resumePositionSec, completed, recorded]
+      properties:
+        episodeId:
+          type: string
+        resumePositionSec:
+          type: integer
+          minimum: 0
+          description: |
+            The player's `startTime`, and the same field name as in the playback descriptor. `0` when
+            nothing was ever reported.
+        completed:
+          type: boolean
+          description: |
+            Server-computed from the position/duration ratio, and sticky: a rewatch does not clear it.
+        recorded:
+          type: boolean
+          description: |
+            False when this viewer never reported a position for this episode. It exists so that
+            "never watched" and "watched, position 0" are distinguishable — a continue-watching entry
+            point has to tell them apart to decide whether the episode belongs in the list at all.
+        durationSec:
+          type: integer
+          minimum: 1
+          description: From the last accepted report. Absent when `recorded` is false.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Server time of the last accepted report. Absent when `recorded` is false.
+
     LoginRequest:
       type: object
       required: [provider, authCode]
@@ -299,6 +448,16 @@ components:
             details:
               type: [object, 'null']
               additionalProperties: true
+
+  securitySchemes:
+    bearerSession:
+      type: http
+      scheme: bearer
+      description: |
+        The opaque session token from `POST /v1/auth/login`, as `Authorization: Bearer <token>`. It
+        is not a JWT and carries no claims: the mapping from token to user is the server's, so a
+        token cannot be constructed. Declared on the endpoints that are per-viewer; endpoints without
+        it either serve everyone the same answer or enforce their own rule.
 
   responses:
     Error:

@@ -77,6 +77,8 @@ describe('contracts/openapi.yaml', () => {
         { method: 'get', path: '/health' },
         { method: 'post', path: '/v1/playback/sessions' },
         { method: 'post', path: '/v1/auth/login' },
+        { method: 'put', path: '/v1/progress/episodes/{episodeId}' },
+        { method: 'get', path: '/v1/progress/episodes/{episodeId}' },
         { method: 'post', path: '/v1/payments/callbacks/tiktok' },
       ]),
     );
