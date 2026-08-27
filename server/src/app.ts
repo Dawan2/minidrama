@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
+import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createMockIdentityPort } from './modules/identity/test-login.js';
 import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
@@ -9,6 +10,8 @@ import { createSignatureVerifier } from './modules/platform-tiktok/signature-ver
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import { createUnavailableEntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
+import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-port.js';
+import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
@@ -17,13 +20,16 @@ import { loadConfig } from './config.js';
 import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
+import { unlockRoutes } from './modules/unlock/routes.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
+import type { PlatformTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import type { PlaybackMediaPort } from './modules/playback/media-port.js';
 import type { ServerConfig } from './config.js';
 import type { SessionStore } from './modules/identity/session-store.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
+import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
 
@@ -65,6 +71,13 @@ export interface AppDependencies {
    * The default refuses too, so an unwired deployment cannot hand out a video id.
    */
   readonly playbackMediaPort?: PlaybackMediaPort;
+  /**
+   * Coin unlock orders. The store defaults to the in-memory skeleton; the trade-order port defaults
+   * to refusing, because an order carrying an identifier the platform never minted is an order no
+   * payment can be matched to.
+   */
+  readonly unlockOrderStore?: UnlockOrderStore;
+  readonly tradeOrderPort?: PlatformTradeOrderPort;
   readonly now?: () => number;
 }
 
@@ -158,12 +171,28 @@ export async function buildApp(
     now,
   });
 
+  // One order store for both registrations. The unlock module writes orders and the webhook module
+  // is the only thing that may advance one, so handing them separate stores would leave every order
+  // `PENDING` forever while both modules looked entirely correct.
+  const unlockOrderStore = dependencies.unlockOrderStore ?? createInMemoryUnlockOrderStore();
+
+  await app.register(unlockRoutes, {
+    factsPort: entitlementFactsPort,
+    viewerResolver,
+    orderStore: unlockOrderStore,
+    tradeOrderPort: dependencies.tradeOrderPort ?? createUnavailableTradeOrderPort(),
+    now,
+  });
+
   await app.register(identityRoutes, { identityPort, sessionStore });
 
   await app.register(platformTiktokRoutes, {
     signatureVerifier,
     eventStore: dependencies.webhookEventStore ?? createInMemoryWebhookEventStore(),
     clientKey: credentials.clientKey,
+    // Fulfilment stays here, on the verified callback. It records the payment against the order and
+    // grants nothing: the unlock row is W14's, and until it exists a paid order is a paid order.
+    paidTradeOrders: createUnlockOrderPaymentSink(unlockOrderStore),
     now,
   });
 
