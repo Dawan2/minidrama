@@ -37,6 +37,18 @@ export interface CatalogStore {
   listDramas(query: DramaQuery): Promise<readonly DramaRecord[]>;
   /** Any status, including draft and offline — the caller decides what that means. */
   getDrama(dramaId: string): Promise<DramaWithSeasons | undefined>;
+  /**
+   * Many dramas, **one query**. Missing ids are absent from the map, not a failure.
+   *
+   * This is the lookup the favourites list uses to project `DramaSummary` onto a page of ids
+   * (`docs/plan/cycle-3-backlog.md` C3-07, W8-b). Calling `getDrama` per row would move the
+   * client's N+1 onto the server, which is not a fix. In SQL it is `WHERE id = ANY($1)`.
+   *
+   * Unpublished records are returned, same as `getDrama`: the caller decides whether a delisted
+   * favourite renders a summary or the unresolved row. Hiding them here would make "gone" and
+   * "never existed" indistinguishable.
+   */
+  getDramas(dramaIds: readonly string[]): Promise<ReadonlyMap<string, DramaRecord>>;
   /** Listed episodes of a drama, in global episode order. */
   listEpisodes(dramaId: string): Promise<readonly PositionedEpisode[]>;
   /** A single episode with its drama, whatever the publication state of either. */
@@ -131,6 +143,15 @@ export function createInMemoryCatalogStore(seed: SeedCatalog = SEED_CATALOG): Ca
       if (drama === undefined) return Promise.resolve(undefined);
 
       return Promise.resolve({ drama, seasons: seasonsByDrama.get(dramaId) ?? [] });
+    },
+
+    getDramas(dramaIds: readonly string[]): Promise<ReadonlyMap<string, DramaRecord>> {
+      const found = new Map<string, DramaRecord>();
+      for (const id of dramaIds) {
+        const drama = dramasById.get(id);
+        if (drama !== undefined) found.set(id, drama);
+      }
+      return Promise.resolve(found);
     },
 
     listEpisodes(dramaId: string): Promise<readonly PositionedEpisode[]> {

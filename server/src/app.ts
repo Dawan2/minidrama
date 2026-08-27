@@ -3,6 +3,7 @@ import type { FastifyError, FastifyInstance } from 'fastify';
 
 import { catalogRoutes } from './modules/catalog/routes.js';
 import { createAnonymousViewerResolver } from './modules/catalog/viewer.js';
+import { createCatalogDramaSummaryLookup } from './modules/catalog/summary-lookup.js';
 import { createEmptyContinueWatchingSource } from './modules/discovery/feed.js';
 import { createGrantedUnlockFactsPort } from './modules/unlock/granted-facts.js';
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
@@ -254,10 +255,15 @@ export async function buildApp(
   const catalogStore = dependencies.catalogStore ?? createInMemoryCatalogStore();
   const catalogViewerResolver =
     dependencies.catalogViewerResolver ?? createAnonymousViewerResolver();
+  // One favourites store for the verbs, the list projection, and `DramaDetail.viewer.favorited`.
+  // Two stores would let the heart on the drama page disagree with the favourites screen.
+  const favoritesStore = dependencies.favoritesStore ?? createInMemoryFavoritesStore();
 
   await app.register(catalogRoutes, {
     store: catalogStore,
     viewerResolver: catalogViewerResolver,
+    favorites: favoritesStore,
+    sessionViewer: viewerResolver,
   });
 
   await app.register(discoveryRoutes, {
@@ -317,8 +323,9 @@ export async function buildApp(
   // resolving sessions is how one endpoint accepts the credential another rejects.
   await app.register(searchRoutes, {
     directory: dependencies.dramaDirectory ?? createSeedDramaDirectory(),
-    favorites: dependencies.favoritesStore ?? createInMemoryFavoritesStore(),
+    favorites: favoritesStore,
     viewerResolver,
+    dramaSummaries: createCatalogDramaSummaryLookup(catalogStore),
     now,
   });
 

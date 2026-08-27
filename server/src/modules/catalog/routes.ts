@@ -1,5 +1,5 @@
 import { DRAMA_CATEGORIES, err, ok } from '@minidrama/shared';
-import type { DramaCategory, EpisodeItem, Page, Result } from '@minidrama/shared';
+import type { DramaCategory, DramaDetail, EpisodeItem, Page, Result } from '@minidrama/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { ascendingKey, paginate, parseLimit, queryFingerprint } from '../../core/pagination.js';
@@ -9,6 +9,7 @@ import { toDramaDetail, toDramaSummary, toEpisodeItem } from './views.js';
 import type { CatalogStore, DramaSort } from './store.js';
 import type { DramaRecord } from './types.js';
 import type { ViewerResolver } from './viewer.js';
+import type { ViewerResolver as SessionViewerResolver } from '../entitlement/viewer-resolver.js';
 
 /**
  * The storefront: dramas, seasons flattened into a running order, and per-episode access.
@@ -32,6 +33,20 @@ const MAX_TAG_LENGTH = 64;
 export interface CatalogRouteOptions {
   readonly store: CatalogStore;
   readonly viewerResolver: ViewerResolver;
+  /**
+   * The same favourites store the favourite verbs write. Structural: only `read` is used.
+   * Optional so a catalogue-only test can still boot; without it, `DramaDetail.viewer` stays
+   * `null` even for a signed-in request.
+   */
+  readonly favorites?: {
+    read(userId: string, dramaId: string): Promise<unknown>;
+  };
+  /**
+   * Who is signed in, for folding `viewer.favorited` into the detail. Distinct from
+   * `viewerResolver` above, which answers unlocks and VIP for `viewerAccess` and is still the
+   * anonymous placeholder on the default deployment.
+   */
+  readonly sessionViewer?: SessionViewerResolver;
 }
 
 /** A repeated query parameter arrives as an array; that is a client bug, not a value to guess at. */
@@ -99,7 +114,26 @@ export async function catalogRoutes(
   app: FastifyInstance,
   options: CatalogRouteOptions,
 ): Promise<void> {
-  const { store, viewerResolver } = options;
+  const { store, viewerResolver, favorites, sessionViewer } = options;
+
+  /**
+   * Fold this viewer's favourite flag into the detail. Anonymous stays `null`; a signed-in
+   * viewer gets a real object from the same store the favourite verbs write (W8-c). A bad
+   * token does not 401 a public read — it is answered as anonymous, same as the rest of
+   * this module.
+   */
+  async function dramaViewerState(
+    request: FastifyRequest,
+    dramaId: string,
+  ): Promise<DramaDetail['viewer']> {
+    if (favorites === undefined || sessionViewer === undefined) return null;
+
+    const session = sessionViewer.resolve(request.headers.authorization);
+    if (!session.ok || session.value === null) return null;
+
+    const record = await favorites.read(session.value, dramaId);
+    return { favorited: record !== undefined, lastWatched: null };
+  }
 
   app.get('/v1/dramas', async (request, reply) => {
     const query = request.query as Record<string, unknown>;
@@ -168,7 +202,16 @@ export async function catalogRoutes(
 
     const episodes = await store.listEpisodes(dramaId);
 
-    return reply.status(200).send(toDramaDetail(found.drama, found.seasons, episodes));
+    return reply
+      .status(200)
+      .send(
+        toDramaDetail(
+          found.drama,
+          found.seasons,
+          episodes,
+          await dramaViewerState(request, dramaId),
+        ),
+      );
   });
 
   app.get('/v1/dramas/:dramaId/episodes', async (request, reply) => {

@@ -43,6 +43,7 @@ export function toDramaDetail(
   drama: DramaRecord,
   seasons: readonly SeasonRecord[],
   episodes: readonly PositionedEpisode[],
+  viewer: DramaDetail['viewer'] = null,
 ): DramaDetail {
   const countsBySeason = new Map<string, number>();
   for (const positioned of episodes) {
@@ -61,10 +62,10 @@ export function toDramaDetail(
     seasons: seasons
       .filter((season) => season.status === 'PUBLISHED')
       .map((season) => toSeasonSummary(season, countsBySeason.get(season.id) ?? 0)),
-    // Favourites and watch progress belong to modules that do not exist yet. `favorited: false` is
-    // not a safe stand-in: the client renders it as a confirmed empty heart, so a real favourite
-    // would appear to have been dropped. `null` says "not known", which the UI can defer on.
-    viewer: null,
+    // Anonymous stays `null` ("not known"), never `{ favorited: false }`: the client renders false
+    // as a confirmed empty heart, and we do not know. A signed-in viewer is passed in from the
+    // route, which reads the same favourites store the verbs use (W8-c).
+    viewer,
   };
 }
 

@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import type { DramaSummary, FavoriteList } from '@minidrama/shared';
 import type { FastifyInstance } from 'fastify';
-import type { FavoriteList } from '@minidrama/shared';
 
 import { buildApp } from '../../app.js';
 import { createFakeSessionResolver } from '../progress/test-sessions.js';
+import { createInMemoryCatalogStore } from '../catalog/store.js';
 import { createInMemoryFavoritesStore } from './favorites.js';
 import { loadConfig } from '../../config.js';
+import { toDramaSummary } from '../catalog/views.js';
+import type { CatalogStore } from '../catalog/store.js';
 import type { FavoritesStore } from './favorites.js';
 
 /**
@@ -35,13 +38,17 @@ const PATH = '/v1/users/me/favorites';
 
 let app: FastifyInstance;
 
-async function startApp(favorites: FavoritesStore = createInMemoryFavoritesStore()): Promise<void> {
+async function startApp(
+  favorites: FavoritesStore = createInMemoryFavoritesStore(),
+  catalogStore?: CatalogStore,
+): Promise<void> {
   app = await buildApp(
     { ...loadConfig({}), logLevel: 'silent' },
     {
       favoritesStore: favorites,
       viewerResolver: createFakeSessionResolver(),
       now: () => NOW,
+      ...(catalogStore === undefined ? {} : { catalogStore }),
     },
   );
   await app.ready();
@@ -177,8 +184,8 @@ describe('GET /v1/users/me/favorites', () => {
 
     expect(response.json<FavoriteList>()).toEqual({
       items: [
-        { dramaId: 'drm_new', favoritedAt: '2026-08-27T12:01:00.000Z' },
-        { dramaId: 'drm_old', favoritedAt: '2026-08-27T12:00:00.000Z' },
+        { dramaId: 'drm_new', favoritedAt: '2026-08-27T12:01:00.000Z', drama: null },
+        { dramaId: 'drm_old', favoritedAt: '2026-08-27T12:00:00.000Z', drama: null },
       ],
       pageInfo: { nextCursor: null, hasMore: false },
     });
@@ -218,7 +225,9 @@ describe('GET /v1/users/me/favorites', () => {
     await favorites.add('user_a', DELISTED, NOW);
     await startApp(favorites);
 
-    expect(ids((await list('', 'tok_a')).json<FavoriteList>())).toEqual([DELISTED]);
+    const body = (await list('', 'tok_a')).json<FavoriteList>();
+    expect(ids(body)).toEqual([DELISTED]);
+    expect(body.items[0]?.drama).toBeNull();
   });
 
   it('never lists one viewer the favourites of another', async () => {
@@ -240,6 +249,97 @@ describe('GET /v1/users/me/favorites', () => {
     await startApp(await storeWith(3));
 
     expect((await list('', 'tok_a')).body).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('GET /v1/users/me/favorites — DramaSummary projection', () => {
+  it('carries the catalogue’s own summary, not a partial copy', async () => {
+    const favorites = createInMemoryFavoritesStore();
+    await favorites.add('user_a', PUBLISHED, NOW);
+    await startApp(favorites);
+
+    const listed = (await list('', 'tok_a')).json<FavoriteList>().items[0];
+    const detail = (await app.inject({ method: 'GET', url: `/v1/dramas/${PUBLISHED}` })).json<{
+      id: string;
+      title: string;
+      coverUrl: string | null;
+      category: string;
+      tags: readonly string[];
+      totalEpisodes: number;
+      freeEpisodes: number;
+      isCompleted: boolean;
+      stat: DramaSummary['stat'];
+    }>();
+    const expected = toDramaSummary(
+      (await createInMemoryCatalogStore().getDrama(PUBLISHED))!.drama,
+    );
+
+    expect(listed?.dramaId).toBe(PUBLISHED);
+    expect(listed?.drama).toEqual(expected);
+    expect(listed?.drama).toEqual({
+      id: detail.id,
+      title: detail.title,
+      coverUrl: detail.coverUrl,
+      category: detail.category,
+      tags: detail.tags,
+      totalEpisodes: detail.totalEpisodes,
+      freeEpisodes: detail.freeEpisodes,
+      isCompleted: detail.isCompleted,
+      stat: detail.stat,
+    });
+  });
+
+  /**
+   * W8-b: one `WHERE id = ANY($1)` per page. Doing it per row moves the N+1 from the client to
+   * the server, which is not a fix. The test counts store method calls, so a rewrite that loops
+   * `getDrama` fails even if the HTTP response looks identical.
+   */
+  it('looks the summaries up once per page, not once per row', async () => {
+    const inner = createInMemoryCatalogStore();
+    let getDramasCalls = 0;
+    let getDramaCalls = 0;
+    const catalogStore: CatalogStore = {
+      listDramas: (query) => inner.listDramas(query),
+      getDrama: (dramaId) => {
+        getDramaCalls += 1;
+        return inner.getDrama(dramaId);
+      },
+      getDramas: (dramaIds) => {
+        getDramasCalls += 1;
+        return inner.getDramas(dramaIds);
+      },
+      listEpisodes: (dramaId) => inner.listEpisodes(dramaId),
+      getEpisode: (episodeId) => inner.getEpisode(episodeId),
+    };
+
+    const favorites = createInMemoryFavoritesStore();
+    for (const id of ['drm_revenge_0001', 'drm_dynasty_0002', 'drm_sweet_0003']) {
+      await favorites.add('user_a', id, NOW);
+    }
+    await startApp(favorites, catalogStore);
+
+    const body = (await list('', 'tok_a')).json<FavoriteList>();
+
+    expect(body.items).toHaveLength(3);
+    expect(body.items.every((item) => item.drama !== null)).toBe(true);
+    expect(getDramasCalls).toBe(1);
+    expect(getDramaCalls).toBe(0);
+  });
+
+  it('does not look the catalogue up once per row as the page grows', async () => {
+    const inner = createInMemoryCatalogStore();
+    let getDramasCalls = 0;
+    const catalogStore: CatalogStore = {
+      ...inner,
+      getDramas: (dramaIds) => {
+        getDramasCalls += 1;
+        return inner.getDramas(dramaIds);
+      },
+    };
+
+    await startApp(await storeWith(20), catalogStore);
+    expect((await list('', 'tok_a')).json<FavoriteList>().items).toHaveLength(20);
+    expect(getDramasCalls).toBe(1);
   });
 });
 

@@ -7,7 +7,6 @@ import { SignInPrompt } from '../auth/SignInPrompt';
 import { loadFavoritesPage } from '../favorites/favorite-collection';
 import { presentSessionReadFailure } from '../data/session-read';
 import { translate } from '../core/i18n';
-import { useCatalogApi } from '../data/catalog-api-context';
 import { useFavoritesApi } from '../data/favorites-api-context';
 import { usePagedResource } from '../data/use-paged-resource';
 import type { FavoriteEntry } from '../favorites/favorite-collection';
@@ -29,10 +28,9 @@ import type { PagedResourceHandle } from '../data/use-paged-resource';
  * answers for the whole list, so the disclosure is gone with the fan-out that made it necessary, and
  * "you are not following anything yet" is now a claim this screen is in a position to make.
  *
- * What the endpoint does not carry is the dramas themselves — it answers with ids and follow dates
- * (`favorites/favorite-collection.ts`) — so each row is resolved through the catalogue. A row that
- * does not resolve stays on screen, un-followable and marked, rather than being dropped: dropping it
- * would put a hole back in a list that is finally complete.
+ * Each row carries the catalogue's `DramaSummary`, or `null` for a delisted id. A row that does not
+ * resolve stays on screen, un-followable and marked, rather than being dropped: dropping it would
+ * put a hole back in a list that is finally complete.
  *
  * Like the history screen, it requests unconditionally even when the session state says the viewer is
  * anonymous. The session state decides what a screen *says*; the server decides what a viewer may
@@ -46,7 +44,6 @@ function identifyEntry(entry: FavoriteEntry): string {
 }
 
 export function FavoritesPage(): React.JSX.Element {
-  const catalog = useCatalogApi();
   const favorites = useFavoritesApi();
 
   const list = usePagedResource(
@@ -54,7 +51,6 @@ export function FavoritesPage(): React.JSX.Element {
       loadFavoritesPage(
         {
           listFavorites: (request) => favorites.listFavorites(request),
-          fetchDrama: (dramaId) => catalog.fetchDrama(dramaId),
         },
         cursor,
       ),

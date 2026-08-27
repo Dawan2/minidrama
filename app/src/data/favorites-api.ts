@@ -1,8 +1,17 @@
-import type { Page, Result } from '@minidrama/shared';
+import type {
+  DramaSummary,
+  FavoriteListItem as WireFavoriteListItem,
+  FavoriteState,
+  Page,
+  Result,
+} from '@minidrama/shared';
 
 import { asRecord, narrow, narrowPage } from './narrow';
+import { narrowDramaSummary } from './catalog-api';
 import type { ApiFailure } from './failure';
 import type { HttpReader, HttpWriter } from './http';
+
+export type { FavoriteState };
 
 /**
  * The favourite surface, as the client sees it: one list, and three verbs on one path.
@@ -29,21 +38,13 @@ import type { HttpReader, HttpWriter } from './http';
  *   - **`DELETE` does not, and never fails.** `204` whatever the catalogue says and whether or not
  *     there was a row, so un-following is never the operation that traps a row on the screen.
  *
- * The list read follows the same rule as the withdrawn row it may contain: it applies no publication
- * check, so a drama that has since been delisted stays in the viewer's list
- * (`docs/handoff/w8-work-favorites-list.md` decision S68). What that renders as is this client's
- * caller's problem, not this client's — see `favorites/favorite-collection.ts`.
+ * The list read applies no publication filter (S68). A delisted drama arrives as `drama: null` and
+ * stays in the page; dropping it here would hide a favourite the viewer can neither see nor clear.
  *
  * Kept apart from `CatalogApi` for the same reason `HistoryApi` is: the catalogue reads are
  * anonymous-capable and these are not, and folding a session-scoped write into the interface every
  * anonymous surface depends on would grow every catalogue screen's test double a method about
  * identity that no catalogue screen can produce.
- *
- * **The server on this branch does not implement these endpoints.** There is no discovery module
- * under `server/` here — the verbs land with `cursor/w2-work-j-acf5` and the list with
- * `cursor/w8-work-favorites-list-a666` — so a request today answers `404 COMMON_RESOURCE_NOT_FOUND`
- * from the not-found handler. That is not a client bug and it must not render as one;
- * `presentSessionReadFailure` is what keeps it out of the error states.
  */
 
 export const FAVORITES_LIST_PATH = '/v1/users/me/favorites';
@@ -53,65 +54,26 @@ export function favoriteEndpoint(dramaId: string): string {
 }
 
 /**
- * Whether this viewer follows this drama.
+ * One row of the viewer's favourites list, as this client stores it after narrowing.
  *
- * Copied from `packages/shared/src/discovery.ts` on `cursor/w2-work-j-acf5` rather than imported,
- * because that package does not carry the type on this branch and merging a server slot to obtain
- * one type is not a trade this screen is allowed to make. The copy is field-for-field and the
- * integrator's move is one line: delete this and re-export `FavoriteState` from `@minidrama/shared`
- * — see `docs/handoff/w7-work-favorites.md` §5.
+ * **Decision (C3-07 / G-C1).** The wire type in `@minidrama/shared` requires `favoritedAt: string`
+ * and carries `drama: DramaSummary | null`. This client deletes the duplicated interfaces
+ * (`FavoriteState` is a re-export) and keeps one deliberate widening: `favoritedAt` is
+ * `string | null` after narrowing, because the field drives no decision on SCR-08 (the order is
+ * the server's; the value is displayed nowhere) and rejecting a page over it would cost the viewer
+ * their list. A malformed `drama` object still rejects the row — that one *is* the card.
  */
-export interface FavoriteState {
-  readonly dramaId: string;
-  readonly favorited: boolean;
-  /**
-   * Server time when the favourite was *first* recorded, ISO 8601. Absent when `favorited` is
-   * false. It does not move on a repeated `PUT`: "following since" is a fact about the viewer's
-   * history, and a duplicate request from a double-tapped button is not a new decision.
-   */
-  readonly favoritedAt?: string;
-}
-
-/**
- * One row of the viewer's favourites list.
- *
- * Copied from `packages/shared/src/discovery.ts` on `cursor/w8-work-favorites-list-a666` for the
- * same reason `FavoriteState` is copied from slot J: that package does not carry the type on this
- * branch, and merging a server slot to obtain one interface is not a trade a client screen is
- * allowed to make while an integrator is in flight.
- *
- * There is **one deliberate divergence** from the copy, and it is the field below. The wire shape
- * declares `readonly favoritedAt: string` — always present, because a row only exists because it was
- * recorded — and this client widens it to `| null` because it reads the field tolerantly. See the
- * note there for why, and `docs/handoff/w8-work-favorites-consume.md` §5 for the integrator's move.
- *
- * It carries the drama *identifier* and nothing about the drama. `docs/12-api-contracts.md` §4.3
- * specifies the endpoint as a `DramaSummary` page and it will become one (that slot's S60), so a row
- * on this screen is resolved through the catalogue in the meantime —
- * `favorites/favorite-collection.ts` owns that step and states its cost.
- */
-export interface FavoriteListItem {
-  readonly dramaId: string;
-  /**
-   * Server time when the favourite was first recorded, ISO 8601, or `null` when the row carried no
-   * usable one.
-   *
-   * It is the server's sort key and the client neither reorders by it nor displays it, which is
-   * exactly why it is read tolerantly: rejecting a page — and with it the viewer's whole list —
-   * over a field that drives no decision here would cost them the screen to protect nothing. The
-   * watch-history row reads its `watchedAt` the same way and for the same reason.
-   */
+export type FavoriteListItem = Omit<WireFavoriteListItem, 'favoritedAt'> & {
   readonly favoritedAt: string | null;
-}
+};
 
 /**
  * A page of the viewer's favourites, most recently followed first.
  *
- * W8's wire shape is its own interface — `{ items, pageInfo }` — and it is field-for-field the
- * `Page<T>` envelope this client already has from `@minidrama/shared`, down to `nextCursor` being
- * `null` rather than absent on the final page. It is expressed as that envelope rather than copied a
- * third time so the favourites list pages through `usePagedResource` like every other list, instead
- * of arriving with a second opinion about what a page is.
+ * W8's wire shape is `{ items, pageInfo }`, field-for-field the `Page<T>` envelope this client
+ * already has from `@minidrama/shared`, down to `nextCursor` being `null` rather than absent on
+ * the final page. It is expressed as that envelope so the favourites list pages through
+ * `usePagedResource` like every other list.
  */
 export type FavoriteList = Page<FavoriteListItem>;
 
@@ -161,33 +123,21 @@ export function createFavoritesApi(http: HttpReader & HttpWriter): FavoritesApi 
 }
 
 /**
- * Strict about `favorited`, tolerant about everything else.
+ * Strict about `dramaId`, tolerant about the timestamp, and honest about `drama`.
  *
- * `favorited` is the whole answer, and it is a boolean rather than a presence check on purpose: a
- * response that omitted it, or sent `"true"`, would be read as "not followed" by a default and the
- * viewer's row would silently vanish from their own list. So a missing or non-boolean `favorited`
- * rejects the response, which reaches the surface as `MALFORMED` and a retry rather than as a lie.
- *
- * `dramaId` is checked for *agreement* rather than for presence. The client already knows which
- * drama it asked about, and a response that answers about a different one is not a field to
- * default — it is the one shape of bug (a mis-keyed cache, a proxy serving another viewer's row)
- * that would put someone else's favourite on this viewer's screen.
- *
- * `favoritedAt` is read tolerantly because it drives no decision: it is the sort key of the
- * favourites list, and a row that arrives without one sorts last instead of costing the viewer the
- * whole list.
- */
-/**
- * Strict about `dramaId`, tolerant about the timestamp.
- *
- * The id *is* the row: it is what resolves to a card, what the un-follow button sends, and what
- * keys the list in React. A row without one is not a row to default, so it rejects the response —
- * which, as everywhere else in this client, costs the page rather than the item
- * (`narrowPage`). That is the right trade here in a way it would not be for a feed: a favourites
- * list silently one row short is indistinguishable from a drama the viewer never followed.
+ * The id *is* the row: it is what keys the list in React and what the un-follow button sends. A
+ * row without one is not a row to default, so it rejects the response — which, as everywhere else
+ * in this client, costs the page rather than the item (`narrowPage`). That is the right trade here
+ * in a way it would not be for a feed: a favourites list silently one row short is indistinguishable
+ * from a drama the viewer never followed.
  *
  * `favoritedAt` drives no decision on this screen: the order is the server's and the value is never
  * displayed. So an unusable one becomes `null` rather than costing the viewer the whole list.
+ * That is the G-C1 widening, recorded rather than merged away.
+ *
+ * `drama` is the card. `null` and a missing key are the unresolved row (W8-a). A present object
+ * that is not a summary is malformed — showing a fake card, or dropping the row silently, would
+ * both lie — so that rejects the page the same way a missing id does.
  */
 export function narrowFavoriteListItem(value: unknown): FavoriteListItem | null {
   const record = asRecord(value);
@@ -197,11 +147,22 @@ export function narrowFavoriteListItem(value: unknown): FavoriteListItem | null 
   if (typeof dramaId !== 'string' || dramaId === '') return null;
 
   const favoritedAt = record['favoritedAt'];
+  const drama = narrowFavoriteDrama(record['drama']);
+  if (drama === undefined) return null;
 
   return {
     dramaId,
     favoritedAt: typeof favoritedAt === 'string' && favoritedAt !== '' ? favoritedAt : null,
+    drama,
   };
+}
+
+/**
+ * `null` / missing → unresolved row. A present non-summary → reject the item (`undefined`).
+ */
+function narrowFavoriteDrama(value: unknown): DramaSummary | null | undefined {
+  if (value === null || value === undefined) return null;
+  return narrowDramaSummary(value) ?? undefined;
 }
 
 export function narrowFavoriteState(

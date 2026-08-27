@@ -132,30 +132,69 @@ describe('the favourites list read', () => {
 });
 
 /**
- * The list row. The id is the row — it resolves to a card, it addresses the un-follow, and it keys
- * the list — so it is strict; the timestamp drives nothing on this screen, so it is not.
+ * The list row. The id is the row — it addresses the un-follow and keys the list — so it is
+ * strict; the timestamp drives nothing on this screen, so it is not; `drama` is the card, so a
+ * present object that is not a summary rejects the page, and `null` is the unresolved row.
  */
 describe('narrowing a favourites list row', () => {
   it('accepts the documented row', () => {
+    expect(
+      narrowFavoriteListItem({ dramaId: 'drm_1', favoritedAt: AUGUST_1, drama: null }),
+    ).toEqual({
+      dramaId: 'drm_1',
+      favoritedAt: AUGUST_1,
+      drama: null,
+    });
+  });
+
+  it('treats a missing drama as the unresolved row rather than rejecting the page', () => {
     expect(narrowFavoriteListItem({ dramaId: 'drm_1', favoritedAt: AUGUST_1 })).toEqual({
       dramaId: 'drm_1',
       favoritedAt: AUGUST_1,
+      drama: null,
     });
+  });
+
+  it('attaches a well-formed summary', () => {
+    const drama = {
+      id: 'drm_1',
+      title: 'The Heiress Returns',
+      totalEpisodes: 80,
+      freeEpisodes: 3,
+    };
+
+    expect(narrowFavoriteListItem({ dramaId: 'drm_1', favoritedAt: AUGUST_1, drama })).toEqual({
+      dramaId: 'drm_1',
+      favoritedAt: AUGUST_1,
+      drama,
+    });
+  });
+
+  it('rejects a present drama that is not a summary, rather than drawing a fake card', () => {
+    expect(
+      narrowFavoriteListItem({
+        dramaId: 'drm_1',
+        favoritedAt: AUGUST_1,
+        drama: { id: 'drm_1' },
+      }),
+    ).toBeNull();
   });
 
   it('rejects a row with no drama id, which is a row with nothing to render or un-follow', () => {
     for (const dramaId of [undefined, null, '', 7, { id: 'drm_1' }]) {
-      expect(narrowFavoriteListItem({ dramaId, favoritedAt: AUGUST_1 })).toBeNull();
+      expect(narrowFavoriteListItem({ dramaId, favoritedAt: AUGUST_1, drama: null })).toBeNull();
     }
   });
 
   // The order is the server's and the value is displayed nowhere, so losing the viewer's whole list
-  // over it would protect nothing.
+  // over it would protect nothing. That is the G-C1 widening: wire `favoritedAt` is `string`, this
+  // client stores `string | null`.
   it('keeps the row when the timestamp is unusable', () => {
     for (const favoritedAt of [undefined, null, '', 12345, {}]) {
-      expect(narrowFavoriteListItem({ dramaId: 'drm_1', favoritedAt })).toEqual({
+      expect(narrowFavoriteListItem({ dramaId: 'drm_1', favoritedAt, drama: null })).toEqual({
         dramaId: 'drm_1',
         favoritedAt: null,
+        drama: null,
       });
     }
   });
@@ -175,7 +214,23 @@ describe('narrowing a favourites list row', () => {
     const api = createFavoritesApi(
       httpStub({
         getJson: () =>
-          Promise.resolve(ok(listBody([{ dramaId: 'drm_1', favoritedAt: AUGUST_1 }, {}]))),
+          Promise.resolve(
+            ok(listBody([{ dramaId: 'drm_1', favoritedAt: AUGUST_1, drama: null }, {}])),
+          ),
+      }),
+    );
+
+    const result = await api.listFavorites({});
+    expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
+  });
+
+  it('fails the whole page when one row carries a malformed summary', async () => {
+    const api = createFavoritesApi(
+      httpStub({
+        getJson: () =>
+          Promise.resolve(
+            ok(listBody([{ dramaId: 'drm_1', favoritedAt: AUGUST_1, drama: { title: 'no id' } }])),
+          ),
       }),
     );
 

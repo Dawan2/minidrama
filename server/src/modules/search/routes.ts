@@ -13,6 +13,7 @@ import {
 } from './validation.js';
 import { requireViewer, sendViewerRefusal } from '../progress/viewer.js';
 import type { DramaDirectory } from './dramas.js';
+import type { DramaSummaryLookup } from '../catalog/summary-lookup.js';
 import type { FavoriteRecord, FavoritesStore } from './favorites.js';
 import type { FieldFailure } from './validation.js';
 import type { ViewerResolver } from '../entitlement/viewer-resolver.js';
@@ -55,15 +56,20 @@ import type { ViewerResolver } from '../entitlement/viewer-resolver.js';
  * The favourites *list* is the third kind of endpoint here, and the reason it exists is that without
  * it a client wanting to show SCR-08 has to know the ids already: the per-drama `GET` answers "do I
  * follow *this*", so a favourites screen built on it alone fans out one request per candidate drama
- * and still cannot discover a favourite it did not think to ask about. It ships returning drama ids
- * rather than the `DramaSummary` pages `docs/12-api-contracts.md` §4.3 specifies — see
- * `docs/handoff/w8-work-favorites-list.md` §3, decision S60.
+ * and still cannot discover a favourite it did not think to ask about. Each row carries the
+ * catalogue's `DramaSummary` (or `null` for a delisted id) so the client does not fan out a second
+ * time to render the cards — `docs/plan/cycle-3-backlog.md` C3-07.
  */
 
 export interface SearchRouteOptions {
   readonly directory: DramaDirectory;
   readonly favorites: FavoritesStore;
   readonly viewerResolver: ViewerResolver;
+  /**
+   * One lookup per list page, projecting the catalogue's `DramaSummary` onto the favourite ids.
+   * Missing keys become `drama: null` so a delisted favourite stays in the list (W8-a).
+   */
+  readonly dramaSummaries: DramaSummaryLookup;
   readonly now?: () => number;
 }
 
@@ -108,7 +114,7 @@ export async function searchRoutes(
   app: FastifyInstance,
   options: SearchRouteOptions,
 ): Promise<void> {
-  const { directory, favorites, viewerResolver } = options;
+  const { directory, favorites, viewerResolver, dramaSummaries } = options;
   const now = options.now ?? Date.now;
 
   app.get('/v1/search', async (request, reply) => {
@@ -227,15 +233,16 @@ export async function searchRoutes(
       return reply.status(400).send(validationErrorBody(cursor.error, request.id));
     }
 
-    // No catalogue lookup, for the reason the per-drama read does not do one either — and here it
-    // is also a paging property: dropping delisted rows after the store has counted them would
-    // return a page shorter than `limit` while `hasMore` still described the unfiltered query, so
-    // the two halves of the answer would disagree. Resolving ids to dramas is the client's step,
-    // and it is where a withdrawn drama gets whatever treatment SCR-08 decides it gets.
     const page = await favorites.list(viewer.value, {
       limit: limit.value,
       ...(cursor.value === undefined ? {} : { after: cursor.value }),
     });
+
+    // One lookup for the page, not one per row (W8-b). A missing key is `drama: null`: the row
+    // stays so the viewer can still un-follow a delisted title (S68, W8-a). Filtering here would
+    // also make the page shorter than `limit` while `hasMore` still described the unfiltered
+    // query.
+    const summaries = await dramaSummaries.getDramaSummaries(page.rows.map((row) => row.dramaId));
 
     const last = page.rows.at(-1);
 
@@ -243,6 +250,7 @@ export async function searchRoutes(
       items: page.rows.map((row) => ({
         dramaId: row.dramaId,
         favoritedAt: new Date(row.favoritedAtMs).toISOString(),
+        drama: summaries.get(row.dramaId) ?? null,
       })),
       pageInfo: {
         // `hasMore` and a non-null `nextCursor` are one fact, so the cursor is derived from
