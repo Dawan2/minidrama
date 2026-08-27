@@ -1,7 +1,9 @@
+import { CONSERVATIVE_CLIENT_CONFIG, type ConfigView } from '@minidrama/shared';
 import { MemoryRouter } from 'react-router';
 import { act, render } from '@testing-library/react';
 import type { RenderResult } from '@testing-library/react';
 
+import { ClientConfigProvider } from '../config/client-config-context';
 import { CatalogApiProvider } from '../data/catalog-api-context';
 import { FavoritesApiProvider } from '../data/favorites-api-context';
 import { HistoryApiProvider } from '../data/history-api-context';
@@ -65,6 +67,7 @@ export interface RenderSurfaceOptions {
   readonly meApi?: MeApi;
   readonly progressApi?: ProgressApi;
   readonly playbackApi?: PlaybackApi;
+  readonly config?: ConfigView;
   readonly session?: Session;
   readonly path?: string;
 }
@@ -75,7 +78,8 @@ export function renderSurface(
 ): RenderResult {
   return render(
     <SessionProvider session={options.session ?? stubSession()}>
-      <CatalogApiProvider api={options.api ?? stubCatalogApi()}>
+      <ClientConfigProvider config={options.config ?? CONSERVATIVE_CLIENT_CONFIG}>
+        <CatalogApiProvider api={options.api ?? stubCatalogApi()}>
         <SearchApiProvider api={options.search ?? stubSearchApi()}>
           <HistoryApiProvider api={options.historyApi ?? stubHistoryApi()}>
             <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
@@ -96,6 +100,7 @@ export function renderSurface(
           </HistoryApiProvider>
         </SearchApiProvider>
       </CatalogApiProvider>
+      </ClientConfigProvider>
     </SessionProvider>,
   );
 }

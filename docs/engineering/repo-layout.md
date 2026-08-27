@@ -33,8 +33,10 @@ minidrama/
 │   ├── minis.config.json       # GENERATED from packages/config — do not hand-edit
 │   ├── vite.config.ts
 │   ├── src/
-│   │   ├── main.tsx            # boot sequence entry point
+│   │   ├── main.tsx            # boot sequence entry point (SCR-01 splash, then GET /v1/config)
 │   │   ├── App.tsx             # route table
+│   │   ├── boot/               # SCR-01 overlay and init-failure retry; not a hash route
+│   │   ├── config/             # boot-config snapshot context
 │   │   ├── platform/           # PlatformBridge: the only code that may touch window.TTMinis
 │   │   ├── player/             # VePlayer facade, its types, and the mock player
 │   │   ├── routes/             # hash-routed pages
@@ -53,7 +55,8 @@ minidrama/
 │       ├── contract.test.ts    # asserts every documented path has a handler
 │       └── modules/            # one directory per bounded context
 │           ├── health/
-│           ├── identity/       # silent login, session issuance
+│           ├── config/         # GET /v1/config — conservative boot flags
+│           ├── identity/       # silent login, session issuance, GET /v1/users/me
 │           ├── platform-tiktok/ # the sole TikTok adapter: webhook verification, identity port
 │           └── playback/
 ├── packages/
@@ -262,8 +265,9 @@ Roughly in dependency order, and all additive:
   validation. `PlaybackDescriptor` moves from hand-written to generated; import sites do not move.
 - **Real state layers.** TanStack Query for server state, Zustand for client state, with the rule
   from the architecture that entitlement is never client state.
-- **The rest of the boot sequence.** `main.tsx` marks the insertion point: capability-probe merge,
-  silent login, `GET /v1/config`, deep-link target resolution, in that order.
+- **The rest of the boot sequence.** SCR-01 paints first, then silent login, then `GET /v1/config`
+  (conservative flags: comments off, ads off, heartbeat 10 s). Deep-link target resolution is still
+  a later insertion. The splash does not invent comments-on, legal URLs, or a Beans rate.
 - **The remaining server modules**, as directories under `server/src/modules/` per the module table
   in `docs/architecture/system-overview.md` §7.1, with PostgreSQL, Drizzle and Redis behind them.
 - **Playwright and Testcontainers**, joining the Vitest layer that exists now.

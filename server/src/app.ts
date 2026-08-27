@@ -41,6 +41,7 @@ import { createLoggerOptions, generateRequestId, registerRequestId } from './cor
 import { discoveryRoutes } from './modules/discovery/routes.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
+import { configRoutes } from './modules/config/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { identityRoutes } from './modules/identity/routes.js';
 import { meRoutes } from './modules/identity/me-routes.js';
@@ -339,6 +340,10 @@ export async function buildApp(
         ));
 
   await app.register(healthRoutes);
+
+  // Anonymous boot flags. Conservative product state: comments off, ads off, heartbeat 10 s.
+  // Not per-viewer, and not a place to invent legal URLs or a Beans rate (`C4-04`).
+  await app.register(configRoutes);
 
   // One catalogue store and one catalogue viewer resolver for the storefront and the feed. The feed
   // is assembled from the same records the drama pages serve, so a second store would let the two
