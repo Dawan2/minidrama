@@ -12,7 +12,7 @@ import { loadConfig } from '../../config.js';
 /**
  * C3-06, the next store after unlock receipts: a session issued, a process restart, the same
  * token still identifies the viewer. Unlock receipts already survive this bounce; the order
- * store and the webhook event store stay in memory.
+ * store stays in memory.
  */
 
 const dirs: string[] = [];

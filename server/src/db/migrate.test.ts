@@ -43,11 +43,18 @@ function tables(connection: SqliteDatabase): string[] {
 }
 
 describe('migrateUp / migrateDown', () => {
-  it('creates the unlocks and sessions tables on the way up', () => {
+  it('creates the unlocks, sessions, and webhook event tables on the way up', () => {
     const connection = memory();
 
-    expect(migrateUp(connection)).toEqual({ applied: ['0001_unlocks', '0002_sessions'] });
-    expect(tables(connection)).toEqual(['sessions', 'unlocks']);
+    expect(migrateUp(connection)).toEqual({
+      applied: ['0001_unlocks', '0002_sessions', '0003_webhook_events'],
+    });
+    expect(tables(connection)).toEqual([
+      'sessions',
+      'unlocks',
+      'webhook_events',
+      'webhook_idempotency_keys',
+    ]);
   });
 
   it('is a no-op the second time', () => {
@@ -57,11 +64,13 @@ describe('migrateUp / migrateDown', () => {
     expect(migrateUp(connection)).toEqual({ applied: [] });
   });
 
-  it('drops the sessions and unlocks tables on the way down', () => {
+  it('drops the webhook, sessions, and unlocks tables on the way down', () => {
     const connection = memory();
     migrateUp(connection);
 
-    expect(migrateDown(connection)).toEqual({ applied: ['0002_sessions', '0001_unlocks'] });
+    expect(migrateDown(connection)).toEqual({
+      applied: ['0003_webhook_events', '0002_sessions', '0001_unlocks'],
+    });
     expect(tables(connection)).toEqual([]);
   });
 
@@ -99,6 +108,15 @@ describe('migrateUp / migrateDown', () => {
         )
         .run(),
     ).toThrow(/no such table: sessions/i);
+    expect(() =>
+      connection
+        .prepare(
+          `INSERT INTO webhook_events (
+            id, source, raw_payload, headers, received_at_ms, verified, processed
+          ) VALUES ('evt_1', 'TIKTOK', x'7b7d', '{}', 0, 0, 0)`,
+        )
+        .run(),
+    ).toThrow(/no such table: webhook_events/i);
 
     migrateUp(connection);
     expect(insert().changes).toBe(1);
@@ -108,6 +126,20 @@ describe('migrateUp / migrateDown', () => {
           `INSERT INTO sessions (fingerprint, user_id, expires_at_ms, created_at_ms)
            VALUES ('fp', 'usr_1', 0, 0)`,
         )
+        .run().changes,
+    ).toBe(1);
+    expect(
+      connection
+        .prepare(
+          `INSERT INTO webhook_events (
+            id, source, raw_payload, headers, received_at_ms, verified, processed
+          ) VALUES ('evt_1', 'TIKTOK', x'7b7d', '{}', 0, 0, 0)`,
+        )
+        .run().changes,
+    ).toBe(1);
+    expect(
+      connection
+        .prepare(`INSERT INTO webhook_idempotency_keys (key) VALUES ('trade_order:to_1')`)
         .run().changes,
     ).toBe(1);
   });
@@ -130,7 +162,12 @@ describe('migrateUp / migrateDown', () => {
 
     const second = openSqlite(path);
     db = second;
-    expect(tables(second)).toEqual(['sessions', 'unlocks']);
+    expect(tables(second)).toEqual([
+      'sessions',
+      'unlocks',
+      'webhook_events',
+      'webhook_idempotency_keys',
+    ]);
     expect(migrateUp(second)).toEqual({ applied: [] });
   });
 });

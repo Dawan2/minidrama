@@ -19,6 +19,7 @@ import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
 import { databaseNotWiredMessage } from './db/database-url.js';
 import { openMigratedSqlite } from './db/migrate.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
+import { createSqliteWebhookEventStore } from './modules/platform-tiktok/sqlite-event-store.js';
 import { createMockIdentityPort } from './modules/identity/test-login.js';
 import { createSeedDramaDirectory } from './modules/search/dramas.js';
 import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
@@ -91,14 +92,20 @@ import type { LogDestination } from './core/logging.js';
 export interface AppDependencies {
   readonly platformCredentials?: PlatformCredentials;
   readonly signatureVerifier?: SignatureVerifier;
+  /**
+   * Inbound platform webhook events, stored before verification. Injected by tests that need to
+   * read the records back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same file
+   * as unlock receipts and sessions), and the in-memory skeleton otherwise; a postgres URL is
+   * refused rather than rewritten to a file.
+   */
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
   /**
    * Sessions. Injected by tests that need to mint one for a known user without going through a
    * platform exchange — which is the supported way to log in during a test, and needs no flag,
    * because it is reachable from a test process and from nowhere else. Uninjected, the default is
-   * SQLite when `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts), and the in-memory
-   * map otherwise.
+   * SQLite when `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts and webhook
+   * events), and the in-memory map otherwise.
    */
   readonly sessionStore?: SessionStore;
   /**
@@ -135,8 +142,8 @@ export interface AppDependencies {
   /**
    * The unlock records a verified payment writes — what a viewer owns. Injected by tests that need
    * to read the receipts back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same
-   * file as sessions), and the in-memory skeleton otherwise; a postgres URL is refused rather than
-   * rewritten to a file.
+   * file as sessions and webhook events), and the in-memory skeleton otherwise; a postgres URL is
+   * refused rather than rewritten to a file.
    */
   readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
@@ -253,8 +260,9 @@ export async function buildApp(
   // made here, once, for every module that asks what a viewer owns. It adds facts and decides
   // nothing: a facts port that refuses still refuses, which is what the default deployment does.
   //
-  // One sqlite file when DATABASE_URL asks for it: unlock receipts and sessions share the
-  // connection, so a process restart cannot keep one and drop the other by opening two files.
+  // One sqlite file when DATABASE_URL asks for it: unlock receipts, sessions, and webhook events
+  // share the connection, so a process restart cannot keep a receipt and drop the idempotency
+  // claim by opening two files.
   const durableDb = openSharedSqlite(app, config, dependencies);
   const unlockStore =
     dependencies.unlockStore ??
@@ -384,7 +392,11 @@ export async function buildApp(
 
   await app.register(platformTiktokRoutes, {
     signatureVerifier,
-    eventStore: dependencies.webhookEventStore ?? createInMemoryWebhookEventStore(),
+    eventStore:
+      dependencies.webhookEventStore ??
+      (durableDb === undefined
+        ? createInMemoryWebhookEventStore()
+        : createSqliteWebhookEventStore(durableDb)),
     clientKey: credentials.clientKey,
     // Fulfilment stays here, on the verified callback: it records the payment against the order and
     // then writes the unlock record the entitlement decision reads. Both stores go to the sink,
@@ -404,7 +416,11 @@ function openSharedSqlite(
   dependencies: AppDependencies,
 ): SqliteDatabase | undefined {
   if (config.database.kind !== 'sqlite') return undefined;
-  if (dependencies.unlockStore !== undefined && dependencies.sessionStore !== undefined) {
+  if (
+    dependencies.unlockStore !== undefined &&
+    dependencies.sessionStore !== undefined &&
+    dependencies.webhookEventStore !== undefined
+  ) {
     return undefined;
   }
 
@@ -413,6 +429,6 @@ function openSharedSqlite(
   app.addHook('onClose', async () => {
     db.close();
   });
-  app.log.info({ path }, 'unlock receipts and sessions persist in sqlite');
+  app.log.info({ path }, 'unlock receipts, sessions, and webhook events persist in sqlite');
   return db;
 }

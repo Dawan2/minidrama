@@ -41,8 +41,9 @@ export interface ServerConfig {
    */
   readonly testLoginEnabled: boolean;
   /**
-   * Where durable stores read and write. Unset is in-memory, `sqlite:<path>` is unlock receipts
-   * and sessions, and any other scheme is `unwired` so a postgres URL cannot silently become a file.
+   * Where durable stores read and write. Unset is in-memory, `sqlite:<path>` is unlock receipts,
+   * sessions, and webhook events, and any other scheme is `unwired` so a postgres URL cannot
+   * silently become a file.
    */
   readonly database: DatabaseConfig;
 }
