@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { openMigratedSqlite } from '../../db/migrate.js';
 import { SEED_LISTED_EPISODE_FLOOR, SEED_PUBLISHED_DRAMA_FLOOR } from './fixtures.js';
 import { SEED_CATALOG, createInMemoryCatalogStore, dramaSortKey } from './store.js';
+import { createSqliteCatalogStore } from './sqlite-catalog-store.js';
 import { isListed, positionEpisodes } from './numbering.js';
+import type { CatalogStore } from './store.js';
 import type { DramaRecord } from './types.js';
 
 function seedDrama(id: string): DramaRecord {
@@ -19,8 +22,6 @@ function listedEpisodesOf(drama: DramaRecord) {
     SEED_CATALOG.episodes.filter((episode) => episode.dramaId === drama.id),
   ).filter(isListed);
 }
-
-const store = createInMemoryCatalogStore();
 
 describe('the seed catalogue', () => {
   // A denormalised counter nobody reconciles is a counter that is eventually wrong, and this one is
@@ -124,153 +125,195 @@ describe('the seed catalogue', () => {
   });
 });
 
-describe('listDramas', () => {
-  it('serves published dramas most-played first for HOT', async () => {
-    const dramas = await store.listDramas({ sort: 'HOT' });
+/**
+ * Both implementations run the same suite. The in-memory scan is the default; sqlite is what
+ * `DATABASE_URL=sqlite:<path>` puts behind the interface. Filtering sqlite out of `describe.each`
+ * is how the durable path would ship untested.
+ */
 
-    expect(dramas.map((drama) => drama.id)).toEqual([
-      'drm_revenge_0001',
-      'drm_dynasty_0002',
-      'drm_sweet_0003',
-      'drm_suspense_0004',
-      'drm_comedy_0005',
-      'drm_family_0006',
-    ]);
+interface StoreHandle {
+  readonly store: CatalogStore;
+  close(): void;
+}
+
+const backends: ReadonlyArray<readonly [string, () => StoreHandle]> = [
+  ['in-memory', () => ({ store: createInMemoryCatalogStore(), close: () => undefined })],
+  [
+    'sqlite',
+    () => {
+      const db = openMigratedSqlite(':memory:');
+      return { store: createSqliteCatalogStore(db), close: () => db.close() };
+    },
+  ],
+];
+
+describe.each(backends)('CatalogStore (%s)', (_label, open) => {
+  const handles: StoreHandle[] = [];
+  let store!: CatalogStore;
+
+  beforeEach(() => {
+    const handle = open();
+    handles.push(handle);
+    store = handle.store;
   });
 
-  it('serves the same dramas most-recent first for NEW', async () => {
-    const dramas = await store.listDramas({ sort: 'NEW' });
-
-    expect(dramas.map((drama) => drama.id)).toEqual([
-      'drm_sweet_0003',
-      'drm_family_0006',
-      'drm_dynasty_0002',
-      'drm_revenge_0001',
-      'drm_suspense_0004',
-      'drm_comedy_0005',
-    ]);
-  });
-
-  // The delisted fixture outranks four published dramas on play count and the draft one is the
-  // newest record in the catalogue: if either leaked, it would leak at the top of the page.
-  it.each(['HOT', 'NEW'] as const)('excludes unpublished dramas from the %s list', async (sort) => {
-    const ids = (await store.listDramas({ sort })).map((drama) => drama.id);
-
-    expect(ids).not.toContain('drm_offline_0007');
-    expect(ids).not.toContain('drm_draft_0008');
-  });
-
-  it('filters by category and by tag', async () => {
-    const revenge = await store.listDramas({ sort: 'HOT', category: 'REVENGE' });
-    expect(revenge.map((drama) => drama.id)).toEqual(['drm_revenge_0001']);
-
-    const tagged = await store.listDramas({ sort: 'HOT', tag: 'revenge' });
-    expect(tagged.map((drama) => drama.id)).toEqual(['drm_revenge_0001', 'drm_dynasty_0002']);
-  });
-
-  it('returns an empty list for a filter nothing matches', async () => {
-    expect(await store.listDramas({ sort: 'HOT', tag: 'no-such-tag' })).toEqual([]);
-  });
-
-  it('orders by a sort key that agrees with the order it returns', async () => {
-    for (const sort of ['HOT', 'NEW'] as const) {
-      const dramas = await store.listDramas({ sort });
-      const keys = dramas.map((drama) => dramaSortKey(sort, drama));
-
-      expect(keys).toEqual([...keys].sort());
-      expect(new Set(keys).size).toBe(keys.length);
+  afterEach(() => {
+    while (handles.length > 0) {
+      handles.pop()?.close();
     }
   });
-});
 
-describe('listEpisodes', () => {
-  it('flattens seasons into one running order', async () => {
-    const episodes = await store.listEpisodes('drm_dynasty_0002');
+  describe('listDramas', () => {
+    it('serves published dramas most-played first for HOT', async () => {
+      const dramas = await store.listDramas({ sort: 'HOT' });
 
-    expect(episodes.map((entry) => [entry.episode.id, entry.globalEpisodeNumber] as const)).toEqual(
-      [
+      expect(dramas.map((drama) => drama.id)).toEqual([
+        'drm_revenge_0001',
+        'drm_dynasty_0002',
+        'drm_sweet_0003',
+        'drm_suspense_0004',
+        'drm_comedy_0005',
+        'drm_family_0006',
+      ]);
+    });
+
+    it('serves the same dramas most-recent first for NEW', async () => {
+      const dramas = await store.listDramas({ sort: 'NEW' });
+
+      expect(dramas.map((drama) => drama.id)).toEqual([
+        'drm_sweet_0003',
+        'drm_family_0006',
+        'drm_dynasty_0002',
+        'drm_revenge_0001',
+        'drm_suspense_0004',
+        'drm_comedy_0005',
+      ]);
+    });
+
+    // The delisted fixture outranks four published dramas on play count and the draft one is the
+    // newest record in the catalogue: if either leaked, it would leak at the top of the page.
+    it.each(['HOT', 'NEW'] as const)(
+      'excludes unpublished dramas from the %s list',
+      async (sort) => {
+        const ids = (await store.listDramas({ sort })).map((drama) => drama.id);
+
+        expect(ids).not.toContain('drm_offline_0007');
+        expect(ids).not.toContain('drm_draft_0008');
+      },
+    );
+
+    it('filters by category and by tag', async () => {
+      const revenge = await store.listDramas({ sort: 'HOT', category: 'REVENGE' });
+      expect(revenge.map((drama) => drama.id)).toEqual(['drm_revenge_0001']);
+
+      const tagged = await store.listDramas({ sort: 'HOT', tag: 'revenge' });
+      expect(tagged.map((drama) => drama.id)).toEqual(['drm_revenge_0001', 'drm_dynasty_0002']);
+    });
+
+    it('returns an empty list for a filter nothing matches', async () => {
+      expect(await store.listDramas({ sort: 'HOT', tag: 'no-such-tag' })).toEqual([]);
+    });
+
+    it('orders by a sort key that agrees with the order it returns', async () => {
+      for (const sort of ['HOT', 'NEW'] as const) {
+        const dramas = await store.listDramas({ sort });
+        const keys = dramas.map((drama) => dramaSortKey(sort, drama));
+
+        expect(keys).toEqual([...keys].sort());
+        expect(new Set(keys).size).toBe(keys.length);
+      }
+    });
+  });
+
+  describe('listEpisodes', () => {
+    it('flattens seasons into one running order', async () => {
+      const episodes = await store.listEpisodes('drm_dynasty_0002');
+
+      expect(
+        episodes.map((entry) => [entry.episode.id, entry.globalEpisodeNumber] as const),
+      ).toEqual([
         ['ep_dynasty_s1e01', 1],
         ['ep_dynasty_s1e02', 2],
         ['ep_dynasty_s1e03', 3],
         ['ep_dynasty_s2e01', 4],
         ['ep_dynasty_s2e02', 5],
         ['ep_dynasty_s2e03', 6],
-      ],
-    );
+      ]);
+    });
+
+    it('hides an offline season but keeps the numbers it used', async () => {
+      const episodes = await store.listEpisodes('drm_dynasty_0002');
+      const ids = episodes.map((entry) => entry.episode.id);
+
+      expect(ids).not.toContain('ep_dynasty_s3e01');
+      // Season 3 holds global numbers 7 and 8, so the visible list stops at 6 rather than renumbering.
+      expect(Math.max(...episodes.map((entry) => entry.globalEpisodeNumber))).toBe(6);
+    });
+
+    it('lists an offline episode and omits a draft one', async () => {
+      const ids = (await store.listEpisodes('drm_revenge_0001')).map((entry) => entry.episode.id);
+
+      expect(ids).toContain('ep_revenge_e07');
+      expect(ids).not.toContain('ep_revenge_e08');
+    });
+
+    it('answers with an empty list for a drama it does not have', async () => {
+      expect(await store.listEpisodes('drm_missing')).toEqual([]);
+    });
   });
 
-  it('hides an offline season but keeps the numbers it used', async () => {
-    const episodes = await store.listEpisodes('drm_dynasty_0002');
-    const ids = episodes.map((entry) => entry.episode.id);
+  describe('getDrama and getEpisode', () => {
+    it('returns unpublished records rather than hiding them from the caller', async () => {
+      // The route decides whether "draft" means 404 and "offline" means 410. The store's job is to
+      // report what exists; hiding it here would make the two indistinguishable.
+      expect((await store.getDrama('drm_draft_0008'))?.drama.status).toBe('DRAFT');
+      expect((await store.getDrama('drm_offline_0007'))?.drama.status).toBe('OFFLINE');
+    });
 
-    expect(ids).not.toContain('ep_dynasty_s3e01');
-    // Season 3 holds global numbers 7 and 8, so the visible list stops at 6 rather than renumbering.
-    expect(Math.max(...episodes.map((entry) => entry.globalEpisodeNumber))).toBe(6);
+    it('omits draft seasons from a drama it does return', async () => {
+      const found = await store.getDrama('drm_draft_0008');
+      expect(found?.seasons).toEqual([]);
+    });
+
+    it('returns an episode with the drama it belongs to and its position', async () => {
+      const found = await store.getEpisode('ep_dynasty_s2e01');
+
+      expect(found?.drama.id).toBe('drm_dynasty_0002');
+      expect(found?.positioned.globalEpisodeNumber).toBe(4);
+      expect(found?.positioned.episode.episodeNumber).toBe(1);
+      expect(found?.positioned.seasonNumber).toBe(2);
+    });
+
+    it('finds an episode inside an offline season, which the list does not show', async () => {
+      const found = await store.getEpisode('ep_dynasty_s3e01');
+      expect(found?.positioned.seasonStatus).toBe('OFFLINE');
+    });
+
+    it('does not index draft episodes at all', async () => {
+      expect(await store.getEpisode('ep_revenge_e08')).toBeUndefined();
+      expect(await store.getEpisode('ep_nonexistent')).toBeUndefined();
+    });
   });
 
-  it('lists an offline episode and omits a draft one', async () => {
-    const ids = (await store.listEpisodes('drm_revenge_0001')).map((entry) => entry.episode.id);
+  describe('getDramas', () => {
+    it('returns every requested record in one map, including unpublished ones', async () => {
+      const found = await store.getDramas([
+        'drm_revenge_0001',
+        'drm_offline_0007',
+        'drm_draft_0008',
+        'drm_missing',
+      ]);
 
-    expect(ids).toContain('ep_revenge_e07');
-    expect(ids).not.toContain('ep_revenge_e08');
-  });
+      expect([...found.keys()]).toEqual(['drm_revenge_0001', 'drm_offline_0007', 'drm_draft_0008']);
+      expect(found.get('drm_revenge_0001')?.status).toBe('PUBLISHED');
+      expect(found.get('drm_offline_0007')?.status).toBe('OFFLINE');
+      expect(found.get('drm_draft_0008')?.status).toBe('DRAFT');
+      expect(found.has('drm_missing')).toBe(false);
+    });
 
-  it('answers with an empty list for a drama it does not have', async () => {
-    expect(await store.listEpisodes('drm_missing')).toEqual([]);
-  });
-});
-
-describe('getDrama and getEpisode', () => {
-  it('returns unpublished records rather than hiding them from the caller', async () => {
-    // The route decides whether "draft" means 404 and "offline" means 410. The store's job is to
-    // report what exists; hiding it here would make the two indistinguishable.
-    expect((await store.getDrama('drm_draft_0008'))?.drama.status).toBe('DRAFT');
-    expect((await store.getDrama('drm_offline_0007'))?.drama.status).toBe('OFFLINE');
-  });
-
-  it('omits draft seasons from a drama it does return', async () => {
-    const found = await store.getDrama('drm_draft_0008');
-    expect(found?.seasons).toEqual([]);
-  });
-
-  it('returns an episode with the drama it belongs to and its position', async () => {
-    const found = await store.getEpisode('ep_dynasty_s2e01');
-
-    expect(found?.drama.id).toBe('drm_dynasty_0002');
-    expect(found?.positioned.globalEpisodeNumber).toBe(4);
-    expect(found?.positioned.episode.episodeNumber).toBe(1);
-    expect(found?.positioned.seasonNumber).toBe(2);
-  });
-
-  it('finds an episode inside an offline season, which the list does not show', async () => {
-    const found = await store.getEpisode('ep_dynasty_s3e01');
-    expect(found?.positioned.seasonStatus).toBe('OFFLINE');
-  });
-
-  it('does not index draft episodes at all', async () => {
-    expect(await store.getEpisode('ep_revenge_e08')).toBeUndefined();
-    expect(await store.getEpisode('ep_nonexistent')).toBeUndefined();
-  });
-});
-
-describe('getDramas', () => {
-  it('returns every requested record in one map, including unpublished ones', async () => {
-    const found = await store.getDramas([
-      'drm_revenge_0001',
-      'drm_offline_0007',
-      'drm_draft_0008',
-      'drm_missing',
-    ]);
-
-    expect([...found.keys()]).toEqual(['drm_revenge_0001', 'drm_offline_0007', 'drm_draft_0008']);
-    expect(found.get('drm_revenge_0001')?.status).toBe('PUBLISHED');
-    expect(found.get('drm_offline_0007')?.status).toBe('OFFLINE');
-    expect(found.get('drm_draft_0008')?.status).toBe('DRAFT');
-    expect(found.has('drm_missing')).toBe(false);
-  });
-
-  it('does not scan the catalogue when asked for nothing', async () => {
-    const found = await store.getDramas([]);
-    expect(found.size).toBe(0);
+    it('does not scan the catalogue when asked for nothing', async () => {
+      const found = await store.getDramas([]);
+      expect(found.size).toBe(0);
+    });
   });
 });

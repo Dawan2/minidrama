@@ -16,6 +16,12 @@ import type { DramaRecord, EpisodeRecord, PositionedEpisode, SeasonRecord } from
  * order a list comes back in, and what each episode's global number is. Ordering in particular is
  * a store concern because the sort key and the pagination cursor have to agree, and they only
  * agree if one component owns both.
+ *
+ * `DATABASE_URL=sqlite:<path>` puts three SQLite tables behind this same interface (the same
+ * file as unlock receipts, sessions, webhook events, coin unlock orders, watch progress, and
+ * favourites); a postgres URL is refused rather than rewritten to a file. The seed is written
+ * once, when the table is empty, so a bounce cannot revert an operator-loaded catalogue to the
+ * fixture.
  */
 
 export type DramaSort = 'HOT' | 'NEW';
@@ -86,7 +92,7 @@ export function dramaSortKey(sort: DramaSort, drama: DramaRecord): string {
   return `${primary}|${drama.id}`;
 }
 
-function compareDramas(sort: DramaSort, a: DramaRecord, b: DramaRecord): number {
+export function compareDramas(sort: DramaSort, a: DramaRecord, b: DramaRecord): number {
   const keyA = dramaSortKey(sort, a);
   const keyB = dramaSortKey(sort, b);
   return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;

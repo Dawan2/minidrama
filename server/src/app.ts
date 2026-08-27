@@ -9,6 +9,7 @@ import { createCatalogDramaSummaryLookup } from './modules/catalog/summary-looku
 import { createEmptyContinueWatchingSource } from './modules/discovery/feed.js';
 import { createGrantedUnlockFactsPort } from './modules/unlock/granted-facts.js';
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
+import { createSqliteCatalogStore } from './modules/catalog/sqlite-catalog-store.js';
 import { createInMemoryFavoritesStore } from './modules/search/favorites.js';
 import { createSqliteFavoritesStore } from './modules/search/sqlite-favorites-store.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
@@ -101,8 +102,9 @@ export interface AppDependencies {
   /**
    * Inbound platform webhook events, stored before verification. Injected by tests that need to
    * read the records back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same file
-   * as unlock receipts, sessions, coin unlock orders, watch progress, and favourites), and the
-   * in-memory skeleton otherwise; a postgres URL is refused rather than rewritten to a file.
+   * as unlock receipts, sessions, coin unlock orders, watch progress, favourites, and the
+   * catalogue), and the in-memory skeleton otherwise; a postgres URL is refused rather than
+   * rewritten to a file.
    */
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
@@ -117,7 +119,10 @@ export interface AppDependencies {
   /**
    * The storefront's content source, and how a catalogue request becomes a viewer. The resolver
    * defaults to the anonymous one, which owns no unlocks and no VIP, so an unwired deployment
-   * reports every paid episode as needing an unlock rather than giving it away.
+   * reports every paid episode as needing an unlock rather than giving it away. Uninjected, the
+   * default is SQLite when `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts,
+   * sessions, webhook events, coin unlock orders, watch progress, and favourites), and the
+   * in-memory seed otherwise; a postgres URL is refused rather than rewritten to a file.
    */
   readonly catalogStore?: CatalogStore;
   readonly catalogViewerResolver?: CatalogViewerResolver;
@@ -279,8 +284,8 @@ export async function buildApp(
   // nothing: a facts port that refuses still refuses, which is what the default deployment does.
   //
   // One sqlite file when DATABASE_URL asks for it: unlock receipts, sessions, webhook events,
-  // coin unlock orders, watch progress, and favourites share the connection, so a process restart
-  // cannot keep a receipt and drop a heart by opening two files.
+  // coin unlock orders, watch progress, favourites, and the catalogue share the connection, so a
+  // process restart cannot keep a receipt and drop the storefront by opening two files.
   const durableDb = openSharedSqlite(app, config, dependencies);
   const unlockStore =
     dependencies.unlockStore ??
@@ -323,7 +328,9 @@ export async function buildApp(
   // is assembled from the same records the drama pages serve, so a second store would let the two
   // disagree about what is published — and a second resolver would let the feed offer an episode
   // the drama page then refuses to play.
-  const catalogStore = dependencies.catalogStore ?? createInMemoryCatalogStore();
+  const catalogStore =
+    dependencies.catalogStore ??
+    (durableDb === undefined ? createInMemoryCatalogStore() : createSqliteCatalogStore(durableDb));
   const catalogViewerResolver =
     dependencies.catalogViewerResolver ?? createAnonymousViewerResolver();
   // One favourites store for the verbs, the list projection, and `DramaDetail.viewer.favorited`.
@@ -459,7 +466,8 @@ function openSharedSqlite(
     dependencies.webhookEventStore !== undefined &&
     dependencies.unlockOrderStore !== undefined &&
     dependencies.watchProgressStore !== undefined &&
-    dependencies.favoritesStore !== undefined
+    dependencies.favoritesStore !== undefined &&
+    dependencies.catalogStore !== undefined
   ) {
     return undefined;
   }
@@ -471,7 +479,7 @@ function openSharedSqlite(
   });
   app.log.info(
     { path },
-    'unlock receipts, sessions, webhook events, coin unlock orders, watch progress, and favourites persist in sqlite',
+    'unlock receipts, sessions, webhook events, coin unlock orders, watch progress, favourites, and the catalogue persist in sqlite',
   );
   return db;
 }
