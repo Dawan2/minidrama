@@ -177,7 +177,7 @@ export function listSourceFiles(root: string): string[] {
 
   while (stack.length > 0) {
     const dir = stack.pop() ?? '';
-    let entries: ReturnType<typeof readdirSync>;
+    let entries;
     try {
       entries = readdirSync(dir, { withFileTypes: true });
     } catch {
@@ -310,6 +310,11 @@ export function formatFinding(finding: SastFinding): string {
   return `${finding.checkId} ${finding.path}:${String(finding.line)} ${finding.severity}`;
 }
 
+function spawnErrorCode(error: Error): string | undefined {
+  if (!('code' in error) || typeof error.code !== 'string') return undefined;
+  return error.code;
+}
+
 function fail(message: string): SastCheckOutput {
   return { ok: false, exitCode: 1, stdout: '', stderr: `${message}\n` };
 }
@@ -352,7 +357,7 @@ export function runSastCheck(
     cwd: args.root,
   });
 
-  if (run.error !== undefined && (run.error.code === 'ENOENT' || run.status === null)) {
+  if (run.error !== undefined && (spawnErrorCode(run.error) === 'ENOENT' || run.status === null)) {
     return fail('semgrep is required: the binary is absent or not executable');
   }
 
