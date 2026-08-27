@@ -14,6 +14,8 @@ import { buildApp } from '../../app.js';
 import { createUnavailablePlaybackMediaPort } from './media-port.js';
 import { loadConfig } from '../../config.js';
 import type { CountingPlaybackMediaPort } from './fixtures.js';
+import type { WatchProgressRecord } from '../progress/progress.js';
+import type { WatchProgressStore } from '../progress/store.js';
 
 /**
  * `POST /v1/playback/sessions`, wired to the real entitlement decision.
@@ -219,8 +221,8 @@ describe('POST /v1/playback/sessions — ALLOWED issues a descriptor', () => {
     }
   });
 
-  it('starts at the beginning until watch progress owns the resume position', async () => {
-    expect((await playable('ep_fx_s1e01')).resumePositionSec).toBe(0);
+  it('starts at the beginning when the viewer has no stored progress', async () => {
+    expect((await playable('ep_fx_s1e01', 'usr_fx_newcomer')).resumePositionSec).toBe(0);
   });
 });
 
@@ -486,5 +488,137 @@ describe('the playback and entitlement modules answer from the same facts', () =
     const entitlementEpisodeIds = FIXTURE_WORLD.episodes.map((entry) => entry.episode.id);
 
     expect([...FIXTURE_MEDIA_EPISODE_IDS].sort()).toEqual([...entitlementEpisodeIds].sort());
+  });
+});
+
+function progressRecord(overrides: Partial<WatchProgressRecord> = {}): WatchProgressRecord {
+  return {
+    userId: 'usr_fx_newcomer',
+    episodeId: 'ep_fx_s1e01',
+    positionSec: 45,
+    durationSec: 96,
+    completed: false,
+    clientUpdatedAtMs: FIXTURE_NOW_MS,
+    updatedAtMs: FIXTURE_NOW_MS,
+    ...overrides,
+  };
+}
+
+function countingProgressStore(): WatchProgressStore & {
+  readonly reads: string[];
+  clear(): void;
+} {
+  const rows = new Map<string, WatchProgressRecord>();
+  const reads: string[] = [];
+
+  return {
+    reads,
+    clear() {
+      rows.clear();
+      reads.length = 0;
+    },
+    async read(userId, episodeId) {
+      reads.push(`${userId}\u0000${episodeId}`);
+      return rows.get(`${userId}\u0000${episodeId}`);
+    },
+    async save(record) {
+      rows.set(`${record.userId}\u0000${record.episodeId}`, record);
+    },
+    async list(userId, limit) {
+      if (limit <= 0) return [];
+      return [...rows.values()]
+        .filter((row) => row.userId === userId)
+        .sort((left, right) => right.updatedAtMs - left.updatedAtMs)
+        .slice(0, limit);
+    },
+  };
+}
+
+describe('POST /v1/playback/sessions — resumePositionSec comes from watch progress', () => {
+  let resumeApp: FastifyInstance;
+  let progress: ReturnType<typeof countingProgressStore>;
+  let resumeMedia: CountingPlaybackMediaPort;
+
+  beforeAll(async () => {
+    progress = countingProgressStore();
+    resumeMedia = createCountingPlaybackMediaPort();
+    resumeApp = await buildApp(
+      { ...loadConfig({}), logLevel: 'silent' },
+      {
+        entitlementFactsPort: createFixtureEntitlementFactsPort(),
+        viewerResolver: createFixtureViewerResolver(),
+        playbackMediaPort: {
+          resolveMedia: async (query) => resumeMedia.resolveMedia(query),
+        },
+        watchProgressStore: progress,
+        now: () => FIXTURE_NOW_MS,
+      },
+    );
+    await resumeApp.ready();
+  });
+
+  afterAll(async () => {
+    await resumeApp.close();
+  });
+
+  beforeEach(() => {
+    progress.clear();
+    resumeMedia = createCountingPlaybackMediaPort();
+  });
+
+  it('resumes from the heartbeat the same viewer wrote', async () => {
+    await progress.save(progressRecord({ positionSec: 45 }));
+
+    const response = await play('ep_fx_s1e01', 'usr_fx_newcomer', resumeApp);
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json<Descriptor>().resumePositionSec).toBe(45);
+  });
+
+  it("does not leak another viewer's position onto this session", async () => {
+    await progress.save(progressRecord({ userId: 'usr_fx_vip_active', positionSec: 80 }));
+
+    const response = await play('ep_fx_s1e01', 'usr_fx_newcomer', resumeApp);
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json<Descriptor>().resumePositionSec).toBe(0);
+  });
+
+  it('does not invent a restart when the stored row is marked completed', async () => {
+    await progress.save(progressRecord({ positionSec: 90, completed: true }));
+
+    const response = await play('ep_fx_s1e01', 'usr_fx_newcomer', resumeApp);
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json<Descriptor>().resumePositionSec).toBe(90);
+  });
+
+  it('drops a stored position that is not a non-negative integer rather than forwarding it', async () => {
+    await progress.save(progressRecord({ positionSec: -3 }));
+
+    const response = await play('ep_fx_s1e01', 'usr_fx_newcomer', resumeApp);
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json<Descriptor>().resumePositionSec).toBe(0);
+  });
+
+  it('starts an anonymous session at 0 and does not read the store', async () => {
+    await progress.save(progressRecord({ positionSec: 45 }));
+
+    const response = await play('ep_fx_s1e01', undefined, resumeApp);
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json<Descriptor>().resumePositionSec).toBe(0);
+    expect(progress.reads).toEqual([]);
+  });
+
+  it('never reads progress for an episode it is about to refuse', async () => {
+    await progress.save(progressRecord({ episodeId: 'ep_fx_s2e01', positionSec: 12 }));
+
+    const response = await play('ep_fx_s2e01', 'usr_fx_newcomer', resumeApp);
+
+    expect(response.statusCode).toBe(403);
+    expect(progress.reads).toEqual([]);
+    expect(resumeMedia.lookups).toEqual([]);
   });
 });

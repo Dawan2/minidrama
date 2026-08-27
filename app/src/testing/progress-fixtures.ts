@@ -1,5 +1,10 @@
 import { ok } from '@minidrama/shared';
-import type { DramaProgressItem, DramaProgressView, Result } from '@minidrama/shared';
+import type {
+  DramaProgressItem,
+  DramaProgressView,
+  Result,
+  WatchProgressReport,
+} from '@minidrama/shared';
 
 import type { ApiFailure } from '../data/failure';
 import type { ProgressApi } from '../data/progress-api';
@@ -37,22 +42,33 @@ export interface StubProgressApiScript {
     dramaId: string,
     callIndex: number,
   ) => Result<DramaProgressView, ApiFailure>;
+  readonly report?: (episodeId: string, report: WatchProgressReport) => Result<void, ApiFailure>;
 }
 
 export interface StubProgressApi extends ProgressApi {
   readonly dramaProgressCalls: readonly string[];
+  readonly progressReports: readonly {
+    readonly episodeId: string;
+    readonly report: WatchProgressReport;
+  }[];
 }
 
 export function stubProgressApi(script: StubProgressApiScript = {}): StubProgressApi {
   const dramaProgressCalls: string[] = [];
+  const progressReports: { episodeId: string; report: WatchProgressReport }[] = [];
   const dramaProgress = script.dramaProgress ?? ((_dramaId: string) => ok(dramaProgressView()));
 
   return {
     dramaProgressCalls,
+    progressReports,
     fetchDramaProgress: async (dramaId) => {
       const index = dramaProgressCalls.length;
       dramaProgressCalls.push(dramaId);
       return dramaProgress(dramaId, index);
+    },
+    reportEpisodeProgress: async (episodeId, report) => {
+      progressReports.push({ episodeId, report });
+      return script.report?.(episodeId, report) ?? ok(undefined);
     },
   };
 }
