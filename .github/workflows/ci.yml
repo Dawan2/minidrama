@@ -76,6 +76,11 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      # A committed .skip( / .only( / it.todo / empty it('…', () => {}) exits 1.
+      # There is no continue-on-error: a comment that forbids skips is not G1.10.
+      - name: G1.10 skip/empty tests
+        run: pnpm run check:skips
+
       - name: Test
         run: pnpm run test:coverage
 
