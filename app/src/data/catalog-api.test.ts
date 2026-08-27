@@ -10,9 +10,9 @@ import {
   page,
   viewerAccess,
 } from '../testing/catalog-fixtures';
-import type { HttpClient } from './http';
+import type { HttpClient, HttpReader } from './http';
 
-function httpStub(body: unknown): HttpClient {
+function httpStub(body: unknown): HttpReader {
   return { getJson: () => Promise.resolve(ok(body)) };
 }
 

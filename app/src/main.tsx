@@ -8,7 +8,9 @@ import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
 import { createHttpClient } from './data/http';
+import { createUnlockApi } from './data/unlock-api';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
+import { UnlockApiProvider } from './data/unlock-api-context';
 
 /**
  * Boot entry point.
@@ -44,12 +46,24 @@ async function boot(): Promise<void> {
    * because an environment variable is absent is a white screen, and the retryable error state is
    * a screen with a button on it.
    */
-  const api = createCatalogApi(
-    createHttpClient({
-      baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
-      fetch: (url, init) => fetch(url, init),
-    }),
-  );
+  const http = createHttpClient({
+    baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
+    fetch: (url, init) => fetch(url, init),
+  });
+
+  const api = createCatalogApi(http);
+
+  /**
+   * The unlock orders share the transport with the catalogue, deliberately: the timeout, the
+   * failure classification and — when session handling lands — the `Authorization` header all
+   * belong in one place. They do not share a client interface, because a coin order is a write
+   * against an account and the catalogue reads are anonymous.
+   *
+   * It is provided unconditionally rather than behind a capability check. Whether a purchase can
+   * be *made* is `bridge.canIUse('pay')`, asked per render at the surface that offers one; a
+   * missing provider here would only turn that question into a crash.
+   */
+  const unlockApi = createUnlockApi(http);
 
   document.documentElement.lang = DEFAULT_LOCALE;
   document.documentElement.dir = isRtl(DEFAULT_LOCALE) ? 'rtl' : 'ltr';
@@ -57,9 +71,11 @@ async function boot(): Promise<void> {
   createRoot(container).render(
     <StrictMode>
       <CatalogApiProvider api={api}>
-        <HashRouter>
-          <App bridge={bridge} />
-        </HashRouter>
+        <UnlockApiProvider api={unlockApi}>
+          <HashRouter>
+            <App bridge={bridge} />
+          </HashRouter>
+        </UnlockApiProvider>
       </CatalogApiProvider>
     </StrictMode>,
   );

@@ -366,3 +366,96 @@ a {
   width: 100%;
   height: 100%;
 }
+
+/* ---------------------------------------------------------- unlock panel */
+
+/*
+ * PNL-02 is an overlay, not a route: the IA's back rules (§6 B3) give a panel a history entry it
+ * synthesises, and none of that exists yet. Rendering it in place keeps the episode list underneath
+ * it, which is what makes the row update visible the moment the list is refetched.
+ */
+.unlock-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+/* A full-bleed dismiss target. It is a real button so it is reachable without a pointer. */
+.unlock-panel__scrim {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.6);
+  border: 0;
+}
+
+.unlock-panel__sheet {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  padding: 20px 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
+  background: var(--surface-raised);
+  border-radius: var(--radius) var(--radius) 0 0;
+  text-align: center;
+}
+
+.unlock-panel__title {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.unlock-panel__episode {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.unlock-panel__price {
+  margin: 0 0 16px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.unlock-panel__message {
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.unlock-panel__hint {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.unlock-panel__action {
+  display: inline-block;
+  width: 100%;
+  padding: 14px 20px;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.unlock-panel__action:disabled {
+  opacity: 0.5;
+}
+
+.unlock-panel__close {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+}
