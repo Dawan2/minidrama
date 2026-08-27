@@ -61,7 +61,7 @@ pnpm lint                # ESLint, including the platform-constraint rules
 pnpm typecheck           # strict TypeScript across all packages
 pnpm test                # Vitest across all packages
 pnpm build               # client bundle + server typecheck
-pnpm check:guardrails    # platform guardrails; run after build to include the bundle scan
+pnpm check:guardrails    # platform guardrails; requires the build — a missing app/dist fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 

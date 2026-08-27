@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:guardrails": "tsx tools/cli/check-guardrails.ts"
+    "check:guardrails": "tsx tools/cli/check-guardrails.ts --dist dist"
   },
   "dependencies": {
     "@minidrama/shared": "workspace:*",

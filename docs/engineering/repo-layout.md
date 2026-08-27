@@ -165,13 +165,18 @@ The four layers are not redundant; each covers a gap the previous one cannot see
 | Layer | Command | Catches | Blind to |
 |---|---|---|---|
 | ESLint | `pnpm lint` | Prohibited constructs in **our source**, at the AST level | Anything a dependency ships |
-| Bundle scan | `pnpm check:guardrails` after `build` | Prohibited constructs in the **emitted artifact**, including from dependencies | Source that was tree-shaken out but would return |
+| Bundle scan | `pnpm check:guardrails` after `build` (a missing artifact **fails**) | Prohibited constructs in the **emitted artifact**, including from dependencies | Source that was tree-shaken out but would return |
 | HTML integrity | same command | External scripts and stylesheets, forbidden elements in the document | Runtime injection |
 | Domain registry | `pnpm test` | Portal/bundle list drift, wildcards, paths, scheme, the 20-entry budget | Whether a domain is actually reachable |
 
-The layer split matters most for the bundle scan: it runs against `app/dist`, so it sees the file
-the platform's own code scanner would see. Finding a violation there costs a minute; finding it at
-upload costs a review cycle.
+The layer split matters most for the bundle scan: it runs against the artifact directory named by
+`--dist`, so it sees the file the platform's own code scanner would see. Finding a violation there
+costs a minute; finding it at upload costs a review cycle.
+
+The scan is fail-closed: a missing or empty artifact directory, or one without `index.html`, is
+reported as a violation and exits non-zero rather than being skipped. Absence of the artifact is
+absence of evidence of compliance, and there is no flag that lets it pass
+(`docs/plan/media-plane-decision.md` §5.3 item 1).
 
 **Verified behaviour, not aspiration.** Injecting `eval("1")` into a built chunk and an extra
 `<script src="https://cdn.example.com/x.js">` into `dist/index.html` makes
@@ -195,7 +200,7 @@ pnpm test                 # every package
 pnpm lint
 pnpm typecheck
 pnpm build
-pnpm check:guardrails     # run after build for the bundle scan to have something to scan
+pnpm check:guardrails     # requires the build first; a missing app/dist fails the check
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 

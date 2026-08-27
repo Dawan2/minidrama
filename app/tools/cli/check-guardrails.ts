@@ -1,65 +1,78 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isScannableBundleFile, scanBundleText } from '../bundle-scan.js';
-import { checkIndexHtml } from '../html-integrity.js';
-import { checkSourceTree } from '../source-rules.js';
+import { formatViolation, runGuardrailSuite } from '../guardrail-suite.js';
 
 /**
- * Runs every platform guardrail that needs real files rather than an AST, and exits non-zero on
- * any violation. Wired into CI after `build`; the unit tests cover the same rules on fixtures.
+ * Runs every platform guardrail that needs real files rather than an AST, and exits non-zero on any
+ * violation. Wired into CI after `build`; the unit tests cover the same rules on fixtures.
+ *
+ * The artifact directory is a required argument rather than a path derived from this file's
+ * location. Naming it makes the check survive a repository layout change instead of quietly
+ * scanning nothing, and there is deliberately no flag that lets a missing artifact pass.
  */
 
-const appRoot = fileURLToPath(new URL('../../', import.meta.url));
-const distDir = join(appRoot, 'dist');
+const USAGE = 'usage: check-guardrails --dist <artifact-dir> [--app-root <dir>]';
 
-const failures: string[] = [];
-
-for (const violation of checkSourceTree(appRoot)) {
-  failures.push(
-    `source  ${violation.file}:${String(violation.line)}  ${violation.rule}  — ${violation.evidence}`,
-  );
+interface ParsedArgs {
+  readonly distDir: string;
+  readonly appRoot: string;
 }
 
-for (const violation of checkIndexHtml(readFileSync(join(appRoot, 'index.html'), 'utf8'))) {
-  failures.push(`html    index.html  ${violation.rule}  — ${violation.evidence}`);
-}
+type ParseResult =
+  | { readonly ok: true; readonly args: ParsedArgs }
+  | { readonly ok: false; readonly message: string };
 
-if (existsSync(distDir)) {
-  for (const file of listFiles(distDir)) {
-    if (!isScannableBundleFile(file)) {
-      continue;
+function parseArgs(argv: readonly string[], cwd: string, defaultAppRoot: string): ParseResult {
+  let distDir: string | undefined;
+  let appRoot = defaultAppRoot;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const flag = argv[index] ?? '';
+    if (flag !== '--dist' && flag !== '--app-root') {
+      return { ok: false, message: `unknown argument: ${flag}` };
     }
-    const relativePath = relative(appRoot, file);
-    for (const violation of scanBundleText(relativePath, readFileSync(file, 'utf8'))) {
-      failures.push(`bundle  ${violation.file}  ${violation.rule}  — ${violation.evidence}`);
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith('--')) {
+      return { ok: false, message: `${flag} requires a directory` };
     }
+    if (flag === '--dist') {
+      distDir = resolve(cwd, value);
+    } else {
+      appRoot = resolve(cwd, value);
+    }
+    index += 1;
   }
-  // The built document is what ships; the source document is only its template.
-  const builtHtml = join(distDir, 'index.html');
-  if (existsSync(builtHtml)) {
-    for (const violation of checkIndexHtml(readFileSync(builtHtml, 'utf8'))) {
-      failures.push(`bundle  dist/index.html  ${violation.rule}  — ${violation.evidence}`);
-    }
+
+  if (distDir === undefined) {
+    return {
+      ok: false,
+      message: '--dist is required: the artifact directory is named, not guessed',
+    };
   }
-} else {
-  process.stdout.write('note: app/dist is absent, skipping the bundle scan — run build first\n');
+
+  return { ok: true, args: { distDir, appRoot } };
 }
 
-if (failures.length > 0) {
-  process.stderr.write(`platform guardrails failed (${String(failures.length)}):\n`);
-  for (const failure of failures) {
-    process.stderr.write(`  ${failure}\n`);
+const parsed = parseArgs(
+  process.argv.slice(2),
+  process.cwd(),
+  fileURLToPath(new URL('../../', import.meta.url)),
+);
+
+if (!parsed.ok) {
+  process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+  process.exit(2);
+}
+
+const violations = runGuardrailSuite(parsed.args);
+
+if (violations.length > 0) {
+  process.stderr.write(`platform guardrails failed (${String(violations.length)}):\n`);
+  for (const violation of violations) {
+    process.stderr.write(`  ${formatViolation(violation)}\n`);
   }
   process.exit(1);
 }
 
-process.stdout.write('platform guardrails passed\n');
-
-function listFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const full = join(dir, entry);
-    return statSync(full).isDirectory() ? listFiles(full) : [full];
-  });
-}
+process.stdout.write(`platform guardrails passed (artifact: ${parsed.args.distDir})\n`);
