@@ -171,7 +171,12 @@ export function runCoverageCheck(args: CoverageCheckArgs): CoverageCheckOutput {
     const previous = loadPrevious(args.previousPath) ?? loadPreviousFromGit(args.root, args.base);
     const files = loadCoverageReports(args.root, args.reports);
     const diff = loadDiff(args.root, args.diffPath, args.base);
-    const result = evaluateCoverage({ files, floors, diff, previous });
+    const result = evaluateCoverage({
+      files,
+      floors,
+      diff,
+      ...(previous === undefined ? {} : { previous }),
+    });
 
     const stdout =
       `coverage global lines ${result.global.lines.pct.toFixed(2)}% ` +
