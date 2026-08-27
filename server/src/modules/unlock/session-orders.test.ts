@@ -139,6 +139,10 @@ function errorCode(response: LightMyRequestResponse): string {
   return response.json<{ error: { code: string } }>().error.code;
 }
 
+function errorDetails(response: LightMyRequestResponse): Record<string, unknown> | undefined {
+  return response.json<{ error: { details?: Record<string, unknown> } }>().error.details;
+}
+
 /** Opens an order for a session, failing loudly rather than asserting on a refusal by accident. */
 async function openOrder(token: string, episodeId = COIN_OR_VIP_EPISODE): Promise<OrderBody> {
   const response = await createOrder(episodeId, { token });
@@ -296,6 +300,22 @@ describe('a session this server did not issue buys nothing', () => {
     sessionStore.revoke(token);
 
     await expectRefused(await createOrder(COIN_OR_VIP_EPISODE, { token }));
+  });
+
+  // Every refusal above is the same `401 AUTH_REQUIRED`, deliberately: the client's remedy is silent
+  // login either way, and telling a caller which of their tokens exists would make the endpoint an
+  // oracle. That sameness is also why a resolver that quietly read an unreadable token as "anonymous"
+  // would be invisible here — every assertion above passes either way, because an anonymous caller
+  // is refused too. This is the one place the two are distinguishable: a request that offered no
+  // credential is told to sign in *for the episode it named*, and a credential we could not read is
+  // refused on its own terms, with nothing about the purchase attached.
+  it('does not report a refused credential as an absent one', async () => {
+    const anonymous = await createOrder(COIN_OR_VIP_EPISODE);
+    const refused = await createOrder(COIN_OR_VIP_EPISODE, { token: 'not-a-session-we-issued' });
+
+    expect(errorCode(anonymous)).toBe(errorCode(refused));
+    expect(errorDetails(anonymous)).toEqual({ episodeId: COIN_OR_VIP_EPISODE });
+    expect(errorDetails(refused)).toBeUndefined();
   });
 
   // A `404` here would say the order is gone. It is not: the caller is, and the remedy is silent
