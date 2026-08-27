@@ -186,6 +186,7 @@ describe('contracts/openapi.yaml', () => {
         { method: 'get', path: '/v1/dramas/{dramaId}/favorite' },
         { method: 'put', path: '/v1/dramas/{dramaId}/favorite' },
         { method: 'delete', path: '/v1/dramas/{dramaId}/favorite' },
+        { method: 'get', path: '/v1/users/me/favorites' },
         { method: 'post', path: '/v1/payments/callbacks/tiktok' },
         { method: 'post', path: '/v1/unlock/coin-orders' },
         { method: 'get', path: '/v1/unlock/coin-orders/{orderId}' },
