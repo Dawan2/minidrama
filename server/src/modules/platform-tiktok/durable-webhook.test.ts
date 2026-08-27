@@ -14,7 +14,7 @@ import { createPlatformCredentials } from './credentials.js';
 /**
  * C3-06, the next store after sessions: a verified webhook, a process restart, the same
  * delivery still flagged as a duplicate. Unlock receipts and sessions already survive this
- * bounce on the same file. The order store stays in memory.
+ * bounce on the same file. Coin unlock orders now share that file too.
  */
 
 const SECRET = 'client-secret-for-tests';

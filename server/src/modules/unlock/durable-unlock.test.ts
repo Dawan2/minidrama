@@ -22,8 +22,8 @@ import { createPlatformCredentials } from '../platform-tiktok/credentials.js';
 
 /**
  * C3-06 acceptance item 4, for the one store this slice durably implements: an unlock granted, a
- * process restart, the episode still playable. The order store stays in memory, so it is new
- * after restart — the receipt is not, and playback reads the receipt.
+ * process restart, the episode still playable. The order store now shares the same file, so a
+ * pending order would survive too; this test reads the receipt, which is what playback asks.
  */
 
 const SECRET = 'client-secret-for-tests';
