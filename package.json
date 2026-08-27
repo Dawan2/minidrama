@@ -16,11 +16,14 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r --parallel run typecheck",
     "test": "pnpm -r run test",
+    "test:coverage": "pnpm -r run test:coverage",
     "build": "pnpm -r run build",
     "gen:minis-config": "pnpm --filter @minidrama/config run gen:minis-config",
     "check:guardrails": "pnpm --filter @minidrama/app run check:guardrails",
     "check:licenses": "pnpm --filter @minidrama/quality run check:licenses",
-    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:guardrails"
+    "check:coverage": "pnpm --filter @minidrama/quality run check:coverage",
+    "check:migrate": "pnpm --filter @minidrama/server run check:migrate",
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

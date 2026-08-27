@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "check:guardrails": "tsx tools/cli/check-guardrails.ts --dist dist"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
     "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.39.1",
     "jsdom": "^27.0.0",
     "tsx": "^4.20.6",

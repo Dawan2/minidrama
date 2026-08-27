@@ -2,6 +2,7 @@
 
 > Wave 1 · 工作槽 W1B。本文档定义面向客户端（App/H5）的 REST/JSON 契约。
 > 领域语义见 `docs/12-domain-model.md`；错误码见 `docs/12-error-catalog.md`。
+> 与现行 `contracts/openapi.yaml` 的端点对照见 `docs/12-api-parity.md`。
 
 ## 1. 契约地位
 
@@ -43,8 +44,10 @@
 
 以下写操作**必须**携带请求头 `Idempotency-Key: <uuid>`（同一操作重试时复用同一键）：
 
-- `POST /episodes/{id}/unlock`、`POST /dramas/{id}/unlock`
+- `POST /episodes/{episodeId}/unlock`、`POST /dramas/{dramaId}/unlock`
 - `POST /wallet/recharge-orders`
+
+参数名与 §4.5 一致（`{episodeId}` / `{dramaId}`）。与现行 OpenAPI 的对照见 `docs/12-api-parity.md`（D-07 / D-11）。现行解锁写路径是 `POST /v1/unlock/coin-orders`，不是把 `{id}` 再写一遍。
 
 服务端对相同键在 24h 内返回首次执行的结果（含首次的错误结果）；键冲突但请求体不同时返回 `COMMON_IDEMPOTENCY_CONFLICT`。
 
