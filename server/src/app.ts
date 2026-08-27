@@ -10,6 +10,7 @@ import { createEmptyContinueWatchingSource } from './modules/discovery/feed.js';
 import { createGrantedUnlockFactsPort } from './modules/unlock/granted-facts.js';
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
 import { createInMemoryFavoritesStore } from './modules/search/favorites.js';
+import { createSqliteFavoritesStore } from './modules/search/sqlite-favorites-store.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createSqliteSessionStore } from './modules/identity/sqlite-session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
@@ -99,8 +100,8 @@ export interface AppDependencies {
   /**
    * Inbound platform webhook events, stored before verification. Injected by tests that need to
    * read the records back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same file
-   * as unlock receipts, sessions, and watch progress), and the in-memory skeleton otherwise; a
-   * postgres URL is refused rather than rewritten to a file.
+   * as unlock receipts, sessions, watch progress, and favourites), and the in-memory skeleton
+   * otherwise; a postgres URL is refused rather than rewritten to a file.
    */
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
@@ -109,7 +110,7 @@ export interface AppDependencies {
    * platform exchange — which is the supported way to log in during a test, and needs no flag,
    * because it is reachable from a test process and from nowhere else. Uninjected, the default is
    * SQLite when `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts, webhook events,
-   * and watch progress), and the in-memory map otherwise.
+   * watch progress, and favourites), and the in-memory map otherwise.
    */
   readonly sessionStore?: SessionStore;
   /**
@@ -146,8 +147,8 @@ export interface AppDependencies {
   /**
    * The unlock records a verified payment writes — what a viewer owns. Injected by tests that need
    * to read the receipts back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same
-   * file as sessions, webhook events, and watch progress), and the in-memory skeleton otherwise; a
-   * postgres URL is refused rather than rewritten to a file.
+   * file as sessions, webhook events, watch progress, and favourites), and the in-memory skeleton
+   * otherwise; a postgres URL is refused rather than rewritten to a file.
    */
   readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
@@ -159,10 +160,11 @@ export interface AppDependencies {
   readonly walletBalancePort?: WalletBalancePort;
   /**
    * Watch progress. Injected by tests that need to seed rows. The default is SQLite when
-   * `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts, sessions, and webhook events),
-   * and the in-memory skeleton otherwise; a postgres URL is refused rather than rewritten to a
-   * file. The catalogue port defaults to refusing: a history row needs a drama the `catalog`
-   * module owns, and inventing one would tell a viewer they had watched something they had not.
+   * `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts, sessions, webhook events, and
+   * favourites), and the in-memory skeleton otherwise; a postgres URL is refused rather than
+   * rewritten to a file. The catalogue port defaults to refusing: a history row needs a drama the
+   * `catalog` module owns, and inventing one would tell a viewer they had watched something they had
+   * not.
    */
   readonly watchProgressStore?: WatchProgressStore;
   readonly watchHistoryCatalogPort?: WatchHistoryCatalogPort;
@@ -173,10 +175,12 @@ export interface AppDependencies {
    */
   readonly dramaProgressCatalogPort?: DramaProgressCatalogPort;
   /**
-   * Search and favourites. The favourites store defaults to the in-memory skeleton; the drama
-   * directory the two read defaults to a seed, and `modules/search/dramas.ts` explains why it is a
-   * port rather than a second catalogue — the catalogue module owns the records, and wiring these
-   * two together is a follow-up rather than an integration decision.
+   * Search and favourites. The favourites store defaults to SQLite when `DATABASE_URL=sqlite:<path>`
+   * (the same file as unlock receipts, sessions, webhook events, and watch progress), and the
+   * in-memory skeleton otherwise; a postgres URL is refused rather than rewritten to a file. The
+   * drama directory the two read defaults to a seed, and `modules/search/dramas.ts` explains why it
+   * is a port rather than a second catalogue — the catalogue module owns the records, and wiring
+   * these two together is a follow-up rather than an integration decision.
    */
   readonly favoritesStore?: FavoritesStore;
   readonly dramaDirectory?: DramaDirectory;
@@ -272,8 +276,8 @@ export async function buildApp(
   // nothing: a facts port that refuses still refuses, which is what the default deployment does.
   //
   // One sqlite file when DATABASE_URL asks for it: unlock receipts, sessions, webhook events,
-  // and watch progress share the connection, so a process restart cannot keep a receipt and drop
-  // a completed mark by opening two files.
+  // watch progress, and favourites share the connection, so a process restart cannot keep a
+  // receipt and drop a heart by opening two files.
   const durableDb = openSharedSqlite(app, config, dependencies);
   const unlockStore =
     dependencies.unlockStore ??
@@ -321,7 +325,11 @@ export async function buildApp(
     dependencies.catalogViewerResolver ?? createAnonymousViewerResolver();
   // One favourites store for the verbs, the list projection, and `DramaDetail.viewer.favorited`.
   // Two stores would let the heart on the drama page disagree with the favourites screen.
-  const favoritesStore = dependencies.favoritesStore ?? createInMemoryFavoritesStore();
+  const favoritesStore =
+    dependencies.favoritesStore ??
+    (durableDb === undefined
+      ? createInMemoryFavoritesStore()
+      : createSqliteFavoritesStore(durableDb));
 
   await app.register(catalogRoutes, {
     store: catalogStore,
@@ -442,7 +450,8 @@ function openSharedSqlite(
     dependencies.unlockStore !== undefined &&
     dependencies.sessionStore !== undefined &&
     dependencies.webhookEventStore !== undefined &&
-    dependencies.watchProgressStore !== undefined
+    dependencies.watchProgressStore !== undefined &&
+    dependencies.favoritesStore !== undefined
   ) {
     return undefined;
   }
@@ -454,7 +463,7 @@ function openSharedSqlite(
   });
   app.log.info(
     { path },
-    'unlock receipts, sessions, webhook events, and watch progress persist in sqlite',
+    'unlock receipts, sessions, webhook events, watch progress, and favourites persist in sqlite',
   );
   return db;
 }

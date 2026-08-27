@@ -6,8 +6,8 @@
  * file — that would be serving sqlite behind a postgres connection string, which is how a later
  * slot thinks the data layer is done. Unset keeps the in-memory stores so tests and an unconfigured
  * process behave as they do today. Redis is T15 and is not read at all. The sqlite file currently
- * holds unlock receipts, sessions, webhook events, and watch progress; the other stores stay in
- * memory.
+ * holds unlock receipts, sessions, webhook events, watch progress, and favourites; the other stores
+ * stay in memory.
  */
 
 export type DatabaseConfig =

@@ -43,13 +43,20 @@ function tables(connection: SqliteDatabase): string[] {
 }
 
 describe('migrateUp / migrateDown', () => {
-  it('creates the unlocks, sessions, webhook event, and watch-progress tables on the way up', () => {
+  it('creates the unlocks, sessions, webhook event, watch-progress, and favorites tables on the way up', () => {
     const connection = memory();
 
     expect(migrateUp(connection)).toEqual({
-      applied: ['0001_unlocks', '0002_sessions', '0003_webhook_events', '0005_watch_progress'],
+      applied: [
+        '0001_unlocks',
+        '0002_sessions',
+        '0003_webhook_events',
+        '0005_watch_progress',
+        '0006_favorites',
+      ],
     });
     expect(tables(connection)).toEqual([
+      'favorite',
       'sessions',
       'unlocks',
       'watch_progress',
@@ -65,12 +72,18 @@ describe('migrateUp / migrateDown', () => {
     expect(migrateUp(connection)).toEqual({ applied: [] });
   });
 
-  it('drops the watch-progress, webhook, sessions, and unlocks tables on the way down', () => {
+  it('drops the favorites, watch-progress, webhook, sessions, and unlocks tables on the way down', () => {
     const connection = memory();
     migrateUp(connection);
 
     expect(migrateDown(connection)).toEqual({
-      applied: ['0005_watch_progress', '0003_webhook_events', '0002_sessions', '0001_unlocks'],
+      applied: [
+        '0006_favorites',
+        '0005_watch_progress',
+        '0003_webhook_events',
+        '0002_sessions',
+        '0001_unlocks',
+      ],
     });
     expect(tables(connection)).toEqual([]);
   });
@@ -128,6 +141,13 @@ describe('migrateUp / migrateDown', () => {
         )
         .run(),
     ).toThrow(/no such table: watch_progress/i);
+    expect(() =>
+      connection
+        .prepare(
+          `INSERT INTO favorite (user_id, drama_id, created_at_ms) VALUES ('usr_1', 'drm_1', 0)`,
+        )
+        .run(),
+    ).toThrow(/no such table: favorite/i);
 
     migrateUp(connection);
     expect(insert().changes).toBe(1);
@@ -163,6 +183,13 @@ describe('migrateUp / migrateDown', () => {
         )
         .run().changes,
     ).toBe(1);
+    expect(
+      connection
+        .prepare(
+          `INSERT INTO favorite (user_id, drama_id, created_at_ms) VALUES ('usr_1', 'drm_1', 0)`,
+        )
+        .run().changes,
+    ).toBe(1);
   });
 
   it('refuses an up file that has no matching down file', () => {
@@ -184,6 +211,7 @@ describe('migrateUp / migrateDown', () => {
     const second = openSqlite(path);
     db = second;
     expect(tables(second)).toEqual([
+      'favorite',
       'sessions',
       'unlocks',
       'watch_progress',
