@@ -1,11 +1,12 @@
 # W16 — playback-ux3: drama-detail continue CTA (PRG-002 remainder)
 
 > **Slot:** W16, work slot. One playback-experience slice, no pull request.
-> **Branch:** `cursor/w16-work-playback-ux3-72c4`, cut from `origin/main` at **`33f347b`**
-> ("Merge cursor/w16-plan-cycle-5-7348: C5 backlog ranks D-17 first, G2.3 is on main, and 播放体验 stays 0/3").
+> **Branch:** `cursor/w16-work-playback-ux3-72c4`, cut from `origin/main` at **`33f347b`**,
+> merged forward onto **`0cb0504`** (playback-ux swipe+autoplay and playback-ux2 cross-end both
+> landed while this slot ran; merge was clean — no overlap with `DramaPage`).
 > **Item:** the **third** unblocked protocol-C4 remainder after two W16 siblings:
-> 1. `bc-2fd6c885` / `cursor/w16-work-playback-ux-72c4` — PLY-010 swipe + autoplay-on-ended
-> 2. `bc-3c74c2c9` / `cursor/w16-work-playback-ux2-72c4` — PRG-001 cross-end conflict
+> 1. `bc-2fd6c885` / `cursor/w16-work-playback-ux-72c4` — PLY-010 swipe + autoplay-on-ended (**landed**)
+> 2. `bc-3c74c2c9` / `cursor/w16-work-playback-ux2-72c4` — PRG-001 cross-end conflict (**landed**)
 > 3. **this slot** — PRG-002 remainder: SCR-04 Continue watching from `lastWatched`
 > **Not in scope:** D-17 billing, G2.3, HOME `continue-rail` (`HomePage.tsx` / `home-feed.ts`),
 > PlayerSurface / PlayPage / player-facade / episode-swipe / progress-heartbeat / advance-gate /
@@ -90,25 +91,31 @@ Continue href is `/play/ep_test_0007`. Matching `position`, `42`, or `startTime`
 
 | # | Conflict | Owner | Recommendation |
 |---|---|---|---|
-| Sibling files | `PlayerSurface`, `PlayPage`, `player-facade`, `episode-swipe`, `progress-heartbeat`, `advance-gate`, `app.css` | `bc-2fd6c885`, `bc-3c74c2c9` | Left untouched. Integrator merges those branches independently |
+| Sibling files | `PlayerSurface`, `PlayPage`, `player-facade`, `episode-swipe`, `progress-heartbeat`, `advance-gate`, `app.css` | `bc-2fd6c885`, `bc-3c74c2c9` | Left untouched. Both siblings **landed** on `main` at `0cb0504` while this slot ran. Merge of that tree into this branch was clean |
 | X-26 | 倍速 0.75 vs PNL-05 1.0 ladder | P1 / P2 | Not picked. No playbackRate constant |
 | Catalogue `viewer.lastWatched` still always null | Slot B, if progress is ever folded into `GET /v1/dramas/{id}` | Do not treat that fold as this CTA; the progress batch is the live source |
 
 ---
 
-## 5. Blockers / not done
+## 5. Verify
+
+`pnpm verify` on this branch before the sibling merge-forward: format, lint, typecheck, coverage, build, guardrails green. App 1,146 tests (includes the 9 continue-cta tests and 7 new DramaPage cases). Coverage gate: global lines 94.08%, diff lines 100.00% (35/35). Re-run after merging `0cb0504`.
+
+---
+
+## 6. Blockers / not done
 
 - Protocol-C4 exits still 0/3. This is not the interaction sheet, not the two-device case, not a11y.
-- PLY-010 tap pause/resume, double-tap favourite, scrub, 倍速: blocked by sibling file ownership.
-- PLY-012 token re-issue: would need PlayPage / facade.
+- PLY-010 tap pause/resume, double-tap favourite, scrub, 倍速: not this slice. Player files were sibling-owned at pick; they are now on `main`.
+- PLY-012 token re-issue: still open.
 - Catalogue still returns `lastWatched: null` on the detail payload. Not folded here.
 - D-17: GitHub still cannot start jobs. Local `pnpm verify` is not R6.
 - No BytePlus vid, no `postgres:` rewrite, no `#/vip`.
 
 ---
 
-## 6. For the next slot
+## 7. For the next slot
 
-Tap pause/resume is the first remaining PLY-010 row, but `PlayerSurface` / `PlayPage` are owned
-until those siblings land. Do not start a twin of swipe or of the cross-end heartbeat hold.
-Do not retake `HomePage.tsx` / `home-feed.ts`.
+Tap pause/resume is the first remaining PLY-010 row. Player files are on `main` as of `0cb0504`.
+Do not retake swipe, autoplay-on-ended, cross-end heartbeats, HOME `continue-rail`, or this
+drama-detail CTA.
