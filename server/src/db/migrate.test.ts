@@ -43,7 +43,7 @@ function tables(connection: SqliteDatabase): string[] {
 }
 
 describe('migrateUp / migrateDown', () => {
-  it('creates the unlocks, sessions, webhook event, watch-progress, and favorites tables on the way up', () => {
+  it('creates the unlocks, sessions, webhook event, unlock order, watch-progress, and favorites tables on the way up', () => {
     const connection = memory();
 
     expect(migrateUp(connection)).toEqual({
@@ -51,6 +51,7 @@ describe('migrateUp / migrateDown', () => {
         '0001_unlocks',
         '0002_sessions',
         '0003_webhook_events',
+        '0004_unlock_orders',
         '0005_watch_progress',
         '0006_favorites',
       ],
@@ -58,6 +59,7 @@ describe('migrateUp / migrateDown', () => {
     expect(tables(connection)).toEqual([
       'favorite',
       'sessions',
+      'unlock_orders',
       'unlocks',
       'watch_progress',
       'webhook_events',
@@ -72,7 +74,7 @@ describe('migrateUp / migrateDown', () => {
     expect(migrateUp(connection)).toEqual({ applied: [] });
   });
 
-  it('drops the favorites, watch-progress, webhook, sessions, and unlocks tables on the way down', () => {
+  it('drops the favorites, watch-progress, unlock order, webhook, sessions, and unlocks tables on the way down', () => {
     const connection = memory();
     migrateUp(connection);
 
@@ -80,6 +82,7 @@ describe('migrateUp / migrateDown', () => {
       applied: [
         '0006_favorites',
         '0005_watch_progress',
+        '0004_unlock_orders',
         '0003_webhook_events',
         '0002_sessions',
         '0001_unlocks',
@@ -134,6 +137,16 @@ describe('migrateUp / migrateDown', () => {
     expect(() =>
       connection
         .prepare(
+          `INSERT INTO unlock_orders (
+            id, user_id, episode_id, drama_id, price_coins, trade_order_id, idempotency_key,
+            status, created_at_ms
+          ) VALUES ('uord_1', 'usr_1', 'ep_1', 'drm_1', 300, 'tto_1', 'key-1', 'PENDING', 0)`,
+        )
+        .run(),
+    ).toThrow(/no such table: unlock_orders/i);
+    expect(() =>
+      connection
+        .prepare(
           `INSERT INTO watch_progress (
             user_id, episode_id, position_sec, duration_sec, completed,
             client_updated_at_ms, updated_at_ms
@@ -176,6 +189,16 @@ describe('migrateUp / migrateDown', () => {
     expect(
       connection
         .prepare(
+          `INSERT INTO unlock_orders (
+            id, user_id, episode_id, drama_id, price_coins, trade_order_id, idempotency_key,
+            status, created_at_ms
+          ) VALUES ('uord_1', 'usr_1', 'ep_1', 'drm_1', 300, 'tto_1', 'key-1', 'PENDING', 0)`,
+        )
+        .run().changes,
+    ).toBe(1);
+    expect(
+      connection
+        .prepare(
           `INSERT INTO watch_progress (
             user_id, episode_id, position_sec, duration_sec, completed,
             client_updated_at_ms, updated_at_ms
@@ -213,6 +236,7 @@ describe('migrateUp / migrateDown', () => {
     expect(tables(second)).toEqual([
       'favorite',
       'sessions',
+      'unlock_orders',
       'unlocks',
       'watch_progress',
       'webhook_events',

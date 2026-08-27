@@ -16,9 +16,9 @@ import { randomUUID } from 'node:crypto';
  * The interface is async so the Postgres `platform_webhook_event` table drops in behind it without
  * changing a single caller. The in-memory implementation is bounded and is the default; it forgets
  * everything on restart. `DATABASE_URL=sqlite:<path>` puts a SQLite table behind this same
- * interface (the same file as unlock receipts, sessions, watch progress, and favourites); a
- * postgres URL is refused rather than rewritten to a file. A restart that kept the receipt and lost
- * the idempotency claim would honour a redelivery as a new payment.
+ * interface (the same file as unlock receipts, sessions, coin unlock orders, watch progress, and
+ * favourites); a postgres URL is refused rather than rewritten to a file. A restart that kept the
+ * receipt and lost the idempotency claim would honour a redelivery as a new payment.
  */
 
 export interface WebhookEventRecord {

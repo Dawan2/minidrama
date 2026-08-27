@@ -11,8 +11,8 @@ import { loadConfig } from '../../config.js';
 
 /**
  * C3-06, the next store after unlock receipts: a session issued, a process restart, the same
- * token still identifies the viewer. Unlock receipts already survive this bounce; the order
- * store stays in memory.
+ * token still identifies the viewer. Unlock receipts already survive this bounce; coin unlock
+ * orders now share the same file.
  */
 
 const dirs: string[] = [];
