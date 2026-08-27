@@ -153,6 +153,25 @@ describe('a denied origin', () => {
     expect(tradeOrders.requests).toEqual([]);
   });
 
+  // The refusal happens in `onRequest`, so a body from a refused origin is never even read. A
+  // malformed one would otherwise be answered `400` — a different, more informative refusal, and
+  // one that means the request had already been parsed on its behalf.
+  it('is refused before its body is parsed', async () => {
+    await startApp(APP_ORIGIN);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: COIN_ORDERS_PATH,
+      headers: { origin: HOSTILE_ORIGIN, 'content-type': 'application/json' },
+      payload: '{ this is not json',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe(
+      'COMMON_ORIGIN_NOT_ALLOWED',
+    );
+  });
+
   it('cannot tell a real path from an absent one', async () => {
     await startApp(APP_ORIGIN);
 
