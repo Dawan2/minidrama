@@ -121,21 +121,23 @@ ternary that consumes the set, not a new helper and not an HTTP trip through a c
 
 ## 6. In-flight work, left alone
 
-`origin/main` moved while this slot was running: the W13 flakes branch landed as `78505ad`
-(`docs/handoff/w13-test-flakes.md`). That is six files under `app/src/routes/`, `app/src/testing/`,
-and `docs/handoff/` — none of them this slot's two new paths. Merged into this branch with no
-conflicts.
+`origin/main` moved twice while this slot was running. First the W13 flakes branch landed as
+`78505ad` (`docs/handoff/w13-test-flakes.md`) — six files under `app/src/routes/`,
+`app/src/testing/`, and `docs/handoff/`. Then the cycle-2 report and cycle-3 backlog landed as
+`2026f78`. None of those paths are this slot's two new files. Merged into this branch with no
+conflicts, both times.
 
 At the fetch immediately before merging onto `main`:
 
 | Branch | Paths | Overlap with this slot |
 | --- | --- | --- |
 | `cursor/w13-work-test-flakes-a44c` | already an ancestor of `main` | none (never shared a path) |
-| `cursor/w11-plan-cycle-3-93ab` | `docs/plan/cycle-3-backlog.md`, `docs/handoff/w11-plan.md` | none |
-| `cursor/w10-verify-cycle-2-7b17` | `docs/verify/cycle-2-report.md` | none |
+| `cursor/w11-plan-cycle-3-93ab` | already an ancestor of `main` | none |
+| `cursor/w10-verify-cycle-2-7b17` | already an ancestor of `main` | none |
+| `cursor/w12-work-silent-login-97cf` | `app/src/data/http.ts`, `transports.ts`, `main.tsx`, `session-recovery.ts`, `silent-login.ts`, and their tests | none — this slot was told not to open those files and did not |
 
-W12 silent re-login still has no branch on origin. CoverImage was already on `main` (`8e3c2aa`) and
-was not opened. This slot's two paths are both new. No pull request.
+CoverImage was already on `main` (`8e3c2aa`) and was not opened. This slot's two paths are both
+new. No pull request.
 
 ---
 
@@ -146,7 +148,4 @@ outcome to `PaidTradeOrderOutcome` without classifying it in the new file fails 
 
 Still open, and not this slot's:
 
-- **`cursor/w11-plan-cycle-3-93ab`** and **`cursor/w10-verify-cycle-2-7b17`**, still not ancestors
-  of `main`. Documents only.
-- **Silent re-login**, still unpublished. Untouched.
-- **W13 flakes** is closed on `main` as of `78505ad`. Untouched here.
+- **Silent re-login** (`cursor/w12-work-silent-login-97cf`), in flight. Untouched.
