@@ -237,13 +237,23 @@ describe('POST /v1/unlock/coin-orders — opening an order', () => {
 
   // The client never proposes what it pays. A body that names a price is answered with the price
   // the entitlement decision quoted, which is the same number the unlock panel was rendered from.
-  it('ignores a price supplied by the client', async () => {
+  it.each([
+    ['a cheaper price', { priceCoins: 1 }],
+    ['a free one', { priceCoins: 0 }],
+    ['a negative one', { priceCoins: -300 }],
+    ['the same field under other names', { coins: 1, amountCents: 0, price: 1 }],
+    ['a price for a different episode', { episodeId: COIN_ONLY_EPISODE, priceCoins: 500 }],
+  ])('ignores %s supplied by the client', async (_case, proposed) => {
     const response = await createOrder(COIN_OR_VIP_EPISODE, {
-      body: { episodeId: COIN_OR_VIP_EPISODE, priceCoins: 1, coins: 1, amountCents: 0 },
+      body: { ...proposed, episodeId: COIN_OR_VIP_EPISODE },
     });
 
+    expect(response.statusCode).toBe(201);
     expect(body(response).priceCoins).toBe(300);
-    expect(tradeOrders.requests[0]?.priceCoins).toBe(300);
+    expect(tradeOrders.requests[0]).toMatchObject({
+      episodeId: COIN_OR_VIP_EPISODE,
+      priceCoins: 300,
+    });
   });
 
   it('sells a coin-only episode to a live subscriber, whose subscription does not cover it', async () => {
@@ -529,10 +539,11 @@ describe('fulfilment — the signature cannot be skipped', () => {
       { signatureHeader: `t=${NOW_SEC},s=${'a'.repeat(64)}` },
     ],
     ['a body signed with somebody else\u2019s secret', { secret: 'attacker-secret' }],
-    // Signed for one payer, delivered naming another: the tamper that would matter.
+    // The altered field is one we never read, so the signature is the only thing that can catch
+    // it. A tamper we would have rejected on its content would pass this test for the wrong reason.
     [
       'a signature over a body that was then altered',
-      { tamper: (raw: string) => raw.replace(BUYER, 'usr_fx_vip_active') },
+      { tamper: (raw: string) => raw.replace('is_sandbox', 'is_sandBox') },
     ],
     ['a replayed capture whose timestamp has gone stale', { timestampSec: NOW_SEC - 301 }],
     ['a timestamp in the future', { timestampSec: NOW_SEC + 301 }],
