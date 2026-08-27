@@ -43,15 +43,16 @@ function tables(connection: SqliteDatabase): string[] {
 }
 
 describe('migrateUp / migrateDown', () => {
-  it('creates the unlocks, sessions, and webhook event tables on the way up', () => {
+  it('creates the unlocks, sessions, webhook event, and watch-progress tables on the way up', () => {
     const connection = memory();
 
     expect(migrateUp(connection)).toEqual({
-      applied: ['0001_unlocks', '0002_sessions', '0003_webhook_events'],
+      applied: ['0001_unlocks', '0002_sessions', '0003_webhook_events', '0005_watch_progress'],
     });
     expect(tables(connection)).toEqual([
       'sessions',
       'unlocks',
+      'watch_progress',
       'webhook_events',
       'webhook_idempotency_keys',
     ]);
@@ -64,12 +65,12 @@ describe('migrateUp / migrateDown', () => {
     expect(migrateUp(connection)).toEqual({ applied: [] });
   });
 
-  it('drops the webhook, sessions, and unlocks tables on the way down', () => {
+  it('drops the watch-progress, webhook, sessions, and unlocks tables on the way down', () => {
     const connection = memory();
     migrateUp(connection);
 
     expect(migrateDown(connection)).toEqual({
-      applied: ['0003_webhook_events', '0002_sessions', '0001_unlocks'],
+      applied: ['0005_watch_progress', '0003_webhook_events', '0002_sessions', '0001_unlocks'],
     });
     expect(tables(connection)).toEqual([]);
   });
@@ -117,6 +118,16 @@ describe('migrateUp / migrateDown', () => {
         )
         .run(),
     ).toThrow(/no such table: webhook_events/i);
+    expect(() =>
+      connection
+        .prepare(
+          `INSERT INTO watch_progress (
+            user_id, episode_id, position_sec, duration_sec, completed,
+            client_updated_at_ms, updated_at_ms
+          ) VALUES ('usr_1', 'ep_1', 45, 95, 1, 0, 0)`,
+        )
+        .run(),
+    ).toThrow(/no such table: watch_progress/i);
 
     migrateUp(connection);
     expect(insert().changes).toBe(1);
@@ -142,6 +153,16 @@ describe('migrateUp / migrateDown', () => {
         .prepare(`INSERT INTO webhook_idempotency_keys (key) VALUES ('trade_order:to_1')`)
         .run().changes,
     ).toBe(1);
+    expect(
+      connection
+        .prepare(
+          `INSERT INTO watch_progress (
+            user_id, episode_id, position_sec, duration_sec, completed,
+            client_updated_at_ms, updated_at_ms
+          ) VALUES ('usr_1', 'ep_1', 45, 95, 1, 0, 0)`,
+        )
+        .run().changes,
+    ).toBe(1);
   });
 
   it('refuses an up file that has no matching down file', () => {
@@ -165,6 +186,7 @@ describe('migrateUp / migrateDown', () => {
     expect(tables(second)).toEqual([
       'sessions',
       'unlocks',
+      'watch_progress',
       'webhook_events',
       'webhook_idempotency_keys',
     ]);
