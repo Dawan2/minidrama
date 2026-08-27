@@ -109,11 +109,28 @@ heartbeat that invents one. This slot does not re-open that file.
 
 ## 5. Verification
 
-`pnpm verify` green on this branch after merging `origin/main` (`69fb33c` heartbeats).
+`pnpm verify` green on `07c1a4b` after merging `origin/main` (`69fb33c` heartbeats).
 L1 sequence unchanged: format → lint → typecheck → test:coverage → check:coverage →
 build → guardrails.
 
-Test counts and the coverage gate are recorded after that run.
+| Package | Tests |
+| --- | ---: |
+| shared | 61 |
+| quality | 188 |
+| config | 45 |
+| server | 1,740 |
+| app | 1,113 |
+| **Total** | **3,147** |
+
+Zero skipped. Six new tests for resume. Coverage gate:
+
+```
+coverage global lines 93.95% (14834/15789), branches 91.65%, core lines 95.50%, diff lines 100.00% (23/23)
+coverage gate passed
+```
+
+Guardrails passed against `app/dist` (`index-m61o31n9.js` 353.37 kB / 108.03 kB gzip — the
+heartbeat merge's artifact, not this slot's). Native `<video>` remains absent.
 
 ---
 
