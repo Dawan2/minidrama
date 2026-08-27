@@ -3,7 +3,7 @@ import type { Result } from '@minidrama/shared';
 
 import { apiFailure } from './failure';
 import type { ApiFailure } from './failure';
-import type { HttpClient, PostOptions } from './http';
+import type { HttpPoster, HttpReader, PostOptions } from './http';
 
 /**
  * The coin unlock order surface, as the client sees it.
@@ -79,7 +79,7 @@ export interface UnlockApi {
   fetchCoinOrder(orderId: string): Promise<Result<CoinOrder, ApiFailure>>;
 }
 
-export function createUnlockApi(http: HttpClient): UnlockApi {
+export function createUnlockApi(http: HttpReader & HttpPoster): UnlockApi {
   return {
     createCoinOrder: async (request) => {
       const options: PostOptions = { headers: { 'Idempotency-Key': request.idempotencyKey } };

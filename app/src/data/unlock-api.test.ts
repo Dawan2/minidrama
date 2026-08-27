@@ -4,9 +4,9 @@ import { ok } from '@minidrama/shared';
 import { COIN_ORDERS_PATH, coinOrderEndpoint, createUnlockApi } from './unlock-api';
 import { apiFailure } from './failure';
 import { coinOrder, grantedCoinOrder } from '../testing/unlock-fixtures';
-import type { HttpClient } from './http';
+import type { HttpPoster, HttpReader } from './http';
 
-function httpStub(body: unknown): HttpClient {
+function httpStub(body: unknown): HttpReader & HttpPoster {
   return {
     getJson: () => Promise.resolve(ok(body)),
     postJson: () => Promise.resolve(ok(body)),
@@ -14,7 +14,7 @@ function httpStub(body: unknown): HttpClient {
 }
 
 function postSpy() {
-  return vi.fn<HttpClient['postJson']>(() => Promise.resolve(ok(coinOrder())));
+  return vi.fn<HttpPoster['postJson']>(() => Promise.resolve(ok(coinOrder())));
 }
 
 describe('coin order endpoints', () => {
@@ -88,7 +88,7 @@ describe('creating a coin order', () => {
 
 describe('reading a coin order', () => {
   it('reads the order by id', async () => {
-    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(coinOrder())));
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(coinOrder())));
     await createUnlockApi({ getJson, postJson: postSpy() }).fetchCoinOrder('uord_1');
 
     expect(getJson).toHaveBeenCalledWith('/v1/unlock/coin-orders/uord_1');

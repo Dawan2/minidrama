@@ -30,15 +30,26 @@ describe('routes', () => {
   it('declares the personal screens at the paths the IA publishes', () => {
     expect(ROUTES.me).toBe('/me');
     expect(ROUTES.history).toBe('/history');
+    expect(ROUTES.favorites).toBe('/favorites');
   });
 
   /**
-   * SCR-08 has no screen behind it. A declared path with no route registered resolves to the
-   * fallback, so declaring it here is how the profile's favourites entry would become "this page
-   * does not exist" the first time someone linked to the constant.
+   * Every declared path has a route registered behind it. A declared path with no route resolves to
+   * the fallback, so a constant added ahead of its screen is how a profile entry becomes "this page
+   * does not exist" the first time somebody links to it — which is what `/favorites` was until this
+   * slot. `App.test.tsx` asserts the other half: that each of these paths renders its own screen.
    */
-  it('declares no path for a screen that does not exist', () => {
-    expect(Object.values(ROUTES)).not.toContain('/favorites');
+  it('declares no path without a screen behind it', () => {
+    expect(Object.keys(ROUTES).sort()).toEqual([
+      'drama',
+      'fallback',
+      'favorites',
+      'history',
+      'home',
+      'me',
+      'play',
+      'search',
+    ]);
   });
 
   it('builds a drama path from a drama id', () => {

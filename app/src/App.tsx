@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 
 import { DramaPage } from './routes/DramaPage';
 import { FallbackPage } from './routes/FallbackPage';
+import { FavoritesPage } from './routes/FavoritesPage';
 import { HistoryPage } from './routes/HistoryPage';
 import { HomePage } from './routes/HomePage';
 import { PlayPage } from './routes/PlayPage';
@@ -24,6 +25,7 @@ export function App({ bridge }: AppProps): React.JSX.Element {
       <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
       <Route path={ROUTES.me} element={<ProfilePage />} />
       <Route path={ROUTES.history} element={<HistoryPage />} />
+      <Route path={ROUTES.favorites} element={<FavoritesPage />} />
       <Route path={ROUTES.fallback} element={<FallbackPage />} />
       {/*
         A static ZIP has no server to answer 404, so an unmatched path is resolved here and given

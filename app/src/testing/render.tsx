@@ -3,15 +3,18 @@ import { render } from '@testing-library/react';
 import type { RenderResult } from '@testing-library/react';
 
 import { CatalogApiProvider } from '../data/catalog-api-context';
+import { FavoritesApiProvider } from '../data/favorites-api-context';
 import { HistoryApiProvider } from '../data/history-api-context';
 import { SearchApiProvider } from '../data/search-api-context';
 import { SessionProvider } from '../auth/session-context';
 import { UnlockApiProvider } from '../data/unlock-api-context';
 import { stubCatalogApi } from './catalog-fixtures';
+import { stubFavoritesApi } from './favorites-fixtures';
 import { stubHistoryApi, stubSession } from './history-fixtures';
 import { stubSearchApi } from './search-fixtures';
 import { stubUnlockApi } from './unlock-fixtures';
 import type { CatalogApi } from '../data/catalog-api';
+import type { FavoritesApi } from '../data/favorites-api';
 import type { HistoryApi } from '../data/history-api';
 import type { SearchApi } from '../data/search-api';
 import type { Session } from '../auth/session';
@@ -44,6 +47,7 @@ export interface RenderSurfaceOptions {
   readonly api?: CatalogApi;
   readonly search?: SearchApi;
   readonly historyApi?: HistoryApi;
+  readonly favoritesApi?: FavoritesApi;
   readonly unlockApi?: UnlockApi;
   readonly session?: Session;
   readonly path?: string;
@@ -58,9 +62,11 @@ export function renderSurface(
       <CatalogApiProvider api={options.api ?? stubCatalogApi()}>
         <SearchApiProvider api={options.search ?? stubSearchApi()}>
           <HistoryApiProvider api={options.historyApi ?? stubHistoryApi()}>
-            <UnlockApiProvider api={options.unlockApi ?? stubUnlockApi()}>
-              <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
-            </UnlockApiProvider>
+            <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
+              <UnlockApiProvider api={options.unlockApi ?? stubUnlockApi()}>
+                <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+              </UnlockApiProvider>
+            </FavoritesApiProvider>
           </HistoryApiProvider>
         </SearchApiProvider>
       </CatalogApiProvider>

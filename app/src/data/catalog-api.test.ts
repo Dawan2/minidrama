@@ -10,7 +10,7 @@ import {
   page,
   viewerAccess,
 } from '../testing/catalog-fixtures';
-import type { HttpClient, HttpReader } from './http';
+import type { HttpReader } from './http';
 
 function httpStub(body: unknown): HttpReader {
   return { getJson: () => Promise.resolve(ok(body)) };
@@ -32,7 +32,7 @@ describe('catalogue endpoints', () => {
 
 describe('the catalogue client', () => {
   it('requests the feed with its scene and cursor', async () => {
-    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(page([]))));
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(page([]))));
     await createCatalogApi({ getJson }).fetchFeed({ scene: 'HOME', cursor: 'cur_2', limit: 10 });
 
     expect(getJson).toHaveBeenCalledWith(FEED_PATH, {
@@ -43,7 +43,7 @@ describe('the catalogue client', () => {
   });
 
   it('requests an episode list with its season filter and cursor', async () => {
-    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(page([]))));
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(page([]))));
     await createCatalogApi({ getJson }).fetchEpisodes({
       dramaId: 'drm_1',
       seasonNumber: 2,

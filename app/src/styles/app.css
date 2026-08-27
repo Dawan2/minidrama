@@ -143,6 +143,128 @@ a {
   font-size: 12px;
 }
 
+/* ---------------------------------------------------------------- favourites */
+
+.favorites {
+  display: grid;
+  gap: var(--gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.favorite-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--gap);
+  align-items: center;
+  padding-right: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+/* An un-followed row keeps its place in the list rather than vanishing, so it has to read as
+   inactive without becoming unreadable — the undo button lives inside it. */
+.favorite-row--removed {
+  opacity: 0.55;
+}
+
+.favorite-row__link {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--gap);
+  padding: 10px;
+  min-width: 0;
+}
+
+.favorite-row__cover {
+  aspect-ratio: 3 / 4;
+  width: 72px;
+}
+
+.favorite-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.favorite-row__title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorite-row__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.favorite-row__action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  max-width: 45%;
+  text-align: end;
+}
+
+.favorite-row__button {
+  padding: 8px 14px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.favorite-row__button[disabled] {
+  color: var(--text-muted);
+}
+
+.favorite-row__note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* The candidate-window disclosure. Muted and unpressable: it is a limit of the screen, not an error
+   the viewer can clear, and a button on it would be a button that changes nothing. */
+.favorites__notice {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* A sign-in prompt inside a row is not the page-level one, so it does not get the page-level box. */
+.favorite-row__action .state--sign-in {
+  margin: 0;
+  padding: 0;
+  background: none;
+}
+
+.favorite-row__action .state__message,
+.favorite-row__action .state__hint {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.favorite-row__action .state__action {
+  margin-top: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
 /* ---------------------------------------------------------------- profile */
 
 .profile-identity {
@@ -193,7 +315,6 @@ a {
   text-align: start;
 }
 
-.profile-entry--pending,
 .profile-entry[disabled] {
   color: var(--text-muted);
 }

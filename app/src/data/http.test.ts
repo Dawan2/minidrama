@@ -279,3 +279,108 @@ describe('the http client posting', () => {
     ).resolves.toMatchObject({ ok: false });
   });
 });
+
+/**
+ * The favourite writes (`docs/12-api-contracts.md` §4.3). The property that shapes this half of the
+ * client is that a `204` has no body: calling `json()` on one rejects, so a client that parsed
+ * every success would report every successful write as `MALFORMED`.
+ */
+describe('an idempotent write', () => {
+  /** A `204`: no body, and `json()` rejects the way a real `Response` does on an empty one. */
+  function noContent(): HttpResponseLike {
+    return {
+      ok: true,
+      status: 204,
+      json: () => Promise.reject(new Error('Unexpected end of JSON input')),
+    };
+  }
+
+  it('sends the verb and the path it was given', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(noContent()));
+    await client(fetchImpl).send('PUT', '/v1/dramas/drm_1/favorite');
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('https://api.example.invalid/v1/dramas/drm_1/favorite');
+    expect(init.method).toBe('PUT');
+  });
+
+  it('deletes as well as puts, since un-following is the same shape of request', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(noContent()));
+    await client(fetchImpl).send('DELETE', '/v1/dramas/drm_1/favorite');
+
+    expect(fetchImpl.mock.calls[0]![1].method).toBe('DELETE');
+  });
+
+  // The whole reason `send` exists rather than `getJson` being reused with a verb.
+  it('succeeds on a 204 without reading a body that is not there', async () => {
+    const json = vi.fn(() => Promise.reject(new Error('Unexpected end of JSON input')));
+    const result = await client(() => Promise.resolve({ ok: true, status: 204, json })).send(
+      'DELETE',
+      '/v1/dramas/drm_1/favorite',
+    );
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  // A failed write is the half a surface has to render, and its envelope is JSON like any other.
+  it('reads the error envelope when the write is refused', async () => {
+    const result = await client(() =>
+      Promise.resolve(
+        jsonResponse(410, {
+          error: { code: 'CONTENT_OFFLINE', message: 'gone', traceId: 'trace_f' },
+        }),
+      ),
+    ).send('PUT', '/v1/dramas/drm_1/favorite');
+
+    expect(result.ok ? null : result.error).toMatchObject({
+      kind: 'HTTP',
+      status: 410,
+      code: 'CONTENT_OFFLINE',
+      traceId: 'trace_f',
+    });
+  });
+
+  it('keeps the status when a refused write has an unreadable body', async () => {
+    const result = await client(() => Promise.resolve(unreadableResponse(401))).send(
+      'PUT',
+      '/v1/dramas/drm_1/favorite',
+    );
+
+    expect(result.ok ? null : result.error).toMatchObject({ kind: 'HTTP', status: 401 });
+  });
+
+  /**
+   * Retried exactly once, like a read. It is safe only because the server publishes both verbs as
+   * idempotent — a repeated `PUT` does not move `favoritedAt` and a `DELETE` always answers `204`
+   * (`docs/handoff/w2-work-j.md` S45, S47) — which is also why there is no `POST` here.
+   */
+  it('retries once after a transport failure', async () => {
+    const fetchImpl = vi
+      .fn<FetchLike>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(noContent());
+
+    const result = await client(fetchImpl).send('DELETE', '/v1/dramas/drm_1/favorite');
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not retry a write the server refused', async () => {
+    for (const status of [401, 404, 410]) {
+      const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(status, {})));
+      await client(fetchImpl).send('PUT', '/v1/dramas/drm_1/favorite');
+      expect(fetchImpl, `status ${String(status)}`).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('reports a dead network as OFFLINE rather than rejecting', async () => {
+    const result = await client(() => Promise.reject(new TypeError('Failed to fetch'))).send(
+      'DELETE',
+      '/v1/dramas/drm_1/favorite',
+    );
+
+    expect(result.ok ? null : result.error.kind).toBe('OFFLINE');
+  });
+});

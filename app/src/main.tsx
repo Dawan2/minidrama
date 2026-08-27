@@ -8,10 +8,12 @@ import { App } from './App';
 import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
+import { createFavoritesApi } from './data/favorites-api';
 import { createHistoryApi } from './data/history-api';
 import { createHttpClient } from './data/http';
 import { createSearchApi } from './data/search-api';
 import { createUnlockApi } from './data/unlock-api';
+import { FavoritesApiProvider } from './data/favorites-api-context';
 import { HistoryApiProvider } from './data/history-api-context';
 import { SearchApiProvider } from './data/search-api-context';
 import { SessionProvider } from './auth/session-context';
@@ -70,16 +72,18 @@ async function boot(): Promise<void> {
   const historyApi = createHistoryApi(http);
 
   /**
-   * The unlock orders share that transport too, deliberately: the timeout, the failure
-   * classification and — when session handling lands — the `Authorization` header all belong in one
-   * place. They do not share a client interface, because a coin order is a write against an account
-   * and the catalogue reads are anonymous.
+   * The two writes share that transport too, deliberately: the timeout, the failure classification
+   * and — when session handling lands — the `Authorization` header all belong in one place. They do
+   * not share a client interface, because `http.ts` splits the transport by capability and each of
+   * these asks for only the half it uses — the favourite verbs are idempotent and answer `204`, a
+   * coin order is neither.
    *
-   * It is provided unconditionally rather than behind a capability check. Whether a purchase can
-   * be *made* is `bridge.canIUse('pay')`, asked per render at the surface that offers one; a
-   * missing provider here would only turn that question into a crash.
+   * The unlock client is provided unconditionally rather than behind a capability check. Whether a
+   * purchase can be *made* is `bridge.canIUse('pay')`, asked per render at the surface that offers
+   * one; a missing provider here would only turn that question into a crash.
    */
   const unlockApi = createUnlockApi(http);
+  const favoritesApi = createFavoritesApi(http);
 
   /**
    * The session the app boots with. Silent login is the remaining continuation above, so today this
@@ -97,11 +101,13 @@ async function boot(): Promise<void> {
         <CatalogApiProvider api={api}>
           <SearchApiProvider api={search}>
             <HistoryApiProvider api={historyApi}>
-              <UnlockApiProvider api={unlockApi}>
-                <HashRouter>
-                  <App bridge={bridge} />
-                </HashRouter>
-              </UnlockApiProvider>
+              <FavoritesApiProvider api={favoritesApi}>
+                <UnlockApiProvider api={unlockApi}>
+                  <HashRouter>
+                    <App bridge={bridge} />
+                  </HashRouter>
+                </UnlockApiProvider>
+              </FavoritesApiProvider>
             </HistoryApiProvider>
           </SearchApiProvider>
         </CatalogApiProvider>
