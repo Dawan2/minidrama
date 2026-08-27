@@ -7,7 +7,8 @@
  * slot thinks the data layer is done. Unset keeps the in-memory stores so tests and an unconfigured
  * process behave as they do today. Redis is T15 and is not read at all. The sqlite file currently
  * holds unlock receipts, sessions, webhook events, coin unlock orders, watch progress,
- * favourites, and the catalogue; the remaining stores stay in memory.
+ * favourites, and the catalogue. Search is a directory over that catalogue, not a second
+ * table of titles.
  */
 
 export type DatabaseConfig =

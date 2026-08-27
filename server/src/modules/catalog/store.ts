@@ -21,7 +21,8 @@ import type { DramaRecord, EpisodeRecord, PositionedEpisode, SeasonRecord } from
  * file as unlock receipts, sessions, webhook events, coin unlock orders, watch progress, and
  * favourites); a postgres URL is refused rather than rewritten to a file. The seed is written
  * once, when the table is empty, so a bounce cannot revert an operator-loaded catalogue to the
- * fixture.
+ * fixture. Search reads this store through `createCatalogDramaDirectory` rather than keeping a
+ * second table of titles.
  */
 
 export type DramaSort = 'HOT' | 'NEW';
