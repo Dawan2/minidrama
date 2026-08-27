@@ -71,6 +71,14 @@ export interface PlayerFacade {
    * player. Identifiers only — never a URL.
    */
   enqueueNext(descriptor: PlaybackDescriptor): boolean;
+  /**
+   * Apply a freshly minted descriptor to the episode already on screen (`PLY-012`).
+   *
+   * Same episode, same instance, no `playNext` — advancing would start the neighbour. A different
+   * episode id is `false` and does not touch the player: that is a 切集, not a re-issue. Does not
+   * seek; the kernel already holds the position. `resumePositionSec` on the new body is ignored.
+   */
+  reissue(descriptor: PlaybackDescriptor): boolean;
   /** Moves the retained instance to `episodeId` when it can get there without being rebuilt. */
   switchToEpisode(episodeId: string): EpisodeSwitch;
   /** Idempotent. Safe to call from a React cleanup that may run twice under StrictMode. */
@@ -191,6 +199,19 @@ export async function createPlayerFacade(
       }
       queue = [...queue, next];
       player.setPreloadList?.(queue.map(toPlaylistItem));
+      return true;
+    },
+    reissue: (next) => {
+      if (destroyed) {
+        return false;
+      }
+      const current = queue[cursor];
+      if (current === undefined || current.episodeId !== next.episodeId) {
+        return false;
+      }
+      queue = [...queue.slice(0, cursor), next, ...queue.slice(cursor + 1)];
+      player.setPreloadList?.(queue.map(toPlaylistItem));
+      player.play();
       return true;
     },
     switchToEpisode: (episodeId) => {

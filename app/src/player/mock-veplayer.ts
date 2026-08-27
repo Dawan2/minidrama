@@ -58,6 +58,19 @@ export class MockVePlayer implements VePlayerInstance {
     return this.preloadList[this.#index]?.episodeId ?? this.config.episodeId;
   }
 
+  /**
+   * Token currently handed to this instance. Construction copies `config.playAuthToken`; a
+   * silent re-issue replaces the current preload item without building a second player, so
+   * tests read this rather than the constructor snapshot.
+   */
+  get currentPlayAuthToken(): string | undefined {
+    const current = this.preloadList[this.#index];
+    if (current !== undefined && 'playAuthToken' in current) {
+      return current.playAuthToken;
+    }
+    return this.config.playAuthToken;
+  }
+
   play(): void {
     if (this.destroyed) {
       return;
