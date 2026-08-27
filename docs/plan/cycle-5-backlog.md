@@ -56,7 +56,7 @@ Partner answers are **unknown**. None is invented. The questions stay in
 |---|---|---|
 | `bc-fb69d154` (W14 work HOME continue rail UI) | **Idle. Landed.** `7ecca77` / `cursor/w14-work-continue-ui-72c4`. Home splits the feed mix onto `data-testid="continue-rail"` | Do not add a second HOME continue UI |
 | `bc-2fd6c885` (W16 work protocol playback UX) | **RUNNING.** No `cursor/*` branch visible on origin yet | Do not guess its files. Re-derive `origin/main` before picking a player-interaction remainder |
-| `bc-3c74c2c9` (W16 work second playback exit) | **RUNNING.** No `cursor/*` branch visible on origin yet | Same rule. Likely the protocol-C4 second exit (cross-end). Do not start a twin |
+| `bc-3c74c2c9` (W16 work second playback exit) | **RUNNING.** No `cursor/*` branch visible on origin yet | Same rule. Do not start a twin |
 | `origin/cursor/w13-work-c3-remain-72c4` | **Not an ancestor of `main`.** Adds `GET /v1/wallet/transactions` (fail-closed empty ledger). **D-18** | Integrator merges or it stays outstanding. Do not implement a second transactions route |
 | `origin/cursor/w14-work-c4-subseq-72c4` | Leftover duplicate C4-08 ads. A sibling already landed | Do not retake |
 
