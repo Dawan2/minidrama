@@ -10,11 +10,12 @@ import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
 import { createFavoritesApi } from './data/favorites-api';
 import { createHistoryApi } from './data/history-api';
+import { createLoginTransport, createSessionTransport } from './data/transports';
 import { createSearchApi } from './data/search-api';
 import { createSessionApi } from './data/session-api';
+import { createSessionRecovery } from './session/session-recovery';
 import { createSessionStore } from './session/session-store';
 import { createSilentLogin } from './session/silent-login';
-import { createTransports } from './data/transports';
 import { createUnlockApi } from './data/unlock-api';
 import { FavoritesApiProvider } from './data/favorites-api-context';
 import { HistoryApiProvider } from './data/history-api-context';
@@ -22,6 +23,7 @@ import { SearchApiProvider } from './data/search-api-context';
 import { SessionProvider } from './auth/session-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
 import { UnlockApiProvider } from './data/unlock-api-context';
+import type { FetchLike } from './data/http';
 import type { Session } from './auth/session';
 import type { SessionStore } from './session/session-store';
 
@@ -30,8 +32,9 @@ import type { SessionStore } from './session/session-store';
  *
  * The sequence in `docs/architecture/system-overview.md` §3.1 is serial by design: nothing
  * business-facing renders on a half-initialized runtime. Wave 1 wired bridge selection and `init`;
- * later slots added the catalogue and unlock clients; this one adds silent login, and leaves
- * `/config` and deep-link resolution as the remaining continuation, marked below so the order is
+ * later slots added the catalogue and unlock clients, then silent login; this one gives the login a
+ * second caller, so a session that dies mid-visit is re-acquired rather than waiting for a cold
+ * start. `/config` and deep-link resolution remain the continuation, marked below so the order is
  * not reinvented.
  */
 
@@ -68,22 +71,39 @@ async function boot(): Promise<void> {
    * carries the header, and the login exchange cannot, because a session cannot be created by
    * presenting one (`data/transports.ts`).
    *
+   * The order below is the dependency order and it is why these are four calls: the session
+   * transport needs to know what to do with a refused token, that answer is a silent login, and a
+   * silent login is a `POST` on the anonymous transport built first.
+   *
    * A missing base URL is left to fail as a request rather than throwing here: a boot that dies
    * because an environment variable is absent is a white screen, and the retryable error state is
    * a screen with a button on it.
    */
+  const baseUrl = import.meta.env['VITE_API_BASE_URL'] ?? '';
+  const fetchImpl: FetchLike = (url, init) => fetch(url, init);
   const sessionStore = createSessionStore();
-  const transports = createTransports({
-    baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
-    fetch: (url, init) => fetch(url, init),
-    session: sessionStore,
-    loginTimeoutMs: SILENT_LOGIN_TIMEOUT_MS,
-  });
   const signIn = createSilentLogin({
     bridge,
-    api: createSessionApi(transports.login),
+    api: createSessionApi(
+      createLoginTransport({ baseUrl, fetch: fetchImpl, timeoutMs: SILENT_LOGIN_TIMEOUT_MS }),
+    ),
     store: sessionStore,
   });
+  const http = createSessionTransport({
+    baseUrl,
+    fetch: fetchImpl,
+    session: sessionStore,
+    recovery: createSessionRecovery({
+      signIn,
+      // The outcome and nothing else, for the same reason boot logs one: a `SilentLoginResult`
+      // carries a trace id and a rejection reason, and a console in a WebView is not a private
+      // place.
+      onRecovery: (recovered) => {
+        console.warn('[session] the server refused the token', recovered.outcome);
+      },
+    }),
+  });
+
   const signedIn = await signIn();
   if (signedIn.outcome !== 'SIGNED_IN') {
     // The outcome and nothing else. The `authCode` and the token are credentials, and a console in
@@ -101,9 +121,9 @@ async function boot(): Promise<void> {
    * whether or not the login above produced anything; they still travel on the shared transport,
    * because a signed-in viewer's reads should say who they are.
    */
-  const api = createCatalogApi(transports.http);
-  const search = createSearchApi(transports.http);
-  const historyApi = createHistoryApi(transports.http);
+  const api = createCatalogApi(http);
+  const search = createSearchApi(http);
+  const historyApi = createHistoryApi(http);
 
   /**
    * The two writes share that transport too, deliberately: the timeout, the failure classification
@@ -115,8 +135,8 @@ async function boot(): Promise<void> {
    * purchase can be *made* is `bridge.canIUse('pay')`, asked per render at the surface that offers
    * one; a missing provider here would only turn that question into a crash.
    */
-  const unlockApi = createUnlockApi(transports.http);
-  const favoritesApi = createFavoritesApi(transports.http);
+  const unlockApi = createUnlockApi(http);
+  const favoritesApi = createFavoritesApi(http);
 
   /**
    * The session the surfaces see. This is the seam `auth/session.ts` left for the identity slot,
@@ -134,6 +154,11 @@ async function boot(): Promise<void> {
     },
     // "Whether a session now exists" is asked of the store rather than read off the outcome, so
     // `ALREADY_SIGNED_IN` counts as the success it is.
+    //
+    // This runs the login directly rather than through the recovery, and so is not subject to its
+    // budget: the bound exists because an automatic retry has nothing to stop it, and a viewer's tap
+    // is the thing that stops this one. It is still the same single-flight login, so a tap that
+    // lands while a `401`-driven attempt is running joins it instead of spending a second code.
     signIn: async () => {
       await signIn();
       return sessionStore.session() !== null;

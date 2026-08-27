@@ -87,13 +87,20 @@ export async function runSilentLogin(deps: SilentLoginDeps): Promise<SilentLogin
 }
 
 /**
+ * The shared login, as its callers see it. Boot awaits one, `session-recovery.ts` runs one after a
+ * refused token, and the panel's retry runs one on a tap — none of them supplies an `authCode`,
+ * because getting one is this module's job and nobody else's.
+ */
+export type SilentLogin = () => Promise<SilentLoginResult>;
+
+/**
  * Runs silent login at most once at a time.
  *
  * The `authCode` is single-use. Two concurrent logins spend two codes and the second exchange
  * fails, which would then be reported as "the platform rejected you" — so callers share one
  * in-flight attempt instead. Boot is one caller; a `401`-driven re-login is the next.
  */
-export function createSilentLogin(deps: SilentLoginDeps): () => Promise<SilentLoginResult> {
+export function createSilentLogin(deps: SilentLoginDeps): SilentLogin {
   let inFlight: Promise<SilentLoginResult> | null = null;
 
   return () => {
