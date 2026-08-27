@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { openMigratedSqlite } from '../../db/migrate.js';
 import { createCoinUnlock, newUnlockId } from './unlocks.js';
 import { createInMemoryUnlockStore } from './unlock-store.js';
+import { createSqliteUnlockStore } from './sqlite-unlock-store.js';
 import type { Unlock } from './unlocks.js';
 import type { UnlockStore } from './unlock-store.js';
 
@@ -17,7 +19,10 @@ import type { UnlockStore } from './unlock-store.js';
 
 const NOW = Date.parse('2026-08-27T10:00:00.000Z');
 
-let store: UnlockStore;
+interface StoreHandle {
+  readonly store: UnlockStore;
+  close(): void;
+}
 
 function unlock(overrides: Partial<Unlock> = {}): Unlock {
   return {
@@ -34,9 +39,16 @@ function unlock(overrides: Partial<Unlock> = {}): Unlock {
   };
 }
 
-beforeEach(() => {
-  store = createInMemoryUnlockStore();
-});
+const backends: ReadonlyArray<readonly [string, () => StoreHandle]> = [
+  ['in-memory', () => ({ store: createInMemoryUnlockStore(), close: () => undefined })],
+  [
+    'sqlite',
+    () => {
+      const db = openMigratedSqlite(':memory:');
+      return { store: createSqliteUnlockStore(db), close: () => db.close() };
+    },
+  ],
+];
 
 describe('createCoinUnlock', () => {
   it('writes a permanent coin receipt, and takes neither field from a caller', () => {
@@ -71,7 +83,19 @@ describe('createCoinUnlock', () => {
   });
 });
 
-describe('createInMemoryUnlockStore', () => {
+describe.each(backends)('UnlockStore (%s)', (_label, open) => {
+  let handle: StoreHandle;
+  let store: UnlockStore;
+
+  beforeEach(() => {
+    handle = open();
+    store = handle.store;
+  });
+
+  afterEach(() => {
+    handle.close();
+  });
+
   it('records an unlock and reports it as created', async () => {
     const recorded = await store.record(unlock({ id: 'ulk_first' }));
 

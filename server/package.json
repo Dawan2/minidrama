@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "migrate": "tsx src/db/cli.ts up",
+    "migrate:down": "tsx src/db/cli.ts down"
   },
   "dependencies": {
     "@minidrama/config": "workspace:*",
