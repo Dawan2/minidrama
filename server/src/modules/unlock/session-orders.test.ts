@@ -14,6 +14,7 @@ import { createInMemoryUnlockOrderStore } from './order-store.js';
 import { createPlatformCredentials } from '../platform-tiktok/credentials.js';
 import { loadConfig } from '../../config.js';
 import type { CountingTradeOrderPort } from './fixtures.js';
+import type { EntitlementFactsPort, EpisodeAccessFactsQuery } from '../entitlement/facts-port.js';
 import type { SessionStore } from '../identity/session-store.js';
 import type { UnlockOrderStore } from './order-store.js';
 
@@ -51,10 +52,38 @@ const SUBSCRIBER = 'usr_fx_vip_active';
 const COIN_OR_VIP_EPISODE = 'ep_fx_s2e01';
 const COIN_ONLY_EPISODE = 'ep_fx_s2e07';
 
+interface CountingFactsPort extends EntitlementFactsPort {
+  /** Every episode the route looked up, in order. Empty is the assertion that matters. */
+  readonly queries: readonly EpisodeAccessFactsQuery[];
+}
+
+/**
+ * The fixture world, counting what it was asked.
+ *
+ * Without it, "an unauthenticated caller is refused" passes for the wrong reason: the fixture facts
+ * port does not know a viewer called `anonymous` either, so a route that stopped refusing and made
+ * one up would still be answered `401` — by the data layer, one step too late, and only for as long
+ * as the invented id happens to name nobody.
+ */
+function createCountingFactsPort(): CountingFactsPort {
+  const inner = createFixtureEntitlementFactsPort();
+  const queries: EpisodeAccessFactsQuery[] = [];
+
+  return {
+    queries,
+    loadEpisodeAccessFacts: async (query) => {
+      queries.push(query);
+
+      return inner.loadEpisodeAccessFacts(query);
+    },
+  };
+}
+
 let app: FastifyInstance;
 let sessionStore: SessionStore;
 let orderStore: UnlockOrderStore;
 let tradeOrders: CountingTradeOrderPort;
+let facts: CountingFactsPort;
 let nowMs: number;
 
 async function startApp(env: NodeJS.ProcessEnv = {}): Promise<void> {
@@ -62,12 +91,13 @@ async function startApp(env: NodeJS.ProcessEnv = {}): Promise<void> {
   sessionStore = createInMemorySessionStore({ ttlSec: SESSION_TTL_SEC, now: () => nowMs });
   orderStore = createInMemoryUnlockOrderStore();
   tradeOrders = createCountingTradeOrderPort();
+  facts = createCountingFactsPort();
 
   app = await buildApp(
     { ...loadConfig(env), logLevel: 'silent' },
     {
       platformCredentials: createPlatformCredentials(CLIENT_KEY, SECRET),
-      entitlementFactsPort: createFixtureEntitlementFactsPort(),
+      entitlementFactsPort: facts,
       playbackMediaPort: createFixturePlaybackMediaPort(),
       sessionStore,
       unlockOrderStore: orderStore,
@@ -253,8 +283,11 @@ describe('a session this server did not issue buys nothing', () => {
   async function expectRefused(response: LightMyRequestResponse): Promise<void> {
     expect(response.statusCode).toBe(401);
     expect(errorCode(response)).toBe('AUTH_REQUIRED');
-    // The refusal happens before the platform is asked to open a payment. A payment left open for a
-    // request we refused is one the viewer can still pay, for an order that does not exist.
+    // Who is asking is settled before anything is read about the episode, so the refusal is this
+    // route's and not a side effect of the data layer failing to find an invented viewer.
+    expect(facts.queries).toEqual([]);
+    // And before the platform is asked to open a payment. A payment left open for a request we
+    // refused is one the viewer can still pay, for an order that does not exist.
     expect(tradeOrders.requests).toEqual([]);
     expect(await orderStore.list()).toEqual([]);
   }
