@@ -8,6 +8,7 @@ import { HomePage } from './routes/HomePage';
 import { PlayPage } from './routes/PlayPage';
 import { ProfilePage } from './routes/ProfilePage';
 import { SearchPage } from './routes/SearchPage';
+import { WalletPage } from './routes/WalletPage';
 import { ROUTES, fallbackPath } from './routes/routes';
 import type { PlatformBridge } from './platform/types';
 
@@ -26,6 +27,7 @@ export function App({ bridge }: AppProps): React.JSX.Element {
       <Route path={ROUTES.me} element={<ProfilePage />} />
       <Route path={ROUTES.history} element={<HistoryPage />} />
       <Route path={ROUTES.favorites} element={<FavoritesPage />} />
+      <Route path={ROUTES.wallet} element={<WalletPage />} />
       <Route path={ROUTES.fallback} element={<FallbackPage />} />
       {/*
         A static ZIP has no server to answer 404, so an unmatched path is resolved here and given

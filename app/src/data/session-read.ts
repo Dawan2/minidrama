@@ -20,11 +20,11 @@ import type { ApiFailure, SurfaceError } from './failure';
  * what a `401` is; they know what a lost list is. And the recovery is the opposite in each case: one
  * sends them to the feed, the other retries silent login.
  *
- * This lives apart from the screens that use it because it is now used by two of them — the history
- * (SCR-07) and the favourites (SCR-08) — and two copies of this rule is two chances for one screen
- * to start reading a `401` as an empty list. `classifyFailure` is untouched: it maps `401` to a
- * terminal `REJECTED` for everyone else, which is right for a read that can never legitimately be
- * unauthorised, and wrong only for these.
+ * This lives apart from the screens that use it because it is now used by three of them — the
+ * history (SCR-07), the favourites (SCR-08) and the wallet (SCR-09) — and three copies of this rule
+ * is three chances for one screen to start reading a `401` as an empty list. `classifyFailure` is
+ * untouched: it maps `401` to a terminal `REJECTED` for everyone else, which is right for a read
+ * that can never legitimately be unauthorised, and wrong only for these.
  */
 
 export type SessionReadPresentation =

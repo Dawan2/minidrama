@@ -1,0 +1,45 @@
+name: L2
+
+# Merge-level gates from docs/14-quality-gates.md §4. C2 (INF-007) asked for G2.1–G2.8; this
+# file is the first of those that can exist without a database (G2.2 / G2.7, sibling durable
+# stores) or a Playwright matrix (G2.3). It is a second workflow on purpose: adding jobs here
+# must not become a reason to skip, filter, or continue-on-error the L1 verify suite in ci.yml.
+#
+# G2.1 is the L1 re-run, which ci.yml already does on main. This workflow is G2.8.
+
+on:
+  push:
+    # Same branches as L1. Wave work is pushed for a long time before it is ever a pull request,
+    # so a merge-level gate that only ran on main would discover a GPL dependency at the last
+    # possible moment — the failure mode T0-1 already closed for L1.
+    branches:
+      - main
+      - 'cursor/**'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: l2-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  licenses:
+    name: G2.8 licenses
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: License whitelist
+        run: pnpm run check:licenses

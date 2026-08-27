@@ -62,8 +62,10 @@ pnpm typecheck           # strict TypeScript across all packages
 pnpm test                # Vitest across all packages
 pnpm build               # client bundle + server typecheck
 pnpm check:guardrails    # platform guardrails; requires the build — a missing app/dist fails
+pnpm check:licenses      # G2.8 license whitelist; requires the install — a missing store fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same sequence on every pull request and on every push to
-`main` or a `cursor/**` branch, so work in progress is verified before it is proposed for merge.
+L1 CI (`.github/workflows/ci.yml`) runs `pnpm verify` on every pull request and on every push to
+`main` or a `cursor/**` branch. L2 CI (`.github/workflows/l2.yml`) runs the G2.8 license whitelist
+on the same events; it does not skip, filter, or `continue-on-error` the L1 suite.

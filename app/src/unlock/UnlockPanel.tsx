@@ -6,7 +6,10 @@ import { describeUnlockOffer } from './unlock-offer';
 import { playPath } from '../routes/routes';
 import { translate } from '../core/i18n';
 import { useCoinUnlock } from './use-coin-unlock';
+import { useResource } from '../data/use-resource';
 import { useUnlockApi } from '../data/unlock-api-context';
+import { useWalletApi } from '../data/wallet-api-context';
+import { WalletBalance } from '../wallet/WalletBalance';
 import type { CoinUnlockFailure, CoinUnlockStage, UnlockPacing } from './coin-unlock';
 import type { CoinUnlockSettlement } from './use-coin-unlock';
 import type { PlatformBridge } from '../platform/types';
@@ -216,6 +219,7 @@ function CoinChannel({
 
   return (
     <>
+      <UnlockWalletBalance />
       <p className="unlock-panel__price" data-testid="unlock-price">
         {translate('episode.price', undefined, { n: offer.priceCoins })}
       </p>
@@ -230,6 +234,24 @@ function CoinChannel({
       </button>
     </>
   );
+}
+
+/**
+ * The current coin balance, when — and only when — the server sent one.
+ *
+ * PNL-02's spec puts the figure next to the price. `GET /v1/wallet` is not served today, and a
+ * missing figure is omitted rather than shown as `0`: inventing a zero would make "insufficient
+ * balance, go recharge" fire for every viewer, which is a commercial decision this panel is not
+ * allowed to make. Beans never appear; the rate does not exist (`C3-09`).
+ */
+function UnlockWalletBalance(): React.JSX.Element | null {
+  const api = useWalletApi();
+  const wallet = useResource(() => api.fetchWallet(), 'unlock-wallet');
+
+  if (wallet.resource.status !== 'ready' || wallet.resource.data.kind !== 'KNOWN') {
+    return null;
+  }
+  return <WalletBalance balance={wallet.resource.data} />;
 }
 
 /**

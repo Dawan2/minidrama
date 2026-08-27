@@ -19,6 +19,7 @@ import {
 } from '../testing/unlock-fixtures';
 import { renderSurface } from '../testing/render';
 import { UnlockPanel } from './UnlockPanel';
+import { knownBalance, stubWalletApi, UNAVAILABLE_WALLET } from '../testing/wallet-fixtures';
 import type { EpisodeItem } from '@minidrama/shared';
 import type { PayingBridge, StubUnlockApi, StubUnlockApiScript } from '../testing/unlock-fixtures';
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
@@ -71,6 +72,48 @@ describe('the coin channel', () => {
 
     expect(screen.getByTestId('unlock-price').textContent).toContain('80');
     expect(screen.getByTestId('unlock-confirm').textContent).toContain('80');
+  });
+
+  it('quotes a known coin balance next to the price, and never as Beans', async () => {
+    renderSurface(
+      <UnlockPanel
+        bridge={payingBridge()}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={vi.fn()}
+      />,
+      {
+        api: stubCatalogApi(),
+        walletApi: stubWalletApi({
+          wallet: () => ok(knownBalance({ totalBalance: 90, coinBalance: 90, bonusBalance: 0 })),
+        }),
+      },
+    );
+
+    expect(await screen.findByTestId('wallet-balance')).toBeDefined();
+    expect(screen.getByTestId('wallet-balance').textContent).toContain('90 coins');
+    expect(screen.getByTestId('unlock-panel').textContent).not.toMatch(/beans/i);
+  });
+
+  it('omits the figure when the server exposed none, rather than inventing zero', async () => {
+    renderSurface(
+      <UnlockPanel
+        bridge={payingBridge()}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={vi.fn()}
+      />,
+      {
+        api: stubCatalogApi(),
+        walletApi: stubWalletApi({ wallet: () => ok(UNAVAILABLE_WALLET) }),
+      },
+    );
+
+    expect(await screen.findByTestId('unlock-price')).toBeDefined();
+    expect(screen.queryByTestId('wallet-balance')).toBeNull();
+    expect(screen.getByTestId('unlock-panel').textContent).not.toMatch(/insufficient/i);
   });
 
   it('records the intent for the episode, with an idempotency key', async () => {

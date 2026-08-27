@@ -17,12 +17,14 @@ import { createSessionRecovery } from './session/session-recovery';
 import { createSessionStore } from './session/session-store';
 import { createSilentLogin } from './session/silent-login';
 import { createUnlockApi } from './data/unlock-api';
+import { createWalletApi } from './data/wallet-api';
 import { FavoritesApiProvider } from './data/favorites-api-context';
 import { HistoryApiProvider } from './data/history-api-context';
 import { SearchApiProvider } from './data/search-api-context';
 import { SessionProvider } from './auth/session-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
 import { UnlockApiProvider } from './data/unlock-api-context';
+import { WalletApiProvider } from './data/wallet-api-context';
 import type { FetchLike } from './data/http';
 import type { Session } from './auth/session';
 import type { SessionStore } from './session/session-store';
@@ -112,8 +114,8 @@ async function boot(): Promise<void> {
   }
 
   /**
-   * One transport, five API clients. The history and favourites reads are session-scoped and the
-   * catalogue and search reads are not, so they are separate interfaces — but they share the
+   * One transport, six API clients. The history, favourites and wallet reads are session-scoped
+   * and the catalogue and search reads are not, so they are separate interfaces — but they share the
    * timeout, the single automatic retry, the envelope handling and now the session header, which is
    * the whole reason `http.ts` exists.
    *
@@ -137,6 +139,7 @@ async function boot(): Promise<void> {
    */
   const unlockApi = createUnlockApi(http);
   const favoritesApi = createFavoritesApi(http);
+  const walletApi = createWalletApi(http);
 
   /**
    * The session the surfaces see. This is the seam `auth/session.ts` left for the identity slot,
@@ -176,9 +179,11 @@ async function boot(): Promise<void> {
             <HistoryApiProvider api={historyApi}>
               <FavoritesApiProvider api={favoritesApi}>
                 <UnlockApiProvider api={unlockApi}>
-                  <HashRouter>
-                    <App bridge={bridge} />
-                  </HashRouter>
+                  <WalletApiProvider api={walletApi}>
+                    <HashRouter>
+                      <App bridge={bridge} />
+                    </HashRouter>
+                  </WalletApiProvider>
                 </UnlockApiProvider>
               </FavoritesApiProvider>
             </HistoryApiProvider>
