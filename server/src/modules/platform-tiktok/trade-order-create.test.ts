@@ -47,9 +47,12 @@ function orderRequest(overrides: Partial<TradeOrderRequest> = {}): TradeOrderReq
     userId: BUYER,
     episodeId: EPISODE_ID,
     priceCoins: PRICE_COINS,
-    tokenAmount: OBSERVED_TOKEN_AMOUNT,
     ...overrides,
   };
+}
+
+function observedOrderRequest(overrides: Partial<TradeOrderRequest> = {}): TradeOrderRequest {
+  return orderRequest({ tokenAmount: OBSERVED_TOKEN_AMOUNT, ...overrides });
 }
 
 function portWith(
@@ -70,7 +73,7 @@ describe('createTiktokTradeOrderPort — unconfigured', () => {
       return jsonResponse(200, { trade_order_id: PLATFORM_TRADE_ORDER_ID });
     });
 
-    expect(await port.createTradeOrder(orderRequest({ tokenAmount: undefined }))).toEqual({
+    expect(await port.createTradeOrder(orderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -82,9 +85,7 @@ describe('createTiktokTradeOrderPort — unconfigured', () => {
       jsonResponse(200, { trade_order_id: PLATFORM_TRADE_ORDER_ID }),
     );
 
-    const result = await portWith(http).createTradeOrder(
-      orderRequest({ tokenAmount: undefined, priceCoins: 500 }),
-    );
+    const result = await portWith(http).createTradeOrder(orderRequest({ priceCoins: 500 }));
 
     expect(result).toEqual({ ok: false, error: 'TRADE_ORDER_UNAVAILABLE' });
     expect(requests).toHaveLength(0);
@@ -116,7 +117,7 @@ describe('createTiktokTradeOrderPort — unconfigured', () => {
       },
     });
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -130,7 +131,7 @@ describe('createTiktokTradeOrderPort — unconfigured', () => {
       return jsonResponse(200, { trade_order_id: PLATFORM_TRADE_ORDER_ID });
     }, '');
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -139,7 +140,7 @@ describe('createTiktokTradeOrderPort — unconfigured', () => {
 
   it('does not invent a tradeOrderId from our orderId when unconfigured', async () => {
     const port = createTiktokTradeOrderPort();
-    const result = await port.createTradeOrder(orderRequest({ tokenAmount: undefined }));
+    const result = await port.createTradeOrder(orderRequest());
 
     expect(result.ok).toBe(false);
     expect(JSON.stringify(result)).not.toContain(OUR_ORDER_ID);
@@ -152,7 +153,7 @@ describe('createTiktokTradeOrderPort — request shaping', () => {
       jsonResponse(200, { trade_order_id: PLATFORM_TRADE_ORDER_ID }),
     );
 
-    await portWith(http).createTradeOrder(orderRequest());
+    await portWith(http).createTradeOrder(observedOrderRequest());
 
     expect(requests).toHaveLength(1);
     expect(requests[0]?.url).toBe(TIKTOK_TRADE_ORDER_CREATE_URL);
@@ -195,7 +196,7 @@ describe('createTiktokTradeOrderPort — request shaping', () => {
       jsonResponse(200, { trade_order_id: PLATFORM_TRADE_ORDER_ID }),
     );
 
-    await portWith(http).createTradeOrder(orderRequest());
+    await portWith(http).createTradeOrder(observedOrderRequest());
 
     const body = JSON.parse(requests[0]?.body ?? '{}') as {
       readonly order_info: Record<string, unknown>;
@@ -210,7 +211,7 @@ describe('createTiktokTradeOrderPort — request shaping', () => {
       jsonResponse(200, { trade_order_id: PLATFORM_TRADE_ORDER_ID }),
     );
 
-    await portWith(http).createTradeOrder(orderRequest());
+    await portWith(http).createTradeOrder(observedOrderRequest());
 
     expect(requests[0]?.url).not.toContain(ACCESS_TOKEN);
     expect(requests[0]?.url).not.toContain(encodeURIComponent(ACCESS_TOKEN));
@@ -225,7 +226,7 @@ describe('createTiktokTradeOrderPort — request shaping', () => {
       http,
       timeoutMs: 1_500,
       accessTokenForUser: () => ACCESS_TOKEN,
-    }).createTradeOrder(orderRequest());
+    }).createTradeOrder(observedOrderRequest());
 
     expect(requests[0]?.timeoutMs).toBe(1_500);
   });
@@ -240,7 +241,7 @@ describe('createTiktokTradeOrderPort — a successful create', () => {
       }),
     );
 
-    const result = await port.createTradeOrder(orderRequest());
+    const result = await port.createTradeOrder(observedOrderRequest());
 
     expect(result).toEqual({ ok: true, value: { tradeOrderId: PLATFORM_TRADE_ORDER_ID } });
     expect(result.ok && result.value.tradeOrderId).not.toBe(OUR_ORDER_ID);
@@ -254,7 +255,7 @@ describe('createTiktokTradeOrderPort — a successful create', () => {
       }),
     );
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: true,
       value: { tradeOrderId: PLATFORM_TRADE_ORDER_ID },
     });
@@ -265,7 +266,7 @@ describe('createTiktokTradeOrderPort — a successful create', () => {
       jsonResponse(200, { trade_order_id: PLATFORM_TRADE_ORDER_ID }),
     );
 
-    const result = await port.createTradeOrder(orderRequest());
+    const result = await port.createTradeOrder(observedOrderRequest());
     const serialized = `${JSON.stringify(result)}\n${inspect(result, { depth: 8 })}`;
 
     expect(serialized).not.toContain(ACCESS_TOKEN);
@@ -277,7 +278,7 @@ describe('createTiktokTradeOrderPort — 200 with no trade_order_id', () => {
   it('is TRADE_ORDER_UNAVAILABLE, not a synthesised identifier', async () => {
     const port = portWith(async () => jsonResponse(200, { order_id: OUR_ORDER_ID }));
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -286,7 +287,7 @@ describe('createTiktokTradeOrderPort — 200 with no trade_order_id', () => {
   it('refuses an empty or whitespace trade_order_id', async () => {
     for (const trade_order_id of ['', '   ']) {
       const port = portWith(async () => jsonResponse(200, { trade_order_id }));
-      expect(await port.createTradeOrder(orderRequest())).toEqual({
+      expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
         ok: false,
         error: 'TRADE_ORDER_UNAVAILABLE',
       });
@@ -296,7 +297,7 @@ describe('createTiktokTradeOrderPort — 200 with no trade_order_id', () => {
   it('refuses a non-string trade_order_id', async () => {
     const port = portWith(async () => jsonResponse(200, { trade_order_id: 12 }));
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -309,7 +310,7 @@ describe('createTiktokTradeOrderPort — platform errors', () => {
       jsonResponse(400, { error: { code: 'invalid_token', message: 'nope' } }),
     );
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -318,7 +319,7 @@ describe('createTiktokTradeOrderPort — platform errors', () => {
   it('maps a top-level error string to TRADE_ORDER_UNAVAILABLE', async () => {
     const port = portWith(async () => jsonResponse(400, { error: 'invalid_client' }));
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -327,7 +328,7 @@ describe('createTiktokTradeOrderPort — platform errors', () => {
   it('maps HTTP 503 to TRADE_ORDER_UNAVAILABLE', async () => {
     const port = portWith(async () => ({ status: 503, bodyText: 'unavailable' }));
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -336,7 +337,7 @@ describe('createTiktokTradeOrderPort — platform errors', () => {
   it('maps a JSON array body to TRADE_ORDER_UNAVAILABLE', async () => {
     const port = portWith(async () => ({ status: 200, bodyText: '[]' }));
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -349,7 +350,7 @@ describe('createTiktokTradeOrderPort — transport failures', () => {
       throw new Error(ACCESS_TOKEN);
     });
 
-    const result = await port.createTradeOrder(orderRequest());
+    const result = await port.createTradeOrder(observedOrderRequest());
 
     expect(result).toEqual({ ok: false, error: 'TRADE_ORDER_UNAVAILABLE' });
     expect(JSON.stringify(result)).not.toContain(ACCESS_TOKEN);
@@ -361,7 +362,7 @@ describe('createTiktokTradeOrderPort — transport failures', () => {
       throw new DOMException('The operation was aborted', 'AbortError');
     });
 
-    expect(await port.createTradeOrder(orderRequest())).toEqual({
+    expect(await port.createTradeOrder(observedOrderRequest())).toEqual({
       ok: false,
       error: 'TRADE_ORDER_UNAVAILABLE',
     });
@@ -409,7 +410,7 @@ describe('postTiktokTradeOrderCreate — the production transport', () => {
 
     const result = await createTiktokTradeOrderPort({
       accessTokenForUser: () => ACCESS_TOKEN,
-    }).createTradeOrder(orderRequest());
+    }).createTradeOrder(observedOrderRequest());
 
     expect(result).toEqual({ ok: true, value: { tradeOrderId: PLATFORM_TRADE_ORDER_ID } });
     expect(calls).toHaveLength(1);
