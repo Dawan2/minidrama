@@ -1,10 +1,12 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createSessionIssuer } from './modules/identity/session.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
+import { createUnverifiableSessionResolver } from './modules/progress/viewer.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { identityRoutes } from './modules/identity/routes.js';
@@ -12,11 +14,14 @@ import { loadConfig } from './config.js';
 import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
+import { progressRoutes } from './modules/progress/routes.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { ServerConfig } from './config.js';
 import type { SessionIssuer } from './modules/identity/session.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
+import type { ViewerResolver } from './modules/progress/viewer.js';
+import type { WatchProgressStore } from './modules/progress/store.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
 
 /**
@@ -40,6 +45,13 @@ export interface AppDependencies {
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
   readonly sessionIssuer?: SessionIssuer;
+  readonly watchProgressStore?: WatchProgressStore;
+  /**
+   * Turns a session token into a viewer. The default refuses every request, because this deployment
+   * cannot verify a session yet — see `modules/progress/viewer.ts`. Tests that need an authenticated
+   * viewer inject one here, which is the same shape as every other unbuilt boundary in this file.
+   */
+  readonly viewerResolver?: ViewerResolver;
   readonly now?: () => number;
 }
 
@@ -102,6 +114,12 @@ export async function buildApp(
   await app.register(identityRoutes, {
     identityPort: dependencies.identityPort ?? createTiktokIdentityPort(credentials),
     sessionIssuer: dependencies.sessionIssuer ?? createSessionIssuer(),
+  });
+
+  await app.register(progressRoutes, {
+    store: dependencies.watchProgressStore ?? createInMemoryWatchProgressStore(),
+    viewerResolver: dependencies.viewerResolver ?? createUnverifiableSessionResolver(),
+    now,
   });
 
   await app.register(platformTiktokRoutes, {
