@@ -18,7 +18,9 @@ import type { PlaybackApi } from '../data/playback-api';
  * a player of the *route* episode rather than a six-item demo album.
  */
 
-export function playbackDescriptor(overrides: Partial<PlaybackDescriptor> = {}): PlaybackDescriptor {
+export function playbackDescriptor(
+  overrides: Partial<PlaybackDescriptor> = {},
+): PlaybackDescriptor {
   const episodeId = overrides.episodeId ?? 'ep_test_0001';
   return {
     albumId: 'drm_test_0001',

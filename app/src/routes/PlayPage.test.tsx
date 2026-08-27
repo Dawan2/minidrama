@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { err, ok } from '@minidrama/shared';
@@ -176,7 +176,9 @@ describe('locked episodes are intercepted at every entry', () => {
     const locked = lockedEpisodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
     const playbackApi = stubPlaybackApi({
       create: (episodeId) =>
-        episodeId === locked.id ? err(lockedPlaybackFailure()) : ok(playbackDescriptor({ episodeId })),
+        episodeId === locked.id
+          ? err(lockedPlaybackFailure())
+          : ok(playbackDescriptor({ episodeId })),
     });
 
     renderPlayer({
@@ -315,10 +317,7 @@ describe('PNL-01 on the player', () => {
   });
 
   it('opens the picker from the player and dismisses it', async () => {
-    const api = playCatalog([
-      episodeItem(),
-      episodeItem({ globalEpisodeNumber: 2 }),
-    ]);
+    const api = playCatalog([episodeItem(), episodeItem({ globalEpisodeNumber: 2 })]);
     renderPlayer({
       bridge: await readyBridge(),
       episodeId: 'ep_test_0001',
@@ -342,7 +341,7 @@ describe('PNL-01 on the player', () => {
  */
 describe('the demo album does not ship', () => {
   it('is absent from PlayPage production source', () => {
-    const source = readFileSync(fileURLToPath(new URL('./PlayPage.tsx', import.meta.url)), 'utf8');
+    const source = readFileSync(join(process.cwd(), 'src/routes/PlayPage.tsx'), 'utf8');
     expect(source).not.toMatch(/demoPlaylist/);
     expect(source).not.toMatch(/ep_demo_/);
     expect(source).not.toMatch(/vid_demo_/);
