@@ -2,12 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 
 /**
- * G1.9 (`docs/14-quality-gates.md` §2): Conventional Commits on the commits that would
- * land. A prose subject fails. Merge commits are skipped so absorbing `origin/main` is not
- * a rewrite. History already on `main` is not rewritten — the range is merge-base with
- * `origin/main` (or `--base`) through `HEAD`.
+ * G1.9 (`docs/14-quality-gates.md` §2): Conventional Commits, and a requirement/defect id,
+ * on the commits that would land. A prose subject fails. A Conventional header with no
+ * tracker id (`D-20`, `G1.9`, `C5-01`, `#12`, …) fails. Merge commits are skipped so
+ * absorbing `origin/main` is not a rewrite. History already on `main` is not rewritten —
+ * the range is merge-base with `origin/main` (or `--base`) through `HEAD`.
  *
  * This module invokes git. A TypeScript comment that names Conventional Commits is not G1.9.
+ * `feat: add a widget` is not G1.9 either: the gate text requires 需求/缺陷编号.
  *
  * Folded into `pnpm verify`: git is already on the path, the same way G1.10 has no extra
  * binary. G1.8 / G1.6 stay out because they install one.
@@ -37,6 +39,16 @@ const TYPE_ALTERNATION = CONVENTIONAL_TYPES.join('|');
 export const CONVENTIONAL_SUBJECT = new RegExp(
   `^(${TYPE_ALTERNATION})(\\([a-zA-Z0-9._/-]+\\))?(!)?: .+`,
 );
+
+/**
+ * Requirement / defect ids this repository actually uses, plus a GitHub `#n`.
+ * `G1.9` in a scope and `D-20` in a footer both count. `v1.0` does not.
+ */
+export const TRACKER_RE =
+  /\b(?:D-\d+|C\d+-\d+|G\d+\.\d+|INF-\d+|QA-\d+|PLY-\d+|PRG-\d+|SCR-\d+|APP-\d+|SRV-\d+|DAT-\d+|OBS-\d+|I18N-\d+|CTR-\d+|CNT-\d+|GOV-\d+|VER-\d+|PNL-\d+|T\d+(?:-\d+)?|X-\d+|GATE-\d+|Q-G-\d+)\b|#\d+\b/gi;
+
+/** Subject NUL body RS — so a footer `Refs: D-20` is visible without rewriting `%s`. */
+export const LOG_FORMAT = '%s%x00%b%x1e';
 
 export interface CommitsCheckArgs {
   readonly root: string;
@@ -71,6 +83,13 @@ export type GitRunner = (options: {
 export interface CommitSubject {
   readonly subject: string;
 }
+
+export interface CommitRecord {
+  readonly subject: string;
+  readonly body: string;
+}
+
+export type CommitHitKind = 'prose' | 'missing-id';
 
 export function parseCommitsArgs(
   argv: readonly string[],
@@ -107,15 +126,57 @@ export function isConventionalSubject(subject: string): boolean {
   return CONVENTIONAL_SUBJECT.test(subject);
 }
 
+export function findTrackerIds(text: string): string[] {
+  const pattern = new RegExp(TRACKER_RE.source, TRACKER_RE.flags);
+  const found: string[] = [];
+  const seen = new Set<string>();
+  for (const match of text.matchAll(pattern)) {
+    const token = match[0] ?? '';
+    const key = token.toUpperCase();
+    if (token !== '' && !seen.has(key)) {
+      seen.add(key);
+      found.push(token);
+    }
+  }
+  return found;
+}
+
+export function hasTrackerId(subject: string, body: string): boolean {
+  return findTrackerIds(`${subject}\n${body}`).length > 0;
+}
+
 export function parseGitSubjects(raw: string): string[] {
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter((line) => line !== '');
+  return parseGitRecords(raw).map((record) => record.subject);
+}
+
+export function parseGitRecords(raw: string): CommitRecord[] {
+  if (raw === '') return [];
+  if (!raw.includes('\x1e') && !raw.includes('\x00')) {
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter((line) => line !== '')
+      .map((subject) => ({ subject, body: '' }));
+  }
+  const records: CommitRecord[] = [];
+  for (const chunk of raw.split('\x1e')) {
+    if (chunk === '' || chunk === '\n') continue;
+    const trimmed = chunk.startsWith('\n') ? chunk.slice(1) : chunk;
+    const nul = trimmed.indexOf('\x00');
+    const subject = (nul === -1 ? trimmed : trimmed.slice(0, nul)).trimEnd();
+    const body = nul === -1 ? '' : trimmed.slice(nul + 1);
+    if (subject === '') continue;
+    records.push({ subject, body });
+  }
+  return records;
 }
 
 export function formatViolation(subject: string): string {
   return subject;
+}
+
+export function formatHit(kind: CommitHitKind, subject: string): string {
+  return `${kind} ${subject}`;
 }
 
 export function buildMergeBaseArgv(base: string): string[] {
@@ -127,7 +188,7 @@ export function buildRevParseArgv(base: string): string[] {
 }
 
 export function buildLogArgv(mergeBase: string): string[] {
-  return ['log', '--no-merges', '--format=%s', `${mergeBase}..HEAD`];
+  return ['log', '--no-merges', `--format=${LOG_FORMAT}`, `${mergeBase}..HEAD`];
 }
 
 export function defaultGitRunner(options: {
@@ -210,19 +271,28 @@ export function runCommitsCheck(
     return fail(`git log failed (${String(logged.status)}): ${detail}`);
   }
 
-  const subjects = parseGitSubjects(logged.stdout);
-  const prose = subjects.filter((subject) => !isConventionalSubject(subject));
-  if (prose.length > 0) {
-    const listed = prose.map((subject) => `  ${formatViolation(subject)}`).join('\n');
+  const records = parseGitRecords(logged.stdout);
+  const hits: { readonly kind: CommitHitKind; readonly subject: string }[] = [];
+  for (const record of records) {
+    if (!isConventionalSubject(record.subject)) {
+      hits.push({ kind: 'prose', subject: record.subject });
+      continue;
+    }
+    if (!hasTrackerId(record.subject, record.body)) {
+      hits.push({ kind: 'missing-id', subject: record.subject });
+    }
+  }
+  if (hits.length > 0) {
+    const listed = hits.map((hit) => `  ${formatHit(hit.kind, hit.subject)}`).join('\n');
     return fail(
-      `commits failed (${String(prose.length)}): prose subjects are G1.9 red; do not rewrite history on main\n${listed}`,
+      `commits failed (${String(hits.length)}): new commits that are not Conventional Commits with a requirement/defect id are G1.9 red\n${listed}`,
     );
   }
 
   return {
     ok: true,
     exitCode: 0,
-    stdout: `commits passed (${String(subjects.length)} new commits vs ${args.base}, 0 prose)\n`,
+    stdout: `commits passed (${String(records.length)} new commits vs ${args.base}, 0 prose, 0 missing-id)\n`,
     stderr: '',
   };
 }

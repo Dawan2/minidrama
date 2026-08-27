@@ -106,15 +106,30 @@ describe('check-commits CLI', () => {
     expect(result.stdout).not.toContain('commits passed');
   });
 
-  it('exits zero when the unique commit is conventional', () => {
+  it('exits zero when the unique commit is conventional and carries a tracker id', () => {
+    const root = initRepo();
+    git(root, ['checkout', '-b', 'feature']);
+    writeFileSync(join(root, 'note.txt'), 'work\n');
+    git(root, ['add', 'note.txt']);
+    git(root, ['commit', '-m', 'feat(g1.9): add skip detection']);
+    const result = run(['--root', root, '--base', 'main']);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      'commits passed (1 new commits vs main, 0 prose, 0 missing-id)',
+    );
+  });
+
+  it('exits non-zero when a conventional commit has no requirement/defect id', () => {
     const root = initRepo();
     git(root, ['checkout', '-b', 'feature']);
     writeFileSync(join(root, 'note.txt'), 'work\n');
     git(root, ['add', 'note.txt']);
     git(root, ['commit', '-m', 'feat: add skip detection']);
     const result = run(['--root', root, '--base', 'main']);
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('commits passed (1 new commits vs main, 0 prose)');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('missing-id');
+    expect(result.stderr).toContain('feat: add skip detection');
+    expect(result.stdout).not.toContain('commits passed');
   });
 
   it('skips a merge commit so absorbing main does not rewrite history', () => {
@@ -122,7 +137,7 @@ describe('check-commits CLI', () => {
     git(root, ['checkout', '-b', 'feature']);
     writeFileSync(join(root, 'note.txt'), 'work\n');
     git(root, ['add', 'note.txt']);
-    git(root, ['commit', '-m', 'feat: add skip detection']);
+    git(root, ['commit', '-m', 'feat(g1.9): add skip detection']);
     git(root, ['checkout', 'main']);
     writeFileSync(join(root, 'other.txt'), 'trunk\n');
     git(root, ['add', 'other.txt']);
@@ -136,14 +151,18 @@ describe('check-commits CLI', () => {
     expect(merge.status).toBe(0);
     const result = run(['--root', root, '--base', 'main']);
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('commits passed (1 new commits vs main, 0 prose)');
+    expect(result.stdout).toContain(
+      'commits passed (1 new commits vs main, 0 prose, 0 missing-id)',
+    );
   });
 
   it('exits zero on an empty range — HEAD is already the base', () => {
     const root = initRepo();
     const result = run(['--root', root, '--base', 'main']);
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('commits passed (0 new commits vs main, 0 prose)');
+    expect(result.stdout).toContain(
+      'commits passed (0 new commits vs main, 0 prose, 0 missing-id)',
+    );
   });
 
   it('exits non-zero when a fake git reports a finding-shaped prose subject', () => {
