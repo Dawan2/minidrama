@@ -16,10 +16,10 @@ import type { UnlockOrder, UnlockOrderTransition, UnlockOrderTransitionFailure }
  * The in-memory implementation is bounded and is the default; it forgets everything on restart.
  * A forgotten `PAID` order is a payment we have to reconcile, and a forgotten `PENDING` order is
  * a callback that can match nothing. `DATABASE_URL=sqlite:<path>` puts a SQLite table behind this
- * same interface (the same file as unlock receipts, sessions, and webhook events); a postgres URL
- * is refused rather than rewritten to a file. Three unique indexes — `id`, `(userId,
- * idempotencyKey)` and `tradeOrderId` — are what the Maps below simulate, and the last one is
- * what makes callback correlation single-valued.
+ * same interface (the same file as unlock receipts, sessions, webhook events, and watch
+ * progress); a postgres URL is refused rather than rewritten to a file. Three unique indexes
+ * — `id`, `(userId, idempotencyKey)` and `tradeOrderId` — are what the Maps below simulate,
+ * and the last one is what makes callback correlation single-valued.
  */
 
 /**

@@ -17,6 +17,7 @@ import { createSqliteUnlockOrderStore } from './modules/unlock/sqlite-order-stor
 import { createInMemoryUnlockStore } from './modules/unlock/unlock-store.js';
 import { createSqliteUnlockStore } from './modules/unlock/sqlite-unlock-store.js';
 import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
+import { createSqliteWatchProgressStore } from './modules/progress/sqlite-watch-progress-store.js';
 import { databaseNotWiredMessage } from './db/database-url.js';
 import { openMigratedSqlite } from './db/migrate.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
@@ -99,8 +100,8 @@ export interface AppDependencies {
   /**
    * Inbound platform webhook events, stored before verification. Injected by tests that need to
    * read the records back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same file
-   * as unlock receipts, sessions, and coin unlock orders), and the in-memory skeleton otherwise; a
-   * postgres URL is refused rather than rewritten to a file.
+   * as unlock receipts, sessions, coin unlock orders, and watch progress), and the in-memory
+   * skeleton otherwise; a postgres URL is refused rather than rewritten to a file.
    */
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
@@ -109,7 +110,7 @@ export interface AppDependencies {
    * platform exchange — which is the supported way to log in during a test, and needs no flag,
    * because it is reachable from a test process and from nowhere else. Uninjected, the default is
    * SQLite when `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts, webhook events,
-   * and coin unlock orders), and the in-memory map otherwise.
+   * coin unlock orders, and watch progress), and the in-memory map otherwise.
    */
   readonly sessionStore?: SessionStore;
   /**
@@ -139,17 +140,17 @@ export interface AppDependencies {
   readonly playbackMediaPort?: PlaybackMediaPort;
   /**
    * Coin unlock orders. Injected by tests that need to read them back. The default is SQLite when
-   * `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts, sessions, and webhook events),
-   * and the in-memory skeleton otherwise; a postgres URL is refused rather than rewritten to a
-   * file. The trade-order port defaults to refusing, because an order carrying an identifier the
-   * platform never minted is an order no payment can be matched to.
+   * `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts, sessions, webhook events, and
+   * watch progress), and the in-memory skeleton otherwise; a postgres URL is refused rather than
+   * rewritten to a file. The trade-order port defaults to refusing, because an order carrying an
+   * identifier the platform never minted is an order no payment can be matched to.
    */
   readonly unlockOrderStore?: UnlockOrderStore;
   /**
    * The unlock records a verified payment writes — what a viewer owns. Injected by tests that need
    * to read the receipts back. The default is SQLite when `DATABASE_URL=sqlite:<path>` (the same
-   * file as sessions, webhook events, and coin unlock orders), and the in-memory skeleton
-   * otherwise; a postgres URL is refused rather than rewritten to a file.
+   * file as sessions, webhook events, coin unlock orders, and watch progress), and the in-memory
+   * skeleton otherwise; a postgres URL is refused rather than rewritten to a file.
    */
   readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
@@ -160,10 +161,12 @@ export interface AppDependencies {
    */
   readonly walletBalancePort?: WalletBalancePort;
   /**
-   * Watch progress. The store defaults to the in-memory skeleton, because a position that is lost on
-   * restart is a viewer resuming a few seconds early rather than a wrong answer. The catalogue port
-   * defaults to refusing: a history row needs a drama the `catalog` module owns, and inventing one
-   * would tell a viewer they had watched something they had not.
+   * Watch progress. Injected by tests that need to seed rows. The default is SQLite when
+   * `DATABASE_URL=sqlite:<path>` (the same file as unlock receipts, sessions, webhook events, and
+   * coin unlock orders), and the in-memory skeleton otherwise; a postgres URL is refused rather
+   * than rewritten to a file. The catalogue port defaults to refusing: a history row needs a drama
+   * the `catalog` module owns, and inventing one would tell a viewer they had watched something
+   * they had not.
    */
   readonly watchProgressStore?: WatchProgressStore;
   readonly watchHistoryCatalogPort?: WatchHistoryCatalogPort;
@@ -272,9 +275,9 @@ export async function buildApp(
   // made here, once, for every module that asks what a viewer owns. It adds facts and decides
   // nothing: a facts port that refuses still refuses, which is what the default deployment does.
   //
-  // One sqlite file when DATABASE_URL asks for it: unlock receipts, sessions, webhook events, and
-  // coin unlock orders share the connection, so a process restart cannot keep a receipt and drop
-  // the pending order a late callback has to match by opening two files.
+  // One sqlite file when DATABASE_URL asks for it: unlock receipts, sessions, webhook events,
+  // coin unlock orders, and watch progress share the connection, so a process restart cannot keep
+  // a receipt and drop the pending order a late callback has to match by opening two files.
   const durableDb = openSharedSqlite(app, config, dependencies);
   const unlockStore =
     dependencies.unlockStore ??
@@ -378,7 +381,11 @@ export async function buildApp(
   // One progress store for both registrations: the per-episode endpoints write the rows the history
   // list reads. Separate stores would leave the history screen permanently empty for a viewer whose
   // player had been reporting positions all along.
-  const watchProgressStore = dependencies.watchProgressStore ?? createInMemoryWatchProgressStore();
+  const watchProgressStore =
+    dependencies.watchProgressStore ??
+    (durableDb === undefined
+      ? createInMemoryWatchProgressStore()
+      : createSqliteWatchProgressStore(durableDb));
 
   await app.register(progressRoutes, {
     store: watchProgressStore,
@@ -443,7 +450,8 @@ function openSharedSqlite(
     dependencies.unlockStore !== undefined &&
     dependencies.sessionStore !== undefined &&
     dependencies.webhookEventStore !== undefined &&
-    dependencies.unlockOrderStore !== undefined
+    dependencies.unlockOrderStore !== undefined &&
+    dependencies.watchProgressStore !== undefined
   ) {
     return undefined;
   }
@@ -455,7 +463,7 @@ function openSharedSqlite(
   });
   app.log.info(
     { path },
-    'unlock receipts, sessions, webhook events, and coin unlock orders persist in sqlite',
+    'unlock receipts, sessions, webhook events, coin unlock orders, and watch progress persist in sqlite',
   );
   return db;
 }
