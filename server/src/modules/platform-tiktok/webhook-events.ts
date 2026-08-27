@@ -26,9 +26,12 @@ export interface TiktokWebhookEnvelope {
 
 export type EnvelopeRejectionReason = 'PAYLOAD_NOT_JSON' | 'ENVELOPE_FIELDS_INVALID';
 
+/** The one event that means a viewer's Beans were taken and something is owed to them. */
+export const REDEEM_SUCCESS_EVENT = 'minis.trade_order.redeem.success';
+
 /** Published trade-order events. `refund_success` / `refund_fail` are currently unavailable. */
 export const KNOWN_WEBHOOK_EVENTS = [
-  'minis.trade_order.redeem.success',
+  REDEEM_SUCCESS_EVENT,
   'minis.trade_order.redeem.refund_success',
   'minis.trade_order.redeem.refund_fail',
   'minis.trade_order.redeem.refund_traceback',
@@ -83,6 +86,22 @@ export function parseEventContent(
 }
 
 /**
+ * The platform's identifier for the payment, or `null` when the content does not carry one.
+ *
+ * It is the only field an order can be correlated on, so an empty or non-string value is `null`
+ * rather than a coerced key: correlating on `""` would match every order that failed to get a real
+ * identifier, and the first thing it would do is pay the wrong one.
+ */
+export function readTradeOrderId(content: string): string | null {
+  const parsed = parseEventContent(content);
+  if (!parsed.ok) return null;
+
+  const tradeOrderId = parsed.value['trade_order_id'];
+
+  return typeof tradeOrderId === 'string' && tradeOrderId.length > 0 ? tradeOrderId : null;
+}
+
+/**
  * The idempotency key for at-least-once delivery: TikTok warns that "webhook endpoints might
  * receive the same event more than once".
  *
@@ -93,13 +112,9 @@ export function parseEventContent(
  * semantic equality for a field set we do not have (G-R4).
  */
 export function webhookIdempotencyKey(rawBody: Buffer, content: string): string {
-  const parsed = parseEventContent(content);
-
-  if (parsed.ok) {
-    const tradeOrderId = parsed.value['trade_order_id'];
-    if (typeof tradeOrderId === 'string' && tradeOrderId.length > 0) {
-      return `trade_order:${tradeOrderId}`;
-    }
+  const tradeOrderId = readTradeOrderId(content);
+  if (tradeOrderId !== null) {
+    return `trade_order:${tradeOrderId}`;
   }
 
   return `payload:${createHash('sha256').update(rawBody).digest('hex')}`;

@@ -1,8 +1,15 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from 'fastify';
 
+import { createIgnoringPaidTradeOrderSink } from './paid-trade-orders.js';
 import { errorBody } from '../../core/errors.js';
-import { parseWebhookEnvelope, webhookIdempotencyKey } from './webhook-events.js';
+import {
+  REDEEM_SUCCESS_EVENT,
+  parseWebhookEnvelope,
+  readTradeOrderId,
+  webhookIdempotencyKey,
+} from './webhook-events.js';
 import { retainHeaders } from './event-store.js';
+import type { PaidTradeOrderSink } from './paid-trade-orders.js';
 import type { SignatureVerifier } from './signature-verifier.js';
 import type { WebhookEventStore } from './event-store.js';
 
@@ -11,7 +18,9 @@ import type { WebhookEventStore } from './event-store.js';
  *
  * Processing order is the official one (`docs/research/tiktok-minis-official.md` §6.3):
  * store the raw payload → verify the signature → verify the timestamp window → idempotency →
- * fulfil → 200. Fulfilment is the billing slot's; everything up to it is here.
+ * fulfil → 200. This module owns everything up to fulfilment and none of fulfilment itself: a
+ * verified `redeem.success` is published to a `PaidTradeOrderSink`, and what a paid order entitles
+ * anyone to is decided by the module that sold the thing.
  *
  * Three properties this handler must not lose:
  *
@@ -31,6 +40,8 @@ export interface PlatformTiktokRouteOptions {
   readonly eventStore: WebhookEventStore;
   /** Public client key. When set, an envelope addressed to another partner is rejected. */
   readonly clientKey: string;
+  /** Told about verified payments. Defaults to recording nothing, which grants nothing. */
+  readonly paidTradeOrders?: PaidTradeOrderSink;
   readonly now?: () => number;
 }
 
@@ -48,6 +59,7 @@ export async function platformTiktokRoutes(
   options: PlatformTiktokRouteOptions,
 ): Promise<void> {
   const { signatureVerifier, eventStore, clientKey } = options;
+  const paidTradeOrders = options.paidTradeOrders ?? createIgnoringPaidTradeOrderSink();
   const now = options.now ?? Date.now;
 
   // Both calls are encapsulated in this plugin's scope, so routes registered elsewhere keep
@@ -140,14 +152,75 @@ export async function platformTiktokRoutes(
       return reply.status(200).send({ received: true, duplicate: true });
     }
 
-    // Fulfilment (secondary order query, atomic wallet credit, order state transition) belongs to
-    // the billing module. Until it exists the event stays stored and unprocessed, which is what
-    // makes replay the recovery path rather than a lost payment.
     request.log.info(
       { eventId: record.id, event: envelope.value.event, idempotencyKey },
       'tiktok webhook accepted',
     );
 
+    // Only a redeem success says a viewer was charged. The refund events are stored and left alone:
+    // reversing an order is a different decision from making one, and inventing it from an event
+    // shape we have never seen (G-R4) would be guessing with somebody's money.
+    if (envelope.value.event === REDEEM_SUCCESS_EVENT) {
+      await publishVerifiedPayment({
+        log: request.log,
+        sink: paidTradeOrders,
+        eventId: record.id,
+        payerOpenId: envelope.value.userOpenId,
+        content: envelope.value.content,
+        paidAtMs: now(),
+      });
+    }
+
+    // The wallet debit and the `Unlock` row are still nobody's here: this endpoint publishes a
+    // verified payment and the order module records it, but granting an episode is W14 work against
+    // a data layer that does not exist. The event stays stored either way, which is what makes
+    // replay the recovery path rather than a lost payment.
     return reply.status(200).send({ received: true, duplicate: false });
   });
+}
+
+interface PublishVerifiedPaymentInput {
+  readonly log: FastifyBaseLogger;
+  readonly sink: PaidTradeOrderSink;
+  readonly eventId: string;
+  readonly payerOpenId: string;
+  readonly content: string;
+  readonly paidAtMs: number;
+}
+
+/**
+ * Hands one verified payment to the sink and reports what came of it.
+ *
+ * Nothing here can change the response. The delivery's idempotency key was claimed before this
+ * runs, so answering anything other than `200` would bring the event back only to be discarded as a
+ * duplicate; recovery for everything below is replay from the stored payload, and the log line is
+ * how anyone learns a replay is owed.
+ */
+async function publishVerifiedPayment(input: PublishVerifiedPaymentInput): Promise<void> {
+  const tradeOrderId = readTradeOrderId(input.content);
+
+  if (tradeOrderId === null) {
+    // Authentic, and about a payment we cannot name. Nothing can be correlated on an absent id, and
+    // matching on anything else — the open id, the amount, the timing — is how the wrong order gets
+    // paid.
+    input.log.error(
+      { eventId: input.eventId },
+      'verified redeem success carries no trade_order_id',
+    );
+    return;
+  }
+
+  const outcome = await input.sink.recordPaid({
+    tradeOrderId,
+    payerOpenId: input.payerOpenId,
+    paidAtMs: input.paidAtMs,
+    eventId: input.eventId,
+  });
+
+  // `PAYER_MISMATCH` and `ORDER_NOT_PAYABLE` mean an authentic payment arrived for an order we hold
+  // and we declined to act on it. That is a correlation bug or an attempt to pay somebody else's
+  // order, and either way somebody has been charged for something they will not receive.
+  const level = outcome === 'PAYER_MISMATCH' || outcome === 'ORDER_NOT_PAYABLE' ? 'error' : 'info';
+
+  input.log[level]({ eventId: input.eventId, tradeOrderId, outcome }, 'verified payment published');
 }
