@@ -105,3 +105,16 @@ export {
   runContractCheck,
 } from './contract.js';
 export type { BreakingChange, ContractCheckArgs } from './contract.js';
+
+export {
+  IT_TODO,
+  ONLY_CALL,
+  SKIP_CALL,
+  USAGE as SKIPS_USAGE,
+  emptyItFixture,
+  formatHit as formatSkipHit,
+  parseSkipArgs,
+  runSkipCheck,
+  scanTestFile,
+} from './skips.js';
+export type { SkipCheckArgs, SkipHit } from './skips.js';

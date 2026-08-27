@@ -64,6 +64,12 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 - 分支必须基于最新 `main`(或启用 merge queue),防止"绿色 PR 合并后主干变红"。
 - **禁止**仓库管理员绕过分支保护直接 push `main`。
 
+### 2.1 Dated implementation notes (slot C)
+
+**2026-08-27 (W16 C5-01 / D-20).** G1.10 is `pnpm check:skips`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. R3 / §6: skip exemptions do not apply. A committed skip / only / todo / empty `it('…', () => {})` in `app`, `server`, or `packages` test files is red. A comment that forbids skips is not this gate.
+
+**2026-08-27 (W16 C5-01 / D-20).** G1.7 is discharged by G2.5 Trivy (`pnpm check:sca`, L2 job `sca`). Critical findings fail; high findings with a published fix older than seven days fail. A second L1 `osv-scanner` / `npm audit` job would duplicate that engine. G1.9 Conventional Commits remains a further slice; commit subjects stay prose.
+
 ---
 
 ## 3. 覆盖率门禁与 ratchet 机制
