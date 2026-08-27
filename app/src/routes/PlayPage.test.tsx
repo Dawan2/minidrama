@@ -217,10 +217,10 @@ describe('locked episodes are intercepted at every entry', () => {
 
     fireEvent.click(await screen.findByTestId('player-next'));
 
-    await waitFor(() => {
+    await waitFor(async () => {
       expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(second.id);
+      expect((await player()).config.episodeId).toBe(second.id);
     });
-    expect((await player()).config.episodeId).toBe(second.id);
     expect((await player()).config.vid).toBe(`vid_${second.id}`);
     expect((await player()).config.vid).not.toMatch(/vid_demo_/);
     expect(playbackApi.createCalls[0]).toBe(first.id);
