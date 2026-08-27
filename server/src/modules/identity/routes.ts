@@ -6,7 +6,7 @@ import type {
   IdentityExchangeFailure,
   PlatformIdentityPort,
 } from '../platform-tiktok/identity-port.js';
-import type { SessionIssuer } from './session.js';
+import type { SessionStore } from './session-store.js';
 
 /**
  * Silent login.
@@ -16,9 +16,14 @@ import type { SessionIssuer } from './session.js';
  * server (U-03). The code is single-use and is treated as a credential: it is not logged, not echoed
  * and not stored.
  *
- * This slot ships the contract, the validation and the deny path. The exchange itself is refused by
+ * The route ships the contract, the validation and the deny path. The exchange itself is refused by
  * `platform-tiktok`'s identity port until the real HTTP call lands, so no session can be issued
  * without a genuine platform response — see `createUnavailableIdentityPort`.
+ *
+ * What changed in W3 slot L: the issued token is now **bound** to the user it was issued for, in
+ * the same store the viewer resolver reads. Before, a session was a token nobody could resolve, so
+ * every endpoint that needs a viewer answered `401` even to a caller holding a session this route
+ * had just minted.
  */
 
 /** Minis launches with TikTok only. The other providers in the contract are reserved for later. */
@@ -31,7 +36,7 @@ interface LoginBody {
 
 export interface IdentityRouteOptions {
   readonly identityPort: PlatformIdentityPort;
-  readonly sessionIssuer: SessionIssuer;
+  readonly sessionStore: SessionStore;
 }
 
 /**
@@ -100,12 +105,29 @@ export async function identityRoutes(
         .send(errorBody(response.code, response.message, request.id));
     }
 
-    const session = options.sessionIssuer.issue(exchanged.value.openId);
+    const openId = exchanged.value.openId;
+
+    // An exchange that succeeded without naming a user is not a login. Issuing here would either
+    // throw inside the store or, if the store were laxer, bind a session to nobody — and every
+    // unlock and progress row written under that session would belong to a shared phantom account.
+    if (openId.length === 0) {
+      request.log.error('identity exchange returned no open_id');
+      return reply
+        .status(502)
+        .send(errorBody('AUTH_PROVIDER_ERROR', 'Identity provider is not available', request.id));
+    }
+
+    // The account id the session is bound to. Until the users table lands (W7) the platform's
+    // `open_id` *is* the account id: there is no row to link it to, and minting a local `usr_` id
+    // here would create a second identifier space that the real link would then have to migrate.
+    // When that link arrives it goes on this line, between the exchange and the issuance, and
+    // nothing else in this route changes.
+    const session = options.sessionStore.issue(openId);
 
     return reply.status(200).send({
       accessToken: session.accessToken,
       expiresInSec: session.expiresInSec,
-      openId: exchanged.value.openId,
+      openId,
     });
   });
 }

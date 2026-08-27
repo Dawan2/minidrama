@@ -300,6 +300,10 @@ describe('POST /v1/entitlement/episode-access — the default deployment', () =>
     expect(errorCode(response)).toBe('COMMON_SERVICE_UNAVAILABLE');
   });
 
+  // The default app resolves sessions against the store its own login route writes to (W3 slot L),
+  // so a token nothing issued is the caller's problem — a 401 answered by running silent login —
+  // rather than the 503 it was while no store existed. What has not changed, and is what this test
+  // is for, is that a presented token is never read as an anonymous viewer.
   it('refuses a presented session rather than downgrading it to anonymous', async () => {
     const response = await defaultApp.inject({
       method: 'POST',
@@ -308,8 +312,8 @@ describe('POST /v1/entitlement/episode-access — the default deployment', () =>
       payload: { episodeId: 'ep_fx_s1e01' },
     });
 
-    expect(response.statusCode).toBe(503);
-    expect(errorCode(response)).toBe('COMMON_SERVICE_UNAVAILABLE');
+    expect(response.statusCode).toBe(401);
+    expect(errorCode(response)).toBe('AUTH_REQUIRED');
   });
 
   it('still validates the request first, so a bad request is still a 400', async () => {

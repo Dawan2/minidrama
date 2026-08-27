@@ -27,6 +27,10 @@ export const API_ERROR_CODES = [
   'EPISODE_LOCKED',
   'EPISODE_VIP_REQUIRED',
   'EPISODE_ASSET_UNAVAILABLE',
+  // Progress reporting is deliberately tolerant (`docs/12-error-catalog.md` §8): a report that
+  // loses the last-write-wins comparison is ignored and still answers 204. This code is reserved
+  // for a position that cannot be true of the episode it describes.
+  'PROGRESS_INVALID_POSITION',
   'UNLOCK_ALREADY_UNLOCKED',
   'UNLOCK_POLICY_NOT_ALLOWED',
   'PAYMENT_ORDER_NOT_FOUND',

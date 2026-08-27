@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ok } from '@minidrama/shared';
 import type { FastifyInstance } from 'fastify';
 
 import {
@@ -8,6 +9,7 @@ import {
 } from './modules/entitlement/fixtures.js';
 import { buildApp } from './app.js';
 import { createFixturePlaybackMediaPort } from './modules/playback/fixtures.js';
+import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { loadConfig } from './config.js';
 
 /**
@@ -155,6 +157,73 @@ describe('POST /v1/playback/sessions', () => {
     const body = response.json<{ error: { code: string; details: { unlockOptions: string[] } } }>();
     expect(body.error.code).toBe('EPISODE_LOCKED');
     expect(body.error.details.unlockOptions).toContain('COINS');
+  });
+});
+
+describe('GET /v1/users/me/watch-history', () => {
+  // The history screen's three states are three answers from this endpoint, and the app-level
+  // property is that the first two are told apart by a deployment with nothing wired at all. An
+  // empty list answered to a signed-out viewer is the version of this bug that looks like a working
+  // feature.
+  it('refuses a request that carries no session', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/users/me/watch-history' });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+    expect(response.body).not.toContain('items');
+  });
+
+  it('answers an empty list to a session that has watched nothing', async () => {
+    const sessionStore = createInMemorySessionStore();
+    const sessionApp = await buildApp({ ...loadConfig({}), logLevel: 'silent' }, { sessionStore });
+    await sessionApp.ready();
+
+    try {
+      const response = await sessionApp.inject({
+        method: 'GET',
+        url: '/v1/users/me/watch-history',
+        headers: { authorization: `Bearer ${sessionStore.issue('open_abc').accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        items: [],
+        pageInfo: { nextCursor: null, hasMore: false },
+      });
+    } finally {
+      await sessionApp.close();
+    }
+  });
+
+  // A session this app issued resolves on a per-viewer endpoint. It did not before: the login route
+  // minted tokens nothing could read, so every per-viewer endpoint refused a session it had just
+  // handed out.
+  it('accepts a session issued by its own login route', async () => {
+    const sessionApp = await buildApp(
+      { ...loadConfig({}), logLevel: 'silent' },
+      { identityPort: { exchangeAuthCode: async () => ok({ openId: 'open_abc' }) } },
+    );
+    await sessionApp.ready();
+
+    try {
+      const login = await sessionApp.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { provider: 'TIKTOK', authCode: 'code_abc' },
+      });
+      const { accessToken } = login.json<{ accessToken: string }>();
+
+      const response = await sessionApp.inject({
+        method: 'GET',
+        url: '/v1/users/me/watch-history',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+
+      expect(login.statusCode).toBe(200);
+      expect(response.statusCode).toBe(200);
+    } finally {
+      await sessionApp.close();
+    }
   });
 });
 
