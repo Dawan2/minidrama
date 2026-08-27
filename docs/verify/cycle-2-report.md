@@ -769,3 +769,38 @@ have compiled. In each case a slot's own honesty about its limits is what made t
 to reach. This report's two most useful findings — D-10's real scope and D-12's missing branch — came
 directly out of reading those admissions and testing them. That is the practice to generalise, and it
 is worth more to this project than any of the gates still missing from the L1 table.
+
+---
+
+## 12. Postscript — what moved while this report was being written
+
+Recorded because a verification report that silently goes stale is worse than one that dates itself.
+Everything above was measured against `origin/main` at **`67cac3b`**, between 18:40 and 19:01 UTC.
+`main` moved twice inside that window, both times after the relevant measurement:
+
+| Time (UTC) | `main` | Effect on this report |
+|---|---|---|
+| 18:48:31 | `67cac3b` — merge of `w9-homepage-flake-c44e` | The state this report measures. CI failed here (§1) |
+| 18:53:42 | `f8465df` — W11 records the merge | **Independently reaches D-12.** Its message flags that `w9-work-unlock-grant-5224` "gained two commits after C3 merged it, one of them production code on the payment path", and records that it was left unmerged deliberately. This slot found the same fact separately; the credit for finding it first is W11's |
+| 18:58:15 | `34ff263` — merge of `w9-work-unlock-grant-5224` | **Closes D-12.** `docs/handoff/w9-work-unlock-grant.md` is now on `main` and the `NOT_FULFILLED` rename has landed. Zero `cursor/*` branches from W9 or earlier remain unmerged |
+
+So **D-12 should be read as closed**, by W11 and W12, minutes after it was written down. §2.1's
+finding stands as a description of `67cac3b` and as the reason the branch was noticed; it is not an
+open defect against the current trunk. The verified-clean-and-green merge result in §2.1 is what
+landed, which is the one part of that section still worth keeping.
+
+**Nothing else in this report changed.** Re-checked against `34ff263`:
+
+- **D-10 stands and is now better evidenced.** `f8465df` went green on CI at the same time
+  `67cac3b` was red, on a tree differing by one document. Green-then-red-then-green across three
+  adjacent commits, none of which touched the failing test, is the load-dependence in §7.4 rather
+  than any regression — and it is precisely the anti-signal that makes this P1. The seven two-round
+  tests are untouched by either merge.
+- **D-11, D-13, D-14, D-15 and C1's D-05, D-06, D-07, D-08, D-09 are unchanged.** No contract path
+  was added, `wave-protocol.md` still has one commit from W1, and no gate state was written back.
+- **The C2 exit conditions are unchanged.** Still no migration, still 27 seed episodes, still no L2
+  workflow.
+
+The verdict in §0 is therefore unaffected: C2 does not pass, on the C2 exit conditions and on R6.
+The Tier 0 ordering in §9 changes only in that item 2 is done — which leaves closing the flake as the
+whole of Tier 0, and it is the right thing for C3 to start on.
