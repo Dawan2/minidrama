@@ -134,8 +134,24 @@ does not carry one, and inventing a Portal id is GATE-4.
 
 ## 5. Verification
 
-`pnpm verify` green on this branch after merging `origin/main` (`2a74748`). L1 sequence
+`pnpm verify` green on `13cb89a` after merging `origin/main` (`2a74748`). L1 sequence
 unchanged: format → lint → typecheck → test:coverage → check:coverage → build → guardrails.
+
+| Package | Tests |
+| --- | ---: |
+| shared | 61 |
+| quality | 102 |
+| config | 45 |
+| server | 1,734 |
+| app | 1,089 |
+| **Total** | **3,031** |
+
+```
+coverage global lines 93.74% (13944/14875), branches 91.58%, core lines 95.50%, diff lines 88.02% (713/810)
+coverage gate passed
+```
+
+Guardrails passed against `app/dist` (`index-LGFQlwOf.js` 350.40 kB / 106.98 kB gzip).
 
 D5 / D6 remain `[ ]`. G2.6 `check:artifact` is L2, not folded into `pnpm verify`.
 
