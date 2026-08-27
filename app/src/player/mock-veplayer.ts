@@ -1,4 +1,9 @@
-import type { VePlayerConfig, VePlayerEventName, VePlayerInstance } from './veplayer-types';
+import type {
+  VePlayerConfig,
+  VePlayerEventName,
+  VePlayerInstance,
+  VePlayerPlaylistItem,
+} from './veplayer-types';
 
 /**
  * A stand-in for the platform player, used by `MockBridge` in browser development and tests.
@@ -7,6 +12,10 @@ import type { VePlayerConfig, VePlayerEventName, VePlayerInstance } from './vepl
  * point: native HTML video is prohibited platform-wide and TikTok replaces it with a blocked UI
  * (`docs/architecture/system-overview.md` §5.1). A mock that used `<video>` would make the
  * forbidden thing feel normal in local development and would defeat the bundle scan.
+ *
+ * It also *moves* on `playNext()` instead of only counting the call. An episode switch that leaves
+ * the placeholder showing the previous episode would let a surface that never advances anything
+ * pass its tests, which is the specific bug this mock is here to catch.
  */
 export class MockVePlayer implements VePlayerInstance {
   static readonly instances: MockVePlayer[] = [];
@@ -15,9 +24,11 @@ export class MockVePlayer implements VePlayerInstance {
   destroyed = false;
   playing = false;
   playNextCount = 0;
+  preloadList: readonly VePlayerPlaylistItem[] = [];
 
   readonly #handlers = new Map<VePlayerEventName, Set<(payload?: unknown) => void>>();
   readonly #surface: HTMLElement;
+  #index = 0;
 
   constructor(config: VePlayerConfig) {
     this.config = config;
@@ -25,8 +36,7 @@ export class MockVePlayer implements VePlayerInstance {
 
     this.#surface = config.el.ownerDocument.createElement('div');
     this.#surface.dataset['mockVeplayer'] = 'true';
-    this.#surface.dataset['vid'] = config.vid;
-    this.#surface.textContent = `MockVePlayer · ${config.albumId}/${config.episodeId}`;
+    this.#render(config.albumId, config.episodeId, config.vid);
     config.el.appendChild(this.#surface);
 
     queueMicrotask(() => {
@@ -43,6 +53,11 @@ export class MockVePlayer implements VePlayerInstance {
     MockVePlayer.instances.length = 0;
   }
 
+  /** The episode on screen, which is the constructed one until `playNext()` moves it. */
+  get currentEpisodeId(): string {
+    return this.preloadList[this.#index]?.episodeId ?? this.config.episodeId;
+  }
+
   play(): void {
     if (this.destroyed) {
       return;
@@ -56,8 +71,23 @@ export class MockVePlayer implements VePlayerInstance {
     this.#emit('pause');
   }
 
+  setPreloadList(items: readonly VePlayerPlaylistItem[]): void {
+    this.preloadList = [...items];
+    const position = this.preloadList.findIndex((item) => item.episodeId === this.config.episodeId);
+    this.#index = position === -1 ? 0 : position;
+  }
+
   playNext(): void {
+    if (this.destroyed) {
+      return;
+    }
     this.playNextCount += 1;
+    const next = this.preloadList[this.#index + 1];
+    if (next !== undefined) {
+      this.#index += 1;
+      this.#render(next.albumId, next.episodeId, next.vid);
+    }
+    this.playing = true;
     this.#emit('play');
   }
 
@@ -83,6 +113,12 @@ export class MockVePlayer implements VePlayerInstance {
 
   emitForTest(event: VePlayerEventName, payload?: unknown): void {
     this.#emit(event, payload);
+  }
+
+  #render(albumId: string, episodeId: string, vid: string): void {
+    this.#surface.dataset['vid'] = vid;
+    this.#surface.dataset['episodeId'] = episodeId;
+    this.#surface.textContent = `MockVePlayer · ${albumId}/${episodeId}`;
   }
 
   #emit(event: VePlayerEventName, payload?: unknown): void {

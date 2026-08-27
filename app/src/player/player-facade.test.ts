@@ -4,6 +4,7 @@ import type { PlaybackDescriptor } from '@minidrama/shared';
 import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from './mock-veplayer';
 import { createPlayerFacade } from './player-facade';
+import type { VePlayerInstance } from './veplayer-types';
 
 const descriptor: PlaybackDescriptor = {
   albumId: 'album_1',
@@ -11,6 +12,17 @@ const descriptor: PlaybackDescriptor = {
   vid: 'vid_1',
   resumePositionSec: 42,
 };
+
+function episode(episodeNumber: number): PlaybackDescriptor {
+  return {
+    albumId: 'album_1',
+    episodeId: `ep_${String(episodeNumber)}`,
+    vid: `vid_${String(episodeNumber)}`,
+    resumePositionSec: 0,
+  };
+}
+
+const upNext = [episode(2), episode(3)];
 
 async function readyBridge(...args: ConstructorParameters<typeof MockBridge>) {
   const bridge = new MockBridge(...args);
@@ -130,15 +142,192 @@ describe('createPlayerFacade', () => {
 
   it('switches episodes on the retained instance instead of building a new one', async () => {
     const bridge = await readyBridge();
+    const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.playNext()).toBe(true);
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances[0]?.playNextCount).toBe(1);
+    expect(result.value.currentEpisode().episodeId).toBe('ep_2');
+    // The same instance object, not merely the same count: an instance swapped for an identical
+    // one would keep the count at one and lose the preloaded next episode all the same.
+    expect(result.value.instance).toBe(MockVePlayer.instances[0]);
+  });
+
+  it('gives the player the album in order, which is what makes playNext mean anything', async () => {
+    const bridge = await readyBridge();
+    await createPlayerFacade(bridge, { container, descriptor, upNext });
+
+    expect(MockVePlayer.instances[0]?.preloadList.map((item) => item.episodeId)).toEqual([
+      'ep_1',
+      'ep_2',
+      'ep_3',
+    ]);
+    // Identifiers only. A URL in a preload list would be the media plane leaking back into the
+    // client, which is the whole of correction A4.
+    expect(MockVePlayer.instances[0]?.preloadList[1]).toEqual({
+      albumId: 'album_1',
+      episodeId: 'ep_2',
+      vid: 'vid_2',
+    });
+  });
+
+  it('plays without preload on a client whose player has no preload module', async () => {
+    const bridge = await readyBridge();
+    // Below the MP4 + MSE bar the preload module is absent (risk M-3). The facade feature-detects
+    // it, so this is a player that starts each episode cold — not a player that fails to build.
+    class NoPreloadPlayer implements VePlayerInstance {
+      static playNextCount = 0;
+
+      play(): void {}
+      pause(): void {}
+      playNext(): void {
+        NoPreloadPlayer.playNextCount += 1;
+      }
+      destroy(): void {}
+      on(): void {}
+      off(): void {}
+    }
+
+    vi.spyOn(bridge, 'getPlayerCtor').mockResolvedValue({ ok: true, value: NoPreloadPlayer });
+
+    const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.playNext()).toBe(true);
+    expect(result.value.currentEpisode().episodeId).toBe('ep_2');
+    expect(NoPreloadPlayer.playNextCount).toBe(1);
+  });
+
+  it('refuses to advance past the end of the queue rather than asking the player to guess', async () => {
+    const bridge = await readyBridge();
     const result = await createPlayerFacade(bridge, { container, descriptor });
     expect(result.ok).toBe(true);
     if (!result.ok) {
       return;
     }
 
-    result.value.playNext();
-    expect(MockVePlayer.instances).toHaveLength(1);
-    expect(MockVePlayer.instances[0]?.playNextCount).toBe(1);
+    // The end of a drama is a screen, not a playback command: there is no session for whatever the
+    // player would decide comes next.
+    expect(result.value.playNext()).toBe(false);
+    expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+    expect(result.value.currentEpisode().episodeId).toBe('ep_1');
+  });
+
+  describe('switchToEpisode', () => {
+    it('does nothing at all when the episode asked for is already playing', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.switchToEpisode('ep_1')).toBe('UNCHANGED');
+      expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+    });
+
+    it('advances the retained instance to the following episode', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.switchToEpisode('ep_2')).toBe('ADVANCED');
+      expect(result.value.switchToEpisode('ep_3')).toBe('ADVANCED');
+      expect(MockVePlayer.instances).toHaveLength(1);
+      expect(MockVePlayer.instances[0]?.playNextCount).toBe(2);
+      expect(MockVePlayer.instances[0]?.currentEpisodeId).toBe('ep_3');
+    });
+
+    it('reports a jump as out of reach instead of calling playNext repeatedly', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      // Reaching ep_3 from ep_1 by advancing twice would start ep_2, with the play event and the
+      // analytics that implies, on the way to an episode nobody asked for.
+      expect(result.value.switchToEpisode('ep_3')).toBe('OUT_OF_REACH');
+      expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+      expect(result.value.currentEpisode().episodeId).toBe('ep_1');
+    });
+
+    it('reports a step backwards as out of reach, because playNext only goes forwards', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.switchToEpisode('ep_2')).toBe('ADVANCED');
+      expect(result.value.switchToEpisode('ep_1')).toBe('OUT_OF_REACH');
+      expect(MockVePlayer.instances[0]?.playNextCount).toBe(1);
+    });
+
+    it('reports an episode from another album as out of reach', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.switchToEpisode('ep_other_1')).toBe('OUT_OF_REACH');
+      expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+    });
+  });
+
+  it('is inert after destroy, because a resolved promise can still hold a reference', async () => {
+    const bridge = await readyBridge();
+    const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const player = MockVePlayer.instances[0]!;
+    result.value.destroy();
+    const playSpy = vi.spyOn(player, 'play');
+    const pauseSpy = vi.spyOn(player, 'pause');
+
+    result.value.play();
+    result.value.pause();
+    expect(result.value.playNext()).toBe(false);
+    expect(result.value.switchToEpisode('ep_2')).toBe('OUT_OF_REACH');
+
+    expect(playSpy).not.toHaveBeenCalled();
+    expect(pauseSpy).not.toHaveBeenCalled();
+    expect(player.playNextCount).toBe(0);
+  });
+
+  it('destroys the instance it built when configuring it throws', async () => {
+    const bridge = await readyBridge();
+    class UnconfigurablePlayer extends MockVePlayer {
+      override setPreloadList(): void {
+        throw new Error('preload module rejected the list');
+      }
+    }
+    vi.spyOn(bridge, 'getPlayerCtor').mockResolvedValue({ ok: true, value: UnconfigurablePlayer });
+
+    const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe('BRIDGE_UNKNOWN');
+    // Built, unusable, and nobody left holding a reference to it: it has to be torn down here.
+    expect(MockVePlayer.instances[0]?.destroyed).toBe(true);
+    expect(container.children).toHaveLength(0);
   });
 
   // §3.1: a player failure degrades, it does not become an exception the caller must catch.
