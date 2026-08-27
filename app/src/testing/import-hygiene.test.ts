@@ -381,6 +381,34 @@ describe('no coin-to-Beans rate is invented on the client', () => {
 });
 
 /**
+ * C4-04. The splash must not hard-code comments on, a legal URL, or an ad-unit id. Those are
+ * unpublished, GATE-4, or PNL-04. A `comments: true` in product source would render an entry
+ * whose endpoints do not exist.
+ */
+describe('the splash does not invent comments-on, legal URLs or ad-unit ids', () => {
+  it('names no comments: true, termsUrl, privacyUrl or adUnitId outside comments', () => {
+    const offenders: string[] = [];
+    const invented = /comments:\s*true|\b(termsUrl|privacyUrl|adUnitId|rewardedAdUnitId)\b/;
+
+    for (const file of sourceFiles()) {
+      const path = relativeToApp(file);
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, index) => {
+          if (isCommentLine(line) || isTestFile(path)) {
+            return;
+          }
+          if (invented.test(line)) {
+            offenders.push(`${path}:${String(index + 1)} ${line.trim()}`);
+          }
+        });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
  * D-16. The player used to ship a six-item `ep_demo_*` / `vid_demo_*` album and never call
  * `POST /v1/playback/sessions`. Restoring that fixture in production source is the defect.
  * Tests and PlayerSurface's own fixture playlist may still name descriptors; product code may not.
