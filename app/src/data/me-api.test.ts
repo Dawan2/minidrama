@@ -5,10 +5,6 @@ import { ME_PATH, createMeApi, narrowMeView } from './me-api';
 import { apiFailure } from './failure';
 import type { HttpReader } from './http';
 
-function httpStub(body: unknown): HttpReader {
-  return { getJson: () => Promise.resolve(ok(body)) };
-}
-
 describe('the me endpoint', () => {
   it('publishes the path the contract defines, under the live /v1 prefix', () => {
     expect(ME_PATH).toBe('/v1/users/me');
