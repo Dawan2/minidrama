@@ -72,8 +72,9 @@ export class MockVePlayer implements VePlayerInstance {
   }
 
   setPreloadList(items: readonly VePlayerPlaylistItem[]): void {
+    const currentId = this.preloadList[this.#index]?.episodeId ?? this.config.episodeId;
     this.preloadList = [...items];
-    const position = this.preloadList.findIndex((item) => item.episodeId === this.config.episodeId);
+    const position = this.preloadList.findIndex((item) => item.episodeId === currentId);
     this.#index = position === -1 ? 0 : position;
   }
 

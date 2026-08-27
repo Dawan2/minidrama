@@ -52,3 +52,49 @@ type ForbiddenWalletKey =
 type CarriesNoBeansOrFiat<T> = Extract<keyof T, ForbiddenWalletKey> extends never ? true : false;
 
 const _walletViewCarriesNoBeansOrFiat: CarriesNoBeansOrFiat<WalletView> = true;
+
+/**
+ * Ledger row types. `docs/12-domain-model.md` §5.2. Unlocks do not write these
+ * (`docs/handoff/w9-work-unlock-grant.md` S73): a `CONSUME` that we invented from a grant would be
+ * a spend the platform never posted to a coin ledger.
+ */
+export const WALLET_TRANSACTION_TYPES = ['RECHARGE', 'CONSUME', 'REWARD', 'REFUND'] as const;
+
+export type WalletTransactionType = (typeof WALLET_TRANSACTION_TYPES)[number];
+
+export const WALLET_TRANSACTION_REF_TYPES = [
+  'UNLOCK',
+  'RECHARGE_ORDER',
+  'CAMPAIGN',
+  'AD_REWARD',
+  'MANUAL',
+] as const;
+
+export type WalletTransactionRefType = (typeof WALLET_TRANSACTION_REF_TYPES)[number];
+
+export function isWalletTransactionType(value: string): value is WalletTransactionType {
+  return (WALLET_TRANSACTION_TYPES as readonly string[]).includes(value);
+}
+
+export function isWalletTransactionRefType(value: string): value is WalletTransactionRefType {
+  return (WALLET_TRANSACTION_REF_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * One row of `GET /v1/wallet/transactions`.
+ *
+ * Deltas are signed integers when the platform named them. They are omitted, never defaulted to
+ * `0`, when it did not: a recharge rendered as `+0` because we guessed is a wrong ledger line.
+ * Beans and fiat are not properties of this type (`C3-09`).
+ */
+export interface WalletTransaction {
+  readonly id: string;
+  readonly type: WalletTransactionType;
+  readonly coinDelta?: number;
+  readonly bonusDelta?: number;
+  readonly refType?: WalletTransactionRefType;
+  readonly refId?: string;
+  readonly createdAt?: string;
+}
+
+const _walletTransactionCarriesNoBeansOrFiat: CarriesNoBeansOrFiat<WalletTransaction> = true;

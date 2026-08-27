@@ -63,6 +63,14 @@ export interface PlayerFacade {
   pause(): void;
   /** Advances one episode. `false` — and nothing called on the player — at the end of the queue. */
   playNext(): boolean;
+  /**
+   * Appends the immediately following entitled descriptor so `playNext()` has somewhere to go.
+   *
+   * PlayPage learns that descriptor from `gateAdvance`, not from a client-built album. A different
+   * episode already queued as next, or a destroyed instance, is `false` and does not call the
+   * player. Identifiers only — never a URL.
+   */
+  enqueueNext(descriptor: PlaybackDescriptor): boolean;
   /** Moves the retained instance to `episodeId` when it can get there without being rebuilt. */
   switchToEpisode(episodeId: string): EpisodeSwitch;
   /** Idempotent. Safe to call from a React cleanup that may run twice under StrictMode. */
@@ -89,7 +97,7 @@ export async function createPlayerFacade(
   }
 
   const { descriptor } = options;
-  const queue: readonly PlaybackDescriptor[] = [descriptor, ...(options.upNext ?? [])];
+  let queue: readonly PlaybackDescriptor[] = [descriptor, ...(options.upNext ?? [])];
   let instance: VePlayerInstance | undefined;
   try {
     instance = new ctorResult.value({
@@ -168,6 +176,21 @@ export async function createPlayerFacade(
       }
       cursor += 1;
       player.playNext();
+      return true;
+    },
+    enqueueNext: (next) => {
+      if (destroyed) {
+        return false;
+      }
+      if (queue[cursor]?.episodeId === next.episodeId) {
+        return true;
+      }
+      const following = queue[cursor + 1];
+      if (following !== undefined) {
+        return following.episodeId === next.episodeId;
+      }
+      queue = [...queue, next];
+      player.setPreloadList?.(queue.map(toPlaylistItem));
       return true;
     },
     switchToEpisode: (episodeId) => {

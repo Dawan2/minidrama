@@ -299,6 +299,62 @@ describe('createPlayerFacade', () => {
     });
   });
 
+  describe('enqueueNext', () => {
+    it('lets playNext reach an episode the gate just entitled, without a second instance', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.enqueueNext(episode(2))).toBe(true);
+      expect(result.value.playNext()).toBe(true);
+      expect(MockVePlayer.instances).toHaveLength(1);
+      expect(MockVePlayer.instances[0]?.playNextCount).toBe(1);
+      expect(result.value.currentEpisode().episodeId).toBe('ep_2');
+      expect(MockVePlayer.instances[0]?.preloadList.map((item) => item.episodeId)).toEqual([
+        'ep_1',
+        'ep_2',
+      ]);
+      expect(JSON.stringify(MockVePlayer.instances[0]?.preloadList)).not.toMatch(
+        /playUrl|https?:|\.m3u8/i,
+      );
+    });
+
+    it('is a no-op when that episode is already the following one', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.enqueueNext(episode(2))).toBe(true);
+      expect(MockVePlayer.instances[0]?.preloadList.map((item) => item.episodeId)).toEqual([
+        'ep_1',
+        'ep_2',
+        'ep_3',
+      ]);
+    });
+
+    it('refuses to replace a queued next with a different episode', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.enqueueNext(episode(9))).toBe(false);
+      expect(MockVePlayer.instances[0]?.preloadList.map((item) => item.episodeId)).toEqual([
+        'ep_1',
+        'ep_2',
+        'ep_3',
+      ]);
+    });
+  });
+
   it('is inert after destroy, because a resolved promise can still hold a reference', async () => {
     const bridge = await readyBridge();
     const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
@@ -315,6 +371,7 @@ describe('createPlayerFacade', () => {
     result.value.play();
     result.value.pause();
     expect(result.value.playNext()).toBe(false);
+    expect(result.value.enqueueNext(episode(2))).toBe(false);
     expect(result.value.switchToEpisode('ep_2')).toBe('OUT_OF_REACH');
 
     expect(playSpy).not.toHaveBeenCalled();

@@ -50,7 +50,7 @@ That gap stays a row. It is not closed by adding WeChat, Beans, or a second unlo
 | `GET /users/me/unlocks` | — | design-only | |
 | — | `GET /v1/unlock/coin-orders/{orderId}` | live-only | Order poll. Not in doc 12 |
 | `GET /wallet` | `GET /v1/wallet` | live | |
-| `GET /wallet/transactions` | — | design-only | Unmerged remainder branch is not this measurement |
+| `GET /wallet/transactions` | `GET /v1/wallet/transactions` | live | Fail-closed empty ledger (`C5-02` / D-18). Unlocks never fill it (S73) |
 | `GET /wallet/products` | — | design-only | Recharge catalog. Q-G-7 still unknown; do not invent |
 | `POST /wallet/recharge-orders` | — | design-only | Doc 12 still names `WECHAT`. Live OpenAPI does not serve it |
 | `GET /wallet/recharge-orders/{orderId}` | — | design-only | |

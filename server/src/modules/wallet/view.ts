@@ -1,6 +1,8 @@
-import type { WalletView } from '@minidrama/shared';
+import { isWalletTransactionRefType, isWalletTransactionType } from '@minidrama/shared';
+import type { Page, WalletTransaction, WalletView } from '@minidrama/shared';
 
 import type { WalletBalance } from './balance-port.js';
+import type { WalletLedger, WalletLedgerRow } from './ledger-port.js';
 
 /**
  * Project a port result onto the wire shape the client `narrowCoinBalance` reads.
@@ -74,6 +76,84 @@ export function walletViewKeys(view: WalletView): readonly string[] {
 }
 
 export const WALLET_VIEW_KEYS: readonly string[] = [...BALANCE_KEYS, 'pendingCredit'];
+
+export const EMPTY_WALLET_LEDGER: Page<WalletTransaction> = {
+  items: [],
+  pageInfo: { nextCursor: null, hasMore: false },
+};
+
+/**
+ * Project a port result onto the wire page the client `narrowPage` / `narrowWalletTransaction`
+ * reads.
+ *
+ * `UNAVAILABLE` is the empty ledger, not a guessed `CONSUME`. Unlocks do not debit a wallet
+ * (S73); synthesizing spend from them would be a ledger this process does not own.
+ *
+ * A row the platform named is copied field-for-field onto the closed key set. Missing deltas stay
+ * missing — a `+0` recharge is a wrong line. Beans and fiat keys are dropped (`C3-09`). A row
+ * without `id` or a domain `type` is dropped rather than rewritten.
+ */
+export function toWalletTransactionPage(ledger: WalletLedger): Page<WalletTransaction> {
+  if (ledger.kind !== 'KNOWN') {
+    return EMPTY_WALLET_LEDGER;
+  }
+
+  return {
+    items: ledger.page.items.flatMap((row) => {
+      const item = toWalletTransaction(row);
+      return item === null ? [] : [item];
+    }),
+    pageInfo: ledger.page.pageInfo,
+  };
+}
+
+export function toWalletTransaction(row: WalletLedgerRow): WalletTransaction | null {
+  if (row.id === '' || !isWalletTransactionType(row.type)) {
+    return null;
+  }
+
+  const item: {
+    -readonly [K in keyof WalletTransaction]: WalletTransaction[K];
+  } = { id: row.id, type: row.type };
+
+  const coinDelta = readInteger(row.coinDelta);
+  const bonusDelta = readInteger(row.bonusDelta);
+  if (coinDelta === 'invalid' || bonusDelta === 'invalid') {
+    return null;
+  }
+  if (coinDelta !== null) {
+    item.coinDelta = coinDelta;
+  }
+  if (bonusDelta !== null) {
+    item.bonusDelta = bonusDelta;
+  }
+
+  if (typeof row.createdAt === 'string' && row.createdAt !== '') {
+    item.createdAt = row.createdAt;
+  }
+
+  if (
+    typeof row.refType === 'string' &&
+    isWalletTransactionRefType(row.refType) &&
+    typeof row.refId === 'string' &&
+    row.refId !== ''
+  ) {
+    item.refType = row.refType;
+    item.refId = row.refId;
+  }
+
+  return item;
+}
+
+function readInteger(value: unknown): number | null | 'invalid' {
+  if (value === undefined) {
+    return null;
+  }
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    return 'invalid';
+  }
+  return value;
+}
 
 function readNonNegativeInteger(value: unknown): number | null | 'invalid' {
   if (value === undefined) {
