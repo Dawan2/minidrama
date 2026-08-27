@@ -13,6 +13,9 @@
     "build": "tsc --noEmit",
     "gen:minis-config": "tsx src/cli/write-minis-config.ts"
   },
+  "dependencies": {
+    "@minidrama/shared": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22.18.9",
     "tsx": "^4.20.6",
