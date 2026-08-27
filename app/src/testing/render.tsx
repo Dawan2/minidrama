@@ -10,8 +10,10 @@ import { ProgressApiProvider } from '../data/progress-api-context';
 import { SearchApiProvider } from '../data/search-api-context';
 import { SessionProvider } from '../auth/session-context';
 import { UnlockApiProvider } from '../data/unlock-api-context';
+import { MeApiProvider } from '../data/me-api-context';
 import { WalletApiProvider } from '../data/wallet-api-context';
 import { stubCatalogApi } from './catalog-fixtures';
+import { stubMeApi } from './me-fixtures';
 import { stubFavoritesApi } from './favorites-fixtures';
 import { stubHistoryApi, stubSession } from './history-fixtures';
 import { stubPlaybackApi } from './playback-fixtures';
@@ -27,6 +29,7 @@ import type { ProgressApi } from '../data/progress-api';
 import type { SearchApi } from '../data/search-api';
 import type { Session } from '../auth/session';
 import type { UnlockApi } from '../data/unlock-api';
+import type { MeApi } from '../data/me-api';
 import type { WalletApi } from '../data/wallet-api';
 
 /**
@@ -59,6 +62,7 @@ export interface RenderSurfaceOptions {
   readonly favoritesApi?: FavoritesApi;
   readonly unlockApi?: UnlockApi;
   readonly walletApi?: WalletApi;
+  readonly meApi?: MeApi;
   readonly progressApi?: ProgressApi;
   readonly playbackApi?: PlaybackApi;
   readonly session?: Session;
@@ -77,11 +81,15 @@ export function renderSurface(
             <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
               <UnlockApiProvider api={options.unlockApi ?? stubUnlockApi()}>
                 <WalletApiProvider api={options.walletApi ?? stubWalletApi()}>
-                  <ProgressApiProvider api={options.progressApi ?? stubProgressApi()}>
-                    <PlaybackApiProvider api={options.playbackApi ?? stubPlaybackApi()}>
-                      <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
-                    </PlaybackApiProvider>
-                  </ProgressApiProvider>
+                  <MeApiProvider api={options.meApi ?? stubMeApi()}>
+                    <ProgressApiProvider api={options.progressApi ?? stubProgressApi()}>
+                      <PlaybackApiProvider api={options.playbackApi ?? stubPlaybackApi()}>
+                        <MemoryRouter initialEntries={[options.path ?? '/']}>
+                          {element}
+                        </MemoryRouter>
+                      </PlaybackApiProvider>
+                    </ProgressApiProvider>
+                  </MeApiProvider>
                 </WalletApiProvider>
               </UnlockApiProvider>
             </FavoritesApiProvider>
