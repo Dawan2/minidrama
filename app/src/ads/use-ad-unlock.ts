@@ -5,7 +5,7 @@ import type { AdUnlockFailure, AdUnlockOutcome, AdUnlockStage } from './ad-unloc
 import type { PlatformBridge } from '../platform/types';
 import type { UnlockApi } from '../data/unlock-api';
 
-export type AdUnlockSettlement = Exclude<AdUnlockOutcome, { kind: 'ABANDONED' }>;
+export type AdUnlockSettlement = AdUnlockOutcome;
 
 export type AdUnlockState =
   | { readonly status: 'OFFERED' }

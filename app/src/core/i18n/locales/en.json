@@ -136,7 +136,7 @@
   "unlock.adNotCompleted": "The ad was not watched to the end, so the episode is still locked.",
   "unlock.adQuotaExceeded": "Today's ad-unlock limit has been reached.",
   "unlock.adUnavailable": "Watching an ad is not available on this version yet.",
-  "unlock.adRefused": "We could not unlock this episode with an ad."
+  "unlock.adRefused": "We could not unlock this episode with an ad.",
   "player.heading": "Player",
   "player.unavailable": "Playback is unavailable right now. Please try again.",
   "player.notFound": "We could not find this episode.",

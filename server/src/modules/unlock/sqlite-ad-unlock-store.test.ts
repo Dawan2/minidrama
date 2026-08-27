@@ -74,7 +74,11 @@ describe('ad unlock sqlite stores — durability', () => {
     second.close();
 
     expect(listed).toHaveLength(1);
-    expect(listed[0]).toMatchObject({ isEndedReported: false, granted: false, refusal: 'NOT_COMPLETED' });
+    expect(listed[0]).toMatchObject({
+      isEndedReported: false,
+      granted: false,
+      refusal: 'NOT_COMPLETED',
+    });
     expect(granted).toBe(0);
   });
 

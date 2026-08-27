@@ -63,16 +63,19 @@ describe('a hook that went away mid-showing', () => {
     });
     const onEntitlementChanged = vi.fn();
     const api = stubUnlockApi({
+      grantAdUnlock: () => ok(adGrant()),
+    });
+    const delayed = {
+      ...api,
       createAdSession: async () => {
         await held;
         return ok(adSession());
       },
-      grantAdUnlock: () => ok(adGrant()),
-    });
+    };
 
     const { unmount } = render(
       <Harness
-        api={api}
+        api={delayed}
         bridge={payingBridge()}
         episodeId="ep_1"
         adUnitId="test-rewarded-unit"

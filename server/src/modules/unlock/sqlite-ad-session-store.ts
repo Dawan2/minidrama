@@ -55,8 +55,11 @@ export function createSqliteAdUnlockSessionStore(db: SqliteDatabase): AdUnlockSe
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/UNIQUE/i.test(message)) {
-          const existing = readSession(findByIdempotency.get(session.userId, session.idempotencyKey));
-          if (existing === undefined) return err('SESSION_NOT_RECORDED' satisfies AdSessionCreateFailure);
+          const existing = readSession(
+            findByIdempotency.get(session.userId, session.idempotencyKey),
+          );
+          if (existing === undefined)
+            return err('SESSION_NOT_RECORDED' satisfies AdSessionCreateFailure);
           if (existing.episodeId !== session.episodeId) {
             return err('IDEMPOTENCY_CONFLICT' satisfies AdSessionCreateFailure);
           }
@@ -79,7 +82,8 @@ export function createSqliteAdUnlockSessionStore(db: SqliteDatabase): AdUnlockSe
         const result = redeemStmt.run(input.atMs, input.outcome, input.unlockId, id);
         if (result.changes === 0) {
           const existing = readSession(findById.get(id));
-          if (existing === undefined) return err('SESSION_NOT_FOUND' satisfies AdSessionRedeemFailure);
+          if (existing === undefined)
+            return err('SESSION_NOT_FOUND' satisfies AdSessionRedeemFailure);
           return err('ALREADY_REDEEMED' satisfies AdSessionRedeemFailure);
         }
         const redeemed = readSession(findById.get(id));

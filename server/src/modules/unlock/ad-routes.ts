@@ -309,11 +309,7 @@ export async function adUnlockRoutes(
   });
 }
 
-function sendGrant(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  granted: AdGrant,
-): FastifyReply {
+function sendGrant(request: FastifyRequest, reply: FastifyReply, granted: AdGrant): FastifyReply {
   switch (granted.status) {
     case 'GRANTED':
     case 'ALREADY_GRANTED':

@@ -24,9 +24,6 @@ export function configuredInterstitialAdUnitId(
   return readConfiguredAdUnitId(env['VITE_INTERSTITIAL_AD_UNIT_ID']);
 }
 
-export function rewardedAdsAvailable(
-  canShowRewarded: boolean,
-  unitId: string | null,
-): boolean {
+export function rewardedAdsAvailable(canShowRewarded: boolean, unitId: string | null): boolean {
   return canShowRewarded && unitId !== null;
 }

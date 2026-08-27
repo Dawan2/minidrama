@@ -52,7 +52,9 @@ async function startApp(
       adUnlockSessionStore: sessions,
       adRewardLogStore: logs,
       ...(options.verifier === undefined ? {} : { adCompletionVerifier: options.verifier }),
-      ...(options.dailyLimit === undefined ? {} : { adUnlockPolicy: { dailyLimit: options.dailyLimit } }),
+      ...(options.dailyLimit === undefined
+        ? {}
+        : { adUnlockPolicy: { dailyLimit: options.dailyLimit } }),
       now: () => FIXTURE_NOW_MS,
     },
   );
@@ -67,7 +69,10 @@ function errorCode(response: LightMyRequestResponse): string {
   return response.json<{ error: { code: string } }>().error.code;
 }
 
-function mint(episodeId: string, options: { readonly viewer?: string; readonly key?: string } = {}) {
+function mint(
+  episodeId: string,
+  options: { readonly viewer?: string; readonly key?: string } = {},
+) {
   const viewer = options.viewer ?? BUYER;
   return app.inject({
     method: 'POST',
@@ -98,6 +103,10 @@ async function episodeAccess(episodeId: string, viewer = BUYER) {
   });
 }
 
+function viewerReason(response: LightMyRequestResponse): string | undefined {
+  return response.json<{ viewerAccess: { reason: string } }>().viewerAccess.reason;
+}
+
 describe('POST /v1/unlock/ad-sessions', () => {
   beforeEach(async () => {
     await startApp();
@@ -111,7 +120,7 @@ describe('POST /v1/unlock/ad-sessions', () => {
     expect(body.episodeId).toBe(COIN_OR_VIP_EPISODE);
 
     const access = await episodeAccess(COIN_OR_VIP_EPISODE);
-    expect(access.json<{ reason: string }>().reason).toBe('NEED_UNLOCK');
+    expect(viewerReason(access)).toBe('NEED_UNLOCK');
   });
 
   it('replays the same Idempotency-Key rather than minting a second nonce', async () => {
@@ -185,7 +194,9 @@ describe('POST /v1/unlock/ad-grants', () => {
     });
 
     const access = await episodeAccess(COIN_OR_VIP_EPISODE);
-    expect(access.json()).toMatchObject({ playable: true, reason: 'UNLOCKED', unlockedBy: 'AD' });
+    expect(access.json()).toMatchObject({
+      viewerAccess: { playable: true, reason: 'UNLOCKED', unlockedBy: 'AD' },
+    });
   });
 
   it('replays a successful grant rather than writing a second receipt', async () => {
@@ -204,7 +215,7 @@ describe('POST /v1/unlock/ad-grants', () => {
     expect(errorCode(skipped)).toBe('AD_NOT_COMPLETED');
 
     const access = await episodeAccess(COIN_OR_VIP_EPISODE);
-    expect(access.json<{ reason: string }>().reason).toBe('NEED_UNLOCK');
+    expect(viewerReason(access)).toBe('NEED_UNLOCK');
 
     const retry = await grant(sessionId, true);
     expect(retry.statusCode).toBe(422);
@@ -223,7 +234,7 @@ describe('POST /v1/unlock/ad-grants', () => {
     expect(errorCode(response)).toBe('AD_NOT_COMPLETED');
   });
 
-  it('does not leak another viewer\'s session', async () => {
+  it("does not leak another viewer's session", async () => {
     const sessionId = (await mint(COIN_OR_VIP_EPISODE)).json<{ sessionId: string }>().sessionId;
     const response = await grant(sessionId, true, OTHER);
     expect(response.statusCode).toBe(404);
@@ -269,7 +280,7 @@ describe('the verifier, not the client event, decides completion', () => {
     expect(errorCode(granted)).toBe('AD_NOT_COMPLETED');
 
     const access = await episodeAccess(COIN_OR_VIP_EPISODE);
-    expect(access.json<{ reason: string }>().reason).toBe('NEED_UNLOCK');
+    expect(viewerReason(access)).toBe('NEED_UNLOCK');
 
     const entries = await logs.list();
     expect(entries[0]).toMatchObject({
@@ -295,7 +306,10 @@ describe('daily quota', () => {
     const second = await grant(secondId, true);
     expect(second.statusCode).toBe(429);
     expect(errorCode(second)).toBe('AD_QUOTA_EXCEEDED');
-    expect(second.json<{ error: { details: { usedToday: number; dailyLimit: number } } }>().error.details).toEqual({
+    expect(
+      second.json<{ error: { details: { usedToday: number; dailyLimit: number } } }>().error
+        .details,
+    ).toEqual({
       usedToday: 1,
       dailyLimit: 1,
     });

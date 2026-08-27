@@ -8,10 +8,11 @@ import type { UnlockApi } from '../data/unlock-api';
 
 function apiStub(overrides: Partial<UnlockApi> = {}): UnlockApi {
   return {
-    createCoinOrder: () => Promise.resolve(err(apiFailure({ kind: 'MALFORMED', message: 'unused' }))),
-    fetchCoinOrder: () => Promise.resolve(err(apiFailure({ kind: 'MALFORMED', message: 'unused' }))),
-    createAdSession: () =>
-      Promise.resolve(ok({ sessionId: 'ads_test', episodeId: 'ep_1' })),
+    createCoinOrder: () =>
+      Promise.resolve(err(apiFailure({ kind: 'MALFORMED', message: 'unused' }))),
+    fetchCoinOrder: () =>
+      Promise.resolve(err(apiFailure({ kind: 'MALFORMED', message: 'unused' }))),
+    createAdSession: () => Promise.resolve(ok({ sessionId: 'ads_test', episodeId: 'ep_1' })),
     grantAdUnlock: () =>
       Promise.resolve(
         ok({
@@ -113,7 +114,14 @@ describe('runAdUnlock', () => {
     await bridge.init();
     const grantAdUnlock = vi.fn(() =>
       Promise.resolve(
-        err(apiFailure({ kind: 'HTTP', status: 409, code: 'UNLOCK_ALREADY_UNLOCKED', message: 'owned' })),
+        err(
+          apiFailure({
+            kind: 'HTTP',
+            status: 409,
+            code: 'UNLOCK_ALREADY_UNLOCKED',
+            message: 'owned',
+          }),
+        ),
       ),
     );
 
@@ -137,7 +145,14 @@ describe('runAdUnlock', () => {
         api: apiStub({
           createAdSession: () =>
             Promise.resolve(
-              err(apiFailure({ kind: 'HTTP', status: 401, code: 'AUTH_REQUIRED', message: 'sign in' })),
+              err(
+                apiFailure({
+                  kind: 'HTTP',
+                  status: 401,
+                  code: 'AUTH_REQUIRED',
+                  message: 'sign in',
+                }),
+              ),
             ),
         }),
         bridge,

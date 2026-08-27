@@ -407,7 +407,11 @@ function AdChannel({
           <p className="unlock-panel__message" data-testid="unlock-ad-success">
             {translate('unlock.unlocked')}
           </p>
-          <Link className="unlock-panel__action" data-testid="unlock-play" to={playPath(episode.id)}>
+          <Link
+            className="unlock-panel__action"
+            data-testid="unlock-play"
+            to={playPath(episode.id)}
+          >
             {translate('unlock.play')}
           </Link>
         </>

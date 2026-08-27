@@ -30,7 +30,6 @@ export type AdUnlockFailure = (typeof AD_UNLOCK_FAILURES)[number];
 export type AdUnlockOutcome =
   | { readonly kind: 'UNLOCKED' }
   | { readonly kind: 'ALREADY_UNLOCKED' }
-  | { readonly kind: 'ABANDONED' }
   | { readonly kind: 'FAILED'; readonly reason: AdUnlockFailure };
 
 export interface RunAdUnlockInput {

@@ -23,7 +23,13 @@ CREATE TABLE ad_unlock_sessions (
 
 CREATE INDEX ad_unlock_sessions_user ON ad_unlock_sessions (user_id, created_at_ms);
 
--- completed / granted are 0/1. is_ended_reported is 0/1, or NULL when the client sent no boolean.
+CREATE TABLE ad_reward_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  episode_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  -- 0/1, or NULL when the client sent no boolean.
+  is_ended_reported INTEGER,
   completed INTEGER NOT NULL,
   granted INTEGER NOT NULL,
   refusal TEXT,

@@ -5,9 +5,7 @@ import type { AdSessionOutcome, AdUnlockSession } from './ad-sessions.js';
 
 export type AdSessionCreateFailure = 'SESSION_NOT_RECORDED' | 'IDEMPOTENCY_CONFLICT';
 export type AdSessionRedeemFailure =
-  | 'SESSION_NOT_FOUND'
-  | 'ALREADY_REDEEMED'
-  | 'SESSION_NOT_RECORDED';
+  'SESSION_NOT_FOUND' | 'ALREADY_REDEEMED' | 'SESSION_NOT_RECORDED';
 
 export interface AdSessionRedeemInput {
   readonly outcome: AdSessionOutcome;
@@ -17,7 +15,10 @@ export interface AdSessionRedeemInput {
 
 export interface AdUnlockSessionStore {
   create(session: AdUnlockSession): Promise<Result<AdUnlockSession, AdSessionCreateFailure>>;
-  findByIdempotencyKey(userId: string, idempotencyKey: string): Promise<AdUnlockSession | undefined>;
+  findByIdempotencyKey(
+    userId: string,
+    idempotencyKey: string,
+  ): Promise<AdUnlockSession | undefined>;
   get(id: string): Promise<AdUnlockSession | undefined>;
   redeem(
     id: string,

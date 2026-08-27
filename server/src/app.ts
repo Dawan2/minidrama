@@ -438,9 +438,7 @@ export async function buildApp(
     logStore: adRewardLogStore,
     unlockStore,
     verifier: dependencies.adCompletionVerifier ?? createReportedCompletionVerifier(),
-    ...(dependencies.adUnlockPolicy === undefined
-      ? {}
-      : { policy: dependencies.adUnlockPolicy }),
+    ...(dependencies.adUnlockPolicy === undefined ? {} : { policy: dependencies.adUnlockPolicy }),
     now,
   });
 
