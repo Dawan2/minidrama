@@ -104,7 +104,8 @@ movement, with no rate.
 
 ## 4. Verify
 
-`pnpm verify` exited 0 on this branch at `c15ff74`.
+`pnpm verify` exited 0 on this branch at `c15ff74`, and again after merging `origin/main`
+at `2aea931` (PNL-01; no file overlap). Post-merge totals:
 
 | Package | Tests |
 | --- | ---: |
@@ -112,12 +113,13 @@ movement, with no rate.
 | `packages/config` | 45 |
 | `packages/quality` | 37 |
 | `server` | 1,450 |
-| `app` | 857 |
-| **Total** | **2,444** |
+| `app` | 882 |
+| **Total** | **2,469** |
 
-Format, lint, typecheck, test, build, guardrails all green. Artifact
-`dist/assets/index-CQnFIqTJ.js` 318.14 kB / 98.12 kB gzip (unchanged: comments only on the
-client). Guardrails passed.
+Format, lint, typecheck, test, build, guardrails all green. Pre-merge artifact
+`dist/assets/index-CQnFIqTJ.js` 318.14 kB / 98.12 kB gzip (comments only on the client).
+Post-merge artifact `dist/assets/index-ByxZPC2_.js` 323.28 kB / 99.35 kB gzip — the
+growth is PNL-01's, not this slot's. Guardrails passed.
 
 New server tests: 3 (ledger-port) + 5 (query) + 5 (view) + 14 (routes) + 2 (app) + 1
 (`contract.test.ts` `it.each` for the new path) = 30. Shared: 2.
@@ -131,7 +133,8 @@ New server tests: 3 (ledger-port) + 5 (query) + 5 (view) + 14 (routes) + 2 (app)
 - **A real coin figure.** Same as the wallet GET slot. The balance port is unchanged.
 - **SCR-10 / PNL-03 recharge.** Blocked on a Beans rate (`C3-09`) and on `pay()`.
 - **SCR-11 VIP.** No subscription contract.
-- **PNL-01 episode picker.** In flight (`bc-1a2c6242`); different files.
+- **PNL-01 episode picker.** Landed on `main` as `2aea931` while this slot verified.
+  Different files; taken in the merge.
 - **C3-09.** Still a missing business input. No rate was written.
 - **Durable stores besides unlock.** In flight (`bc-d26f106a`); not this slot.
 
