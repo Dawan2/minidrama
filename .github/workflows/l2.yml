@@ -1,11 +1,11 @@
 name: L2
 
 # Merge-level gates from docs/14-quality-gates.md §4. C2 (INF-007) asked for G2.1–G2.8; this
-# file is the first of those that can exist without a database (G2.2 / G2.7, sibling durable
-# stores) or a Playwright matrix (G2.3). It is a second workflow on purpose: adding jobs here
-# must not become a reason to skip, filter, or continue-on-error the L1 verify suite in ci.yml.
+# file is a second workflow on purpose: adding jobs here must not become a reason to skip,
+# filter, or continue-on-error the L1 verify suite in ci.yml.
 #
-# G2.1 is the L1 re-run, which ci.yml already does on main. This workflow is G2.8.
+# G2.1 is the L1 re-run, which ci.yml already does on main. This workflow is G2.8 (licenses)
+# and G2.7 (migrate up → down → up on sqlite). G2.2–G2.6 are still absent.
 
 on:
   push:
@@ -43,3 +43,26 @@ jobs:
 
       - name: License whitelist
         run: pnpm run check:licenses
+
+  migrate:
+    name: G2.7 migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # A down that does not drop a table, or an up-only file, exits 1. There is no
+      # continue-on-error: a no-op rollback is a red merge-level gate, not a warning.
+      - name: Migrate up, down, up
+        run: pnpm run check:migrate
