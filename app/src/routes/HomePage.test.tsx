@@ -12,6 +12,7 @@ import {
   page,
   stubCatalogApi,
 } from '../testing/catalog-fixtures';
+import { stubHistoryApi, watchHistoryEntry } from '../testing/history-fixtures';
 import { renderSettled, renderSurface, settle } from '../testing/render';
 
 /**
@@ -70,6 +71,7 @@ describe('the feed', () => {
     });
     expect(screen.getByText('One')).toBeDefined();
     expect(screen.getByText('Two')).toBeDefined();
+    expect(screen.queryByTestId('continue-rail')).toBeNull();
   });
 
   // An empty feed means an empty catalogue: the server already falls back to popularity when there
@@ -145,6 +147,75 @@ describe('feed card destinations', () => {
     expect(card.getAttribute('data-card-type')).toBe('CONTINUE_WATCHING');
     expect(card.querySelector('a')?.getAttribute('href')).toBe('/play/ep_test_0007');
     expect(screen.getByTestId('feed-resume').textContent).toContain('7');
+    expect(screen.getByTestId('continue-rail')).toBeDefined();
+    expect(screen.queryByTestId('feed')).toBeNull();
+  });
+
+  it('renders the continue-watching rail from the server mix, not a second list', async () => {
+    const api = stubCatalogApi({
+      feed: () =>
+        ok(
+          page([
+            continueWatchingCard({ drama: dramaSummary({ id: 'drm_resume', title: 'Resume me' }) }),
+            feedCard({ drama: dramaSummary({ id: 'drm_hot', title: 'Trending' }) }),
+          ]),
+        ),
+    });
+    renderSurface(<HomePage />, { api });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('feed-card')).toHaveLength(2);
+    });
+
+    const rail = screen.getByTestId('continue-rail');
+    expect(rail.textContent).toContain('Continue watching');
+    expect(rail.textContent).toContain('Resume me');
+    expect(rail.querySelector('a')?.getAttribute('href')).toBe('/play/ep_test_0007');
+
+    const mix = screen.getByTestId('feed');
+    expect(mix.textContent).toContain('Trending');
+    expect(mix.textContent).not.toContain('Resume me');
+  });
+
+  // Anonymous and empty-progress HOME responses are the catalogue mix. History is a different
+  // screen. Using it here would invent a rail the feed did not send.
+  it('does not invent a continue-watching rail from watch-history', async () => {
+    const api = stubCatalogApi({
+      feed: () =>
+        ok(page([feedCard({ drama: dramaSummary({ id: 'drm_hot', title: 'Only mix' }) })])),
+    });
+    const historyApi = stubHistoryApi({
+      history: () => ok(page([watchHistoryEntry({ drama: dramaSummary({ id: 'drm_history' }) })])),
+    });
+    renderSurface(<HomePage />, { api, historyApi });
+
+    expect(await screen.findByText('Only mix')).toBeDefined();
+    expect(screen.queryByTestId('continue-rail')).toBeNull();
+    expect(historyApi.historyCalls).toEqual([]);
+  });
+
+  it('does not render a continue-watching rail when the episode section is missing', async () => {
+    const api = stubCatalogApi({
+      feed: () =>
+        ok(
+          page([
+            continueWatchingCard({
+              drama: dramaSummary({ id: 'drm_broken', title: 'Broken resume' }),
+              continueEpisode: null,
+            }),
+            feedCard({ drama: dramaSummary({ id: 'drm_hot', title: 'Still mix' }) }),
+          ]),
+        ),
+    });
+    renderSurface(<HomePage />, { api });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('feed-card')).toHaveLength(2);
+    });
+    expect(screen.queryByTestId('continue-rail')).toBeNull();
+    expect(screen.getByTestId('feed').textContent).toContain('Broken resume');
+    expect(screen.getByTestId('feed').textContent).toContain('Still mix');
+    expect(screen.queryByTestId('feed-resume')).toBeNull();
   });
 
   it('sends an ordinary card to the drama detail screen', async () => {

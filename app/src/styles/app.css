@@ -357,12 +357,27 @@ a {
 
 /* ---------------------------------------------------------------- feed */
 
+.continue-rail {
+  margin: 0 0 20px;
+}
+
 .feed {
   display: grid;
   gap: var(--gap);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.feed--continue {
+  display: flex;
+  gap: var(--gap);
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.feed--continue .feed-card {
+  flex: 0 0 min(280px, 80vw);
 }
 
 .feed-card {
