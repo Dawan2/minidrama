@@ -50,6 +50,17 @@ describe('episode access presentation', () => {
     });
   });
 
+  it('offers an ad-only unlock without a price when coins cannot be taken', () => {
+    expect(
+      presentEpisodeAccess(viewerAccess('NEED_UNLOCK'), { coin: false, vip: false, ads: true }),
+    ).toEqual({
+      action: 'UNLOCK',
+      locked: true,
+      navigable: false,
+      showsPrice: false,
+    });
+  });
+
   it('offers a subscription for a VIP-only episode', () => {
     expect(presentEpisodeAccess(viewerAccess('NEED_VIP'), CAN_BUY)).toEqual({
       action: 'SUBSCRIBE',
@@ -154,7 +165,9 @@ describe('failing closed', () => {
     for (const reason of VIEWER_ACCESS_REASONS) {
       for (const capabilities of [CAN_BUY, CANNOT_BUY]) {
         const presentation = presentEpisodeAccess(viewerAccess(reason), capabilities);
-        expect(presentation.showsPrice, reason).toBe(presentation.action === 'UNLOCK');
+        expect(presentation.showsPrice, reason).toBe(
+          presentation.action === 'UNLOCK' && capabilities.coin,
+        );
       }
     }
   });

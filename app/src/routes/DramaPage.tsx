@@ -8,6 +8,7 @@ import { EpisodeRow } from '../catalog/EpisodeRow';
 import { FreeBadge } from '../catalog/FeedCardView';
 import { ROUTES, playPath } from './routes';
 import { presentEpisodeAccess } from '../catalog/access-presentation';
+import { configuredRewardedAdUnitId, rewardedAdsAvailable } from '../ads/ad-units';
 import { translate } from '../core/i18n';
 import { UnlockPanel } from '../unlock/UnlockPanel';
 import { useCatalogApi } from '../data/catalog-api-context';
@@ -61,9 +62,11 @@ export function DramaPage({ bridge, unlockPacing }: DramaPageProps): React.JSX.E
    * at boot goes stale the moment the bridge finishes initialising — which is exactly when a detail
    * screen opened from a deep link renders.
    */
+  const rewardedAdUnitId = configuredRewardedAdUnitId();
   const capabilities: PurchaseCapabilities = {
     coin: bridge.canIUse('pay'),
     vip: bridge.canIUse('createSubscription'),
+    ads: rewardedAdsAvailable(bridge.canIUse('createRewardedVideoAd'), rewardedAdUnitId),
   };
 
   /**
@@ -119,6 +122,7 @@ export function DramaPage({ bridge, unlockPacing }: DramaPageProps): React.JSX.E
             answer and a locally edited one is a client-side entitlement decision by another name.
           */
           onEntitlementChanged={episodes.reload}
+          rewardedAdUnitId={rewardedAdUnitId}
           {...(unlockPacing === undefined ? {} : { pacing: unlockPacing })}
         />
       )}

@@ -55,9 +55,12 @@ describe('migrateUp / migrateDown', () => {
         '0005_watch_progress',
         '0006_favorites',
         '0007_catalog',
+        '0008_ad_unlock',
       ],
     });
     expect(tables(connection)).toEqual([
+      'ad_reward_log',
+      'ad_unlock_sessions',
       'dramas',
       'episodes',
       'favorite',
@@ -84,6 +87,7 @@ describe('migrateUp / migrateDown', () => {
 
     expect(migrateDown(connection)).toEqual({
       applied: [
+        '0008_ad_unlock',
         '0007_catalog',
         '0006_favorites',
         '0005_watch_progress',
@@ -285,6 +289,8 @@ describe('migrateUp / migrateDown', () => {
     const second = openSqlite(path);
     db = second;
     expect(tables(second)).toEqual([
+      'ad_reward_log',
+      'ad_unlock_sessions',
       'dramas',
       'episodes',
       'favorite',

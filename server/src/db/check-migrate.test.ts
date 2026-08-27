@@ -48,8 +48,11 @@ describe('checkMigrateCycle', () => {
         '0005_watch_progress',
         '0006_favorites',
         '0007_catalog',
+        '0008_ad_unlock',
       ],
       tables: [
+        'ad_reward_log',
+        'ad_unlock_sessions',
         'dramas',
         'episodes',
         'favorite',
@@ -61,7 +64,7 @@ describe('checkMigrateCycle', () => {
         'webhook_events',
         'webhook_idempotency_keys',
       ],
-      message: 'migrate up → down → up passed (7 migrations, 10 tables)',
+      message: 'migrate up → down → up passed (8 migrations, 12 tables)',
     });
   });
 

@@ -384,6 +384,174 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/unlock/ad-sessions:
+    post:
+      operationId: createAdUnlockSession
+      summary: Mint a one-use nonce for one rewarded-ad showing
+      description: |
+        Records that this viewer intends to watch a rewarded ad for this episode and returns a
+        session id the client redeems after the showing. It does not unlock anything.
+
+        The nonce is one-use. A skipped view still consumes it, so the same showing cannot be
+        retried as a grant. GATE-4 ad-unit ids are not a field: this API does not catalogue
+        placements, and inventing one would be the C4-08 regression.
+
+        `Idempotency-Key` is required. A repeat of the same key by the same viewer for the same
+        episode returns the first session; the same key for a different episode is a conflict.
+      tags: [unlock]
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdUnlockSessionRequest'
+      responses:
+        '201':
+          description: A session nonce. Also returned for a replayed `Idempotency-Key`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdUnlockSession'
+        '400':
+          description: |
+            `COMMON_VALIDATION_FAILED` when `episodeId` is missing;
+            `COMMON_IDEMPOTENCY_KEY_REQUIRED` when the header is absent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: '`AUTH_REQUIRED`. An ad session belongs to an account.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: '`CONTENT_NOT_FOUND`. The episode does not exist or is not published.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            `UNLOCK_ALREADY_UNLOCKED` when the viewer already owns the episode;
+            `COMMON_IDEMPOTENCY_CONFLICT` when the key was used for a different episode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: '`CONTENT_OFFLINE`. The episode has been withdrawn.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            `UNLOCK_POLICY_NOT_ALLOWED`. The episode is free, VIP-only, or otherwise not an ad
+            unlock.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: '`AD_UNAVAILABLE` or `COMMON_SERVICE_UNAVAILABLE`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/unlock/ad-grants:
+    post:
+      operationId: grantAdUnlock
+      summary: Redeem an ad session after a showing
+      description: |
+        The client reports `isEnded`. That report is an input to a completion verifier, not a
+        grant. Default verifier (U-18: no platform SSV callback) accepts only `isEnded === true`.
+        A skipped view consumes the nonce and answers `422 AD_NOT_COMPLETED`. The reward log is
+        written for every attempt, including refusals.
+
+        Playability still comes from `POST /v1/entitlement/episode-access`. This response names the
+        receipt; it is not a client-side entitlement.
+      tags: [unlock]
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdUnlockGrantRequest'
+      responses:
+        '200':
+          description: The episode is unlocked, or was already unlocked by this session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdUnlockGrant'
+        '400':
+          description: '`COMMON_VALIDATION_FAILED` when `sessionId` is missing.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: '`AUTH_REQUIRED`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            `COMMON_RESOURCE_NOT_FOUND`. No such session, or it belongs to somebody else.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: '`UNLOCK_ALREADY_UNLOCKED`. The viewer already owns the episode.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            `AD_NOT_COMPLETED` when the showing was skipped or the verifier refused;
+            `UNLOCK_POLICY_NOT_ALLOWED` when the episode cannot be unlocked with an ad.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: '`AD_QUOTA_EXCEEDED`. Details carry `usedToday` and `dailyLimit`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: '`AD_UNAVAILABLE`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/wallet:
     get:
       operationId: getWallet
@@ -1672,6 +1840,72 @@ components:
               description: |
                 The platform's identifier for the payment, and the only field the callback is
                 correlated on.
+
+    CreateAdUnlockSessionRequest:
+      type: object
+      required: [episodeId]
+      additionalProperties: false
+      properties:
+        episodeId:
+          type: string
+          minLength: 1
+
+    AdUnlockSession:
+      type: object
+      required: [sessionId, episodeId]
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+          description: '`ads_`-prefixed one-use nonce. Not an ad-unit id.'
+        episodeId:
+          type: string
+
+    CreateAdUnlockGrantRequest:
+      type: object
+      required: [sessionId]
+      additionalProperties: false
+      description: |
+        `isEnded` is reported, not trusted. A missing or non-boolean value is not a completion.
+        There is no `adUnitId` field: GATE-4 ids are not invented here.
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+        isEnded:
+          type: boolean
+
+    AdUnlockGrant:
+      type: object
+      required: [unlock, quota]
+      additionalProperties: false
+      properties:
+        unlock:
+          type: object
+          required: [id, episodeId, method, costCoins]
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+            episodeId:
+              type: string
+            method:
+              type: string
+              const: AD
+            costCoins:
+              type: integer
+              const: 0
+        quota:
+          type: object
+          required: [usedToday, dailyLimit]
+          additionalProperties: false
+          properties:
+            usedToday:
+              type: integer
+              minimum: 0
+            dailyLimit:
+              type: integer
+              minimum: 1
 
     WalletView:
       type: object

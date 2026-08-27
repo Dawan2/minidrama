@@ -15,6 +15,36 @@ describe('what the panel may sell', () => {
     });
   });
 
+  it('keeps coins as the primary offer when ads are also available', () => {
+    expect(
+      describeUnlockOffer(lockedEpisodeItem({ priceCoins: 30 }), {
+        coin: true,
+        vip: true,
+        ads: true,
+      }),
+    ).toEqual({ kind: 'COINS', priceCoins: 30 });
+  });
+
+  it('offers ads when coins cannot be taken and ads are available', () => {
+    expect(
+      describeUnlockOffer(lockedEpisodeItem({ priceCoins: 30 }), {
+        coin: false,
+        vip: false,
+        ads: true,
+      }),
+    ).toEqual({ kind: 'ADS' });
+  });
+
+  it('offers ads for an unpriced NEED_UNLOCK when ads are available', () => {
+    expect(
+      describeUnlockOffer(lockedEpisodeItem({ priceCoins: null }), {
+        coin: true,
+        vip: true,
+        ads: true,
+      }),
+    ).toEqual({ kind: 'ADS' });
+  });
+
   /**
    * Priced on purpose. `priceCoins` belongs to the episode listing, not to the access decision —
    * the decision nulls it for a VIP refusal and the listing does not, which is the same asymmetry

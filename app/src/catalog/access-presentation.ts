@@ -52,6 +52,11 @@ export interface PurchaseCapabilities {
   readonly coin: boolean;
   /** `canIUse('createSubscription')` — VIP. */
   readonly vip: boolean;
+  /**
+   * Rewarded-ad unlock. True only when the client can show a rewarded ad *and* a GATE-4 unit id
+   * is configured. Absent is false: an un-probed capability must not render a button.
+   */
+  readonly ads?: boolean;
 }
 
 export interface EpisodePresentation {
@@ -82,9 +87,13 @@ export function presentEpisodeAccess(
   }
 
   if (access.reason === 'NEED_UNLOCK') {
-    return capabilities.coin
-      ? { action: 'UNLOCK', locked: true, navigable: false, showsPrice: true }
-      : purchaseBlocked();
+    if (capabilities.coin) {
+      return { action: 'UNLOCK', locked: true, navigable: false, showsPrice: true };
+    }
+    if (capabilities.ads === true) {
+      return { action: 'UNLOCK', locked: true, navigable: false, showsPrice: false };
+    }
+    return purchaseBlocked();
   }
 
   if (access.reason === 'NEED_VIP') {

@@ -33,6 +33,11 @@ export const API_ERROR_CODES = [
   'PROGRESS_INVALID_POSITION',
   'UNLOCK_ALREADY_UNLOCKED',
   'UNLOCK_POLICY_NOT_ALLOWED',
+  // Ad unlock (C4-08). The client `isEnded` event is not a grant; these are what the server
+  // answers when the showing was skipped, the daily cap was hit, or the log/session write failed.
+  'AD_NOT_COMPLETED',
+  'AD_QUOTA_EXCEEDED',
+  'AD_UNAVAILABLE',
   'PAYMENT_ORDER_NOT_FOUND',
   'PAYMENT_CHANNEL_UNAVAILABLE',
   // Server-to-server only. It answers TikTok's webhook sender, never a client, and it is

@@ -36,6 +36,8 @@ import type { HttpPoster, HttpReader, PostOptions } from './http';
  */
 
 export const COIN_ORDERS_PATH = '/v1/unlock/coin-orders';
+export const AD_SESSIONS_PATH = '/v1/unlock/ad-sessions';
+export const AD_GRANTS_PATH = '/v1/unlock/ad-grants';
 
 export function coinOrderEndpoint(orderId: string): string {
   return `${COIN_ORDERS_PATH}/${encodeURIComponent(orderId)}`;
@@ -74,9 +76,41 @@ export interface CreateCoinOrderRequest {
   readonly idempotencyKey: string;
 }
 
+export interface CreateAdSessionRequest {
+  readonly episodeId: string;
+  readonly idempotencyKey: string;
+}
+
+export interface AdUnlockSessionView {
+  readonly sessionId: string;
+  readonly episodeId: string;
+}
+
+export interface GrantAdUnlockRequest {
+  readonly sessionId: string;
+  readonly isEnded: boolean;
+}
+
+export interface AdUnlockGrantView {
+  readonly unlock: {
+    readonly id: string;
+    readonly episodeId: string;
+    readonly method: 'AD';
+    readonly costCoins: number;
+  };
+  readonly quota: {
+    readonly usedToday: number;
+    readonly dailyLimit: number;
+  };
+}
+
 export interface UnlockApi {
   createCoinOrder(request: CreateCoinOrderRequest): Promise<Result<CoinOrder, ApiFailure>>;
   fetchCoinOrder(orderId: string): Promise<Result<CoinOrder, ApiFailure>>;
+  createAdSession(
+    request: CreateAdSessionRequest,
+  ): Promise<Result<AdUnlockSessionView, ApiFailure>>;
+  grantAdUnlock(request: GrantAdUnlockRequest): Promise<Result<AdUnlockGrantView, ApiFailure>>;
 }
 
 export function createUnlockApi(http: HttpReader & HttpPoster): UnlockApi {
@@ -92,6 +126,20 @@ export function createUnlockApi(http: HttpReader & HttpPoster): UnlockApi {
     fetchCoinOrder: async (orderId) => {
       const body = await http.getJson(coinOrderEndpoint(orderId));
       return body.ok ? narrowCoinOrder(body.value) : body;
+    },
+
+    createAdSession: async (request) => {
+      const options: PostOptions = { headers: { 'Idempotency-Key': request.idempotencyKey } };
+      const body = await http.postJson(AD_SESSIONS_PATH, { episodeId: request.episodeId }, options);
+      return body.ok ? narrowAdSession(body.value) : body;
+    },
+
+    grantAdUnlock: async (request) => {
+      const body = await http.postJson(AD_GRANTS_PATH, {
+        sessionId: request.sessionId,
+        isEnded: request.isEnded,
+      });
+      return body.ok ? narrowAdGrant(body.value) : body;
     },
   };
 }
@@ -129,6 +177,47 @@ function narrowCoinOrder(value: unknown): Result<CoinOrder, ApiFailure> {
 
 function isCoinOrderStatus(value: unknown): value is CoinOrderStatus {
   return typeof value === 'string' && (COIN_ORDER_STATUSES as readonly string[]).includes(value);
+}
+
+function narrowAdSession(value: unknown): Result<AdUnlockSessionView, ApiFailure> {
+  const record = asRecord(value);
+  if (
+    record === null ||
+    typeof record['sessionId'] !== 'string' ||
+    record['sessionId'] === '' ||
+    typeof record['episodeId'] !== 'string'
+  ) {
+    return err(apiFailure({ kind: 'MALFORMED', message: 'the response was not an ad session' }));
+  }
+  return ok({ sessionId: record['sessionId'], episodeId: record['episodeId'] });
+}
+
+function narrowAdGrant(value: unknown): Result<AdUnlockGrantView, ApiFailure> {
+  const record = asRecord(value);
+  const unlock = asRecord(record?.['unlock']);
+  const quota = asRecord(record?.['quota']);
+  if (
+    record === null ||
+    unlock === null ||
+    quota === null ||
+    typeof unlock['id'] !== 'string' ||
+    typeof unlock['episodeId'] !== 'string' ||
+    unlock['method'] !== 'AD' ||
+    unlock['costCoins'] !== 0 ||
+    typeof quota['usedToday'] !== 'number' ||
+    typeof quota['dailyLimit'] !== 'number'
+  ) {
+    return err(apiFailure({ kind: 'MALFORMED', message: 'the response was not an ad grant' }));
+  }
+  return ok({
+    unlock: {
+      id: unlock['id'],
+      episodeId: unlock['episodeId'],
+      method: 'AD',
+      costCoins: 0,
+    },
+    quota: { usedToday: quota['usedToday'], dailyLimit: quota['dailyLimit'] },
+  });
 }
 
 function asRecord(value: unknown): Readonly<Record<string, unknown>> | null {

@@ -4,7 +4,15 @@ import type { BridgeErrorCode, Result } from '@minidrama/shared';
 import { apiFailure } from '../data/failure';
 import { MockBridge } from '../platform/mock-bridge';
 import type { ApiFailure } from '../data/failure';
-import type { CoinOrder, CreateCoinOrderRequest, UnlockApi } from '../data/unlock-api';
+import type {
+  AdUnlockGrantView,
+  AdUnlockSessionView,
+  CoinOrder,
+  CreateAdSessionRequest,
+  CreateCoinOrderRequest,
+  GrantAdUnlockRequest,
+  UnlockApi,
+} from '../data/unlock-api';
 import type { MockBridgeOptions } from '../platform/mock-bridge';
 import type { PlatformBridge } from '../platform/types';
 import type { UnlockPacing } from '../unlock/coin-unlock';
@@ -42,17 +50,39 @@ export function grantedCoinOrder(overrides: Partial<CoinOrder> = {}): CoinOrder 
   return coinOrder({ status: 'FULFILLED', unlockGranted: true, ...overrides });
 }
 
+export function adSession(overrides: Partial<AdUnlockSessionView> = {}): AdUnlockSessionView {
+  return { sessionId: 'ads_test_1', episodeId: 'ep_test_0004', ...overrides };
+}
+
+export function adGrant(overrides: Partial<AdUnlockGrantView> = {}): AdUnlockGrantView {
+  return {
+    unlock: { id: 'ulk_ad_1', episodeId: 'ep_test_0004', method: 'AD', costCoins: 0 },
+    quota: { usedToday: 1, dailyLimit: 5 },
+    ...overrides,
+  };
+}
+
 export interface StubUnlockApiScript {
   readonly create?: (
     request: CreateCoinOrderRequest,
     callIndex: number,
   ) => Result<CoinOrder, ApiFailure>;
   readonly read?: (orderId: string, callIndex: number) => Result<CoinOrder, ApiFailure>;
+  readonly createAdSession?: (
+    request: CreateAdSessionRequest,
+    callIndex: number,
+  ) => Result<AdUnlockSessionView, ApiFailure>;
+  readonly grantAdUnlock?: (
+    request: GrantAdUnlockRequest,
+    callIndex: number,
+  ) => Result<AdUnlockGrantView, ApiFailure>;
 }
 
 export interface StubUnlockApi extends UnlockApi {
   readonly createCalls: readonly CreateCoinOrderRequest[];
   readonly readCalls: readonly string[];
+  readonly adSessionCalls: readonly CreateAdSessionRequest[];
+  readonly adGrantCalls: readonly GrantAdUnlockRequest[];
 }
 
 const UNSCRIPTED = apiFailure({
@@ -63,10 +93,14 @@ const UNSCRIPTED = apiFailure({
 export function stubUnlockApi(script: StubUnlockApiScript = {}): StubUnlockApi {
   const createCalls: CreateCoinOrderRequest[] = [];
   const readCalls: string[] = [];
+  const adSessionCalls: CreateAdSessionRequest[] = [];
+  const adGrantCalls: GrantAdUnlockRequest[] = [];
 
   return {
     createCalls,
     readCalls,
+    adSessionCalls,
+    adGrantCalls,
 
     createCoinOrder: (request) => {
       const index = createCalls.length;
@@ -78,6 +112,18 @@ export function stubUnlockApi(script: StubUnlockApiScript = {}): StubUnlockApi {
       const index = readCalls.length;
       readCalls.push(orderId);
       return Promise.resolve(script.read?.(orderId, index) ?? err(UNSCRIPTED));
+    },
+
+    createAdSession: (request) => {
+      const index = adSessionCalls.length;
+      adSessionCalls.push(request);
+      return Promise.resolve(script.createAdSession?.(request, index) ?? err(UNSCRIPTED));
+    },
+
+    grantAdUnlock: (request) => {
+      const index = adGrantCalls.length;
+      adGrantCalls.push(request);
+      return Promise.resolve(script.grantAdUnlock?.(request, index) ?? err(UNSCRIPTED));
     },
   };
 }
@@ -101,10 +147,13 @@ export interface PayingBridgeOptions {
   /** The bridge error `pay` answers with. Absent means the payment succeeds. */
   readonly payFails?: BridgeErrorCode;
   readonly unavailable?: MockBridgeOptions['unavailable'];
+  /** Rewarded ad outcome. `false` models a skip, which must grant nothing. */
+  readonly rewardedAdCompletes?: boolean;
 }
 
 export interface PayingBridge extends PlatformBridge {
   readonly payCalls: readonly string[];
+  readonly rewardedAdCalls: readonly string[];
 }
 
 /**
@@ -117,14 +166,19 @@ export interface PayingBridge extends PlatformBridge {
  */
 export function payingBridge(options: PayingBridgeOptions = {}): PayingBridge {
   const payCalls: string[] = [];
-  const inner = new MockBridge(
-    options.unavailable === undefined ? {} : { unavailable: options.unavailable },
-  );
+  const rewardedAdCalls: string[] = [];
+  const inner = new MockBridge({
+    ...(options.unavailable === undefined ? {} : { unavailable: options.unavailable }),
+    ...(options.rewardedAdCompletes === undefined
+      ? {}
+      : { rewardedAdCompletes: options.rewardedAdCompletes }),
+  });
   void inner.init();
 
   return {
     kind: inner.kind,
     payCalls,
+    rewardedAdCalls,
 
     init: () => inner.init(),
     isReady: () => inner.isReady(),
@@ -132,11 +186,15 @@ export function payingBridge(options: PayingBridgeOptions = {}): PayingBridge {
     capabilities: () => inner.capabilities(),
     login: () => inner.login(),
     getPlayerCtor: () => inner.getPlayerCtor(),
-    showRewardedAd: (adUnitId) => inner.showRewardedAd(adUnitId),
     showInterstitialAd: (adUnitId) => inner.showInterstitialAd(adUnitId),
     createSubscription: (tradeOrderId) => inner.createSubscription(tradeOrderId),
     setNavigationBarColor: (front, back) => inner.setNavigationBarColor(front, back),
     getMenuButtonRect: () => inner.getMenuButtonRect(),
+
+    showRewardedAd: (adUnitId) => {
+      rewardedAdCalls.push(adUnitId);
+      return inner.showRewardedAd(adUnitId);
+    },
 
     pay: (tradeOrderId) => {
       payCalls.push(tradeOrderId);

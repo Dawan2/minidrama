@@ -46,6 +46,7 @@ export type UnpurchasableCause = (typeof UNPURCHASABLE_CAUSES)[number];
 
 export type UnlockOffer =
   | { readonly kind: 'COINS'; readonly priceCoins: number }
+  | { readonly kind: 'ADS' }
   | { readonly kind: 'VIP' }
   | { readonly kind: 'UNPURCHASABLE'; readonly cause: UnpurchasableCause };
 
@@ -57,9 +58,13 @@ export function describeUnlockOffer(
 
   if (action === 'UNLOCK') {
     const price = episode.priceCoins;
-    return isSellablePrice(price)
-      ? { kind: 'COINS', priceCoins: price }
-      : { kind: 'UNPURCHASABLE', cause: 'UNPRICED' };
+    if (capabilities.coin && isSellablePrice(price)) {
+      return { kind: 'COINS', priceCoins: price };
+    }
+    if (capabilities.ads === true) {
+      return { kind: 'ADS' };
+    }
+    return { kind: 'UNPURCHASABLE', cause: 'UNPRICED' };
   }
 
   if (action === 'SUBSCRIBE') {

@@ -16,6 +16,8 @@ import {
   payingBridge,
   stubUnlockApi,
   unlockFailure,
+  adGrant,
+  adSession,
 } from '../testing/unlock-fixtures';
 import { renderSurface } from '../testing/render';
 import { UnlockPanel } from './UnlockPanel';
@@ -40,12 +42,19 @@ function renderPanel(
     readonly script?: StubUnlockApiScript;
     readonly bridge?: PayingBridge;
     readonly polls?: number;
+    readonly rewardedAdUnitId?: string | null;
   } = {},
 ): PanelHarness {
   const unlockApi = stubUnlockApi(options.script ?? {});
   const bridge = options.bridge ?? payingBridge();
   const onClose = vi.fn();
   const onEntitlementChanged = vi.fn();
+  const rewardedAdUnitId =
+    options.rewardedAdUnitId !== undefined
+      ? options.rewardedAdUnitId
+      : options.capabilities?.ads === true
+        ? 'test-rewarded-unit'
+        : null;
 
   renderSurface(
     <UnlockPanel
@@ -55,6 +64,7 @@ function renderPanel(
       onClose={onClose}
       onEntitlementChanged={onEntitlementChanged}
       pacing={instantPacing(options.polls ?? 1)}
+      rewardedAdUnitId={rewardedAdUnitId}
     />,
     { api: stubCatalogApi(), unlockApi },
   );
@@ -517,5 +527,90 @@ describe('getting out of the panel', () => {
     const labelId = dialog.getAttribute('aria-labelledby');
     expect(labelId).toBeTruthy();
     expect(document.getElementById(labelId ?? '')?.textContent).toBeTruthy();
+  });
+});
+
+describe('the ad channel', () => {
+  const ADS: PurchaseCapabilities = { coin: false, vip: false, ads: true };
+  const COINS_AND_ADS: PurchaseCapabilities = { coin: true, vip: true, ads: true };
+
+  it('offers a watch-ad action when ads are available and a unit id is configured', () => {
+    renderPanel({ capabilities: ADS });
+
+    expect(screen.getByTestId('unlock-ad')).toBeDefined();
+    expect(screen.queryByTestId('unlock-confirm')).toBeNull();
+    expect(screen.queryByTestId('unlock-price')).toBeNull();
+  });
+
+  it('offers the ad next to coins when both rails are available', () => {
+    renderPanel({ capabilities: COINS_AND_ADS });
+
+    expect(screen.getByTestId('unlock-confirm')).toBeDefined();
+    expect(screen.getByTestId('unlock-ad')).toBeDefined();
+  });
+
+  it('does not invent a unit id: no ad button when the placement is missing', () => {
+    renderPanel({ capabilities: COINS_AND_ADS, rewardedAdUnitId: null });
+
+    expect(screen.getByTestId('unlock-confirm')).toBeDefined();
+    expect(screen.queryByTestId('unlock-ad')).toBeNull();
+  });
+
+  it('says ads are unavailable rather than showing a dead button when the unit id is missing', () => {
+    renderPanel({ capabilities: ADS, rewardedAdUnitId: null });
+
+    expect(screen.getByTestId('unlock-ad-unavailable')).toBeDefined();
+    expect(screen.queryByTestId('unlock-ad')).toBeNull();
+  });
+
+  it('does not grant on a skipped showing, and still reports isEnded false', async () => {
+    const { unlockApi, bridge, onEntitlementChanged } = renderPanel({
+      capabilities: ADS,
+      bridge: payingBridge({ rewardedAdCompletes: false }),
+      script: {
+        createAdSession: () => ok(adSession()),
+        grantAdUnlock: () => err(unlockFailure(422, 'AD_NOT_COMPLETED')),
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('unlock-ad'));
+
+    const failure = await screen.findByTestId('unlock-ad-failure');
+    expect(failure.getAttribute('data-reason')).toBe('NOT_COMPLETED');
+    expect(onEntitlementChanged).not.toHaveBeenCalled();
+    expect(bridge.rewardedAdCalls).toEqual(['test-rewarded-unit']);
+    expect(unlockApi.adGrantCalls).toEqual([{ sessionId: 'ads_test_1', isEnded: false }]);
+  });
+
+  it('reports the grant the server confirmed, and never treats the client event as access', async () => {
+    const { onEntitlementChanged } = renderPanel({
+      capabilities: ADS,
+      script: {
+        createAdSession: () => ok(adSession()),
+        grantAdUnlock: () => ok(adGrant()),
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('unlock-ad'));
+
+    expect(await screen.findByTestId('unlock-ad-success')).toBeDefined();
+    expect(onEntitlementChanged).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('unlock-play')).toBeDefined();
+  });
+
+  it('offers no retry when the daily cap is hit', async () => {
+    renderPanel({
+      capabilities: ADS,
+      script: {
+        createAdSession: () => ok(adSession()),
+        grantAdUnlock: () => err(unlockFailure(429, 'AD_QUOTA_EXCEEDED')),
+      },
+    });
+
+    fireEvent.click(screen.getByTestId('unlock-ad'));
+
+    const failure = await screen.findByTestId('unlock-ad-failure');
+    expect(failure.getAttribute('data-reason')).toBe('QUOTA_EXCEEDED');
+    expect(screen.queryByTestId('unlock-ad-retry')).toBeNull();
   });
 });

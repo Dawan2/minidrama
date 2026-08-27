@@ -53,7 +53,10 @@ export type AccessReason = 'FREE' | 'UNLOCKED' | 'VIP' | 'NEED_UNLOCK' | 'NEED_V
  */
 export type UnavailableCause = 'NOT_PUBLISHED' | 'WITHDRAWN' | 'MISCONFIGURED_PRICE';
 
-/** What the viewer can do about a denial. `AD` is absent until ad unlocking exists (W16). */
+/**
+ * What the viewer can do about a denial. Ad unlock (C4-08) is offered for the same `COINS`
+ * episodes, not as a third option: inventing `AD` here would be a second commercial ladder.
+ */
 export type UnlockOption = 'COINS' | 'VIP';
 
 export interface DramaFacts {

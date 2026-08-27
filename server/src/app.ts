@@ -51,6 +51,12 @@ import { playbackRoutes } from './modules/playback/routes.js';
 import { progressRoutes } from './modules/progress/routes.js';
 import { registerCors } from './core/cors.js';
 import { searchRoutes } from './modules/search/routes.js';
+import { adUnlockRoutes } from './modules/unlock/ad-routes.js';
+import { createInMemoryAdUnlockSessionStore } from './modules/unlock/ad-session-store.js';
+import { createSqliteAdUnlockSessionStore } from './modules/unlock/sqlite-ad-session-store.js';
+import { createInMemoryAdRewardLogStore } from './modules/unlock/ad-reward-log.js';
+import { createSqliteAdRewardLogStore } from './modules/unlock/sqlite-ad-reward-log-store.js';
+import { createReportedCompletionVerifier } from './modules/unlock/ad-completion.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
 import { walletRoutes } from './modules/wallet/routes.js';
 import { dramaProgressRoutes } from './modules/progress/drama-routes.js';
@@ -75,6 +81,10 @@ import type { ServerConfig } from './config.js';
 import type { SqliteDatabase } from './db/sqlite.js';
 import type { SessionStore } from './modules/identity/session-store.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
+import type { AdCompletionVerifier } from './modules/unlock/ad-completion.js';
+import type { AdRewardLogStore } from './modules/unlock/ad-reward-log.js';
+import type { AdUnlockPolicy } from './modules/unlock/ad-unlock-policy.js';
+import type { AdUnlockSessionStore } from './modules/unlock/ad-session-store.js';
 import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { UnlockStore } from './modules/unlock/unlock-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
@@ -169,6 +179,16 @@ export interface AppDependencies {
    * in-memory skeleton otherwise; a postgres URL is refused rather than rewritten to a file.
    */
   readonly unlockStore?: UnlockStore;
+  /**
+   * Ad unlock sessions and the reward log. Injected by tests that need to read them back or to
+   * refuse a showing the client claimed. The default verifier trusts `isEnded === true` and
+   * nothing else (U-18: there is no platform SSV callback). A wrapper that grants without the
+   * verifier is the C4-08 regression.
+   */
+  readonly adUnlockSessionStore?: AdUnlockSessionStore;
+  readonly adRewardLogStore?: AdRewardLogStore;
+  readonly adCompletionVerifier?: AdCompletionVerifier;
+  readonly adUnlockPolicy?: AdUnlockPolicy;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
   /**
    * Coin balance. The default reports `UNAVAILABLE` rather than `0`: there is no platform coin
@@ -400,6 +420,30 @@ export async function buildApp(
     now,
   });
 
+  const adUnlockSessionStore =
+    dependencies.adUnlockSessionStore ??
+    (durableDb === undefined
+      ? createInMemoryAdUnlockSessionStore()
+      : createSqliteAdUnlockSessionStore(durableDb));
+  const adRewardLogStore =
+    dependencies.adRewardLogStore ??
+    (durableDb === undefined
+      ? createInMemoryAdRewardLogStore()
+      : createSqliteAdRewardLogStore(durableDb));
+
+  await app.register(adUnlockRoutes, {
+    factsPort: entitlementFactsPort,
+    viewerResolver,
+    sessionStore: adUnlockSessionStore,
+    logStore: adRewardLogStore,
+    unlockStore,
+    verifier: dependencies.adCompletionVerifier ?? createReportedCompletionVerifier(),
+    ...(dependencies.adUnlockPolicy === undefined
+      ? {}
+      : { policy: dependencies.adUnlockPolicy }),
+    now,
+  });
+
   // The same viewer resolver as unlock and progress: two things resolving sessions is how one
   // endpoint accepts the credential another rejects, and a wallet quoted for the wrong viewer is
   // a cross-user leak. The default port omits the figure rather than inventing zero.
@@ -503,7 +547,7 @@ function openSharedSqlite(
   });
   app.log.info(
     { path },
-    'unlock receipts, sessions, webhook events, coin unlock orders, watch progress, favourites, and the catalogue persist in sqlite',
+    'unlock receipts, sessions, webhook events, coin unlock orders, watch progress, favourites, the catalogue, and ad-unlock sessions persist in sqlite',
   );
   return db;
 }

@@ -39,14 +39,18 @@ export interface Unlock {
   /** Redundant, per §6.1, so "how much of this drama is unlocked" is one query. */
   readonly dramaId: string;
   /**
-   * Only `COIN` is written today. The field is the full enum because the ad slot (W16) and
-   * operational grants write into the same table, and because `decideEpisodeAccess` distinguishes
-   * the durable methods from a `VIP` viewing receipt — a distinction that must survive in the row.
+   * `COIN` from a paid order, `AD` from a redeemed ad session. Operational `GRANT` is still
+   * unwritten. The field is the full enum because `decideEpisodeAccess` distinguishes the durable
+   * methods from a `VIP` viewing receipt — a distinction that must survive in the row.
    */
   readonly method: UnlockMethod;
   /** What the viewer was actually charged, carried from the order. */
   readonly costCoins: number;
-  /** The coin order this receipt came from, and the audit trail back to the payment. */
+  /**
+   * Provenance. A coin unlock names the coin order; an ad unlock names the ad session
+   * (`ads_…`). The sqlite column is NOT NULL, so the session id occupies the same field rather
+   * than inventing a second coin-order identifier.
+   */
   readonly orderId: string;
   readonly grantedAtMs: number;
   /** `null` is permanent, which is what a coin unlock is. */
@@ -64,9 +68,9 @@ export interface NewCoinUnlock {
 }
 
 /**
- * The only constructor. There is no input for `method` or `expiresAtMs`: a coin unlock is a
- * permanent `COIN` receipt, and a caller that could pass either could write a row that reads as an
- * entitlement to the decision function while being something else entirely.
+ * A coin unlock is a permanent `COIN` receipt. There is no input for `method` or `expiresAtMs`: a
+ * caller that could pass either could write a row that reads as an entitlement to the decision
+ * function while being something else entirely. Ad receipts use `createAdUnlock`.
  */
 export function createCoinUnlock(input: NewCoinUnlock): Unlock {
   return {
@@ -77,6 +81,34 @@ export function createCoinUnlock(input: NewCoinUnlock): Unlock {
     method: 'COIN',
     costCoins: input.costCoins,
     orderId: input.orderId,
+    grantedAtMs: input.grantedAtMs,
+    expiresAtMs: null,
+  };
+}
+
+export interface NewAdUnlock {
+  readonly id: string;
+  readonly userId: string;
+  readonly episodeId: string;
+  readonly dramaId: string;
+  /** The ad session this receipt came from. Written into `orderId`. */
+  readonly sessionId: string;
+  readonly grantedAtMs: number;
+}
+
+/**
+ * A permanent `AD` receipt. `costCoins` is 0: the viewer was not charged coins. `expiresAtMs` is
+ * null: an ad unlock is not a limited-time window this slot is allowed to invent.
+ */
+export function createAdUnlock(input: NewAdUnlock): Unlock {
+  return {
+    id: input.id,
+    userId: input.userId,
+    episodeId: input.episodeId,
+    dramaId: input.dramaId,
+    method: 'AD',
+    costCoins: 0,
+    orderId: input.sessionId,
     grantedAtMs: input.grantedAtMs,
     expiresAtMs: null,
   };

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { openMigratedSqlite } from '../../db/migrate.js';
-import { createCoinUnlock, newUnlockId } from './unlocks.js';
+import { createAdUnlock, createCoinUnlock, newUnlockId } from './unlocks.js';
 import { createInMemoryUnlockStore } from './unlock-store.js';
 import { createSqliteUnlockStore } from './sqlite-unlock-store.js';
 import type { Unlock } from './unlocks.js';
@@ -80,6 +80,31 @@ describe('createCoinUnlock', () => {
 
     expect(ids.size).toBe(50);
     for (const id of ids) expect(id).toMatch(/^ulk_[0-9a-f]{32}$/);
+  });
+});
+
+describe('createAdUnlock', () => {
+  it('writes a permanent AD receipt at cost 0, keyed on the session id', () => {
+    expect(
+      createAdUnlock({
+        id: 'ulk_ad',
+        userId: 'usr_1',
+        episodeId: 'ep_1',
+        dramaId: 'drm_1',
+        sessionId: 'ads_1',
+        grantedAtMs: NOW,
+      }),
+    ).toEqual({
+      id: 'ulk_ad',
+      userId: 'usr_1',
+      episodeId: 'ep_1',
+      dramaId: 'drm_1',
+      method: 'AD',
+      costCoins: 0,
+      orderId: 'ads_1',
+      grantedAtMs: NOW,
+      expiresAtMs: null,
+    });
   });
 });
 

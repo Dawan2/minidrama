@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ok } from '@minidrama/shared';
 
-import { COIN_ORDERS_PATH, coinOrderEndpoint, createUnlockApi } from './unlock-api';
+import {
+  AD_GRANTS_PATH,
+  AD_SESSIONS_PATH,
+  COIN_ORDERS_PATH,
+  coinOrderEndpoint,
+  createUnlockApi,
+} from './unlock-api';
 import { apiFailure } from './failure';
-import { coinOrder, grantedCoinOrder } from '../testing/unlock-fixtures';
+import { adGrant, adSession, coinOrder, grantedCoinOrder } from '../testing/unlock-fixtures';
 import type { HttpPoster, HttpReader } from './http';
 
 function httpStub(body: unknown): HttpReader & HttpPoster {
@@ -146,6 +152,90 @@ describe('a response that is not a coin order', () => {
   it('rejects a body that is not an object at all', async () => {
     for (const body of [null, 'ok', 7, [coinOrder()]]) {
       expect((await narrows(body)).ok, JSON.stringify(body)).toBe(false);
+    }
+  });
+});
+
+describe('ad unlock endpoints', () => {
+  it('publishes the paths the server registered', () => {
+    expect(AD_SESSIONS_PATH).toBe('/v1/unlock/ad-sessions');
+    expect(AD_GRANTS_PATH).toBe('/v1/unlock/ad-grants');
+  });
+
+  it('mints a session with the idempotency key as a header, and no ad-unit id in the body', async () => {
+    const postJson = vi.fn<HttpPoster['postJson']>(() => Promise.resolve(ok(adSession())));
+    await createUnlockApi({ getJson: () => Promise.resolve(ok({})), postJson }).createAdSession({
+      episodeId: 'ep_test_0004',
+      idempotencyKey: 'ad_abc',
+    });
+
+    expect(postJson).toHaveBeenCalledWith(
+      AD_SESSIONS_PATH,
+      { episodeId: 'ep_test_0004' },
+      { headers: { 'Idempotency-Key': 'ad_abc' } },
+    );
+    const body = postJson.mock.calls[0]![1] as Record<string, unknown>;
+    expect(Object.keys(body)).toEqual(['episodeId']);
+  });
+
+  it('returns the session nonce', async () => {
+    const session = adSession();
+    const result = await createUnlockApi(httpStub(session)).createAdSession({
+      episodeId: 'ep_test_0004',
+      idempotencyKey: 'ad_abc',
+    });
+    expect(result).toEqual(ok(session));
+  });
+
+  it('rejects a session body that is missing a nonce', async () => {
+    const result = await createUnlockApi(httpStub({ episodeId: 'ep_1' })).createAdSession({
+      episodeId: 'ep_1',
+      idempotencyKey: 'ad_abc',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
+  });
+
+  it('POSTs isEnded as reported, not as a defaulted true', async () => {
+    const postJson = vi.fn<HttpPoster['postJson']>(() => Promise.resolve(ok(adGrant())));
+    await createUnlockApi({ getJson: () => Promise.resolve(ok({})), postJson }).grantAdUnlock({
+      sessionId: 'ads_test_1',
+      isEnded: false,
+    });
+
+    expect(postJson).toHaveBeenCalledWith(AD_GRANTS_PATH, {
+      sessionId: 'ads_test_1',
+      isEnded: false,
+    });
+  });
+
+  it('returns the grant receipt', async () => {
+    const grant = adGrant();
+    const result = await createUnlockApi(httpStub(grant)).grantAdUnlock({
+      sessionId: 'ads_test_1',
+      isEnded: true,
+    });
+    expect(result).toEqual(ok(grant));
+  });
+
+  it('rejects a grant whose method is not AD or whose cost is not zero', async () => {
+    for (const body of [
+      {
+        unlock: { id: 'ulk_1', episodeId: 'ep_1', method: 'COIN', costCoins: 0 },
+        quota: { usedToday: 1, dailyLimit: 5 },
+      },
+      {
+        unlock: { id: 'ulk_1', episodeId: 'ep_1', method: 'AD', costCoins: 1 },
+        quota: { usedToday: 1, dailyLimit: 5 },
+      },
+      { unlock: adGrant().unlock },
+      null,
+    ]) {
+      const result = await createUnlockApi(httpStub(body)).grantAdUnlock({
+        sessionId: 'ads_1',
+        isEnded: true,
+      });
+      expect(result.ok, JSON.stringify(body)).toBe(false);
     }
   });
 });

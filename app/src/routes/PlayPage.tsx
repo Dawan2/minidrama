@@ -10,6 +10,12 @@ import { gateAdvance } from './advance-gate';
 import { ROUTES, playPath } from './routes';
 import { translate } from '../core/i18n';
 import { UnlockPanel } from '../unlock/UnlockPanel';
+import {
+  configuredInterstitialAdUnitId,
+  configuredRewardedAdUnitId,
+  rewardedAdsAvailable,
+} from '../ads/ad-units';
+import { offerInterstitialIfConfigured } from '../ads/offer-interstitial';
 import { isPlaybackLock } from '../data/playback-api';
 import { useCatalogApi } from '../data/catalog-api-context';
 import { usePlaybackApi } from '../data/playback-api-context';
@@ -65,6 +71,13 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     setAdvanceUnlock(null);
   }, [episodeId]);
 
+  useEffect(() => {
+    const unitId = configuredInterstitialAdUnitId();
+    return () => {
+      void offerInterstitialIfConfigured(bridge, unitId);
+    };
+  }, [bridge]);
+
   const session = useResource(
     () => playbackApi.createSession(episodeId),
     `play-session:${episodeId}`,
@@ -83,9 +96,11 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     dramaId === '' ? `play-episodes:pending:${episodeId}` : `play-episodes:${dramaId}`,
   );
 
+  const rewardedAdUnitId = configuredRewardedAdUnitId();
   const capabilities: PurchaseCapabilities = {
     coin: bridge.canIUse('pay'),
     vip: bridge.canIUse('createSubscription'),
+    ads: rewardedAdsAvailable(bridge.canIUse('createRewardedVideoAd'), rewardedAdUnitId),
   };
 
   const playlist = useMemo((): readonly PlaybackDescriptor[] => {
@@ -209,6 +224,7 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
             setAdvanceUnlock(null);
           }}
           onEntitlementChanged={session.reload}
+          rewardedAdUnitId={rewardedAdUnitId}
           {...(unlockPacing === undefined ? {} : { pacing: unlockPacing })}
         />
       )}

@@ -5,11 +5,13 @@ import type { EpisodeItem } from '@minidrama/shared';
 import { describeUnlockOffer } from './unlock-offer';
 import { playPath } from '../routes/routes';
 import { translate } from '../core/i18n';
+import { useAdUnlock } from '../ads/use-ad-unlock';
 import { useCoinUnlock } from './use-coin-unlock';
 import { useResource } from '../data/use-resource';
 import { useUnlockApi } from '../data/unlock-api-context';
 import { useWalletApi } from '../data/wallet-api-context';
 import { WalletBalance } from '../wallet/WalletBalance';
+import type { AdUnlockFailure, AdUnlockSettlement, AdUnlockStage } from '../ads/use-ad-unlock';
 import type { CoinUnlockFailure, CoinUnlockStage, UnlockPacing } from './coin-unlock';
 import type { CoinUnlockSettlement } from './use-coin-unlock';
 import type { PlatformBridge } from '../platform/types';
@@ -70,6 +72,7 @@ const UNPURCHASABLE_KEYS: Readonly<Record<UnpurchasableCause, TranslationKey>> =
 
 const TITLE_KEYS: Readonly<Record<UnlockOffer['kind'], TranslationKey>> = {
   COINS: 'unlock.title',
+  ADS: 'unlock.titleAd',
   VIP: 'unlock.titleVip',
   UNPURCHASABLE: 'unlock.titleUnavailable',
 };
@@ -89,6 +92,11 @@ export interface UnlockPanelProps {
    * clock it has to fake.
    */
   readonly pacing?: UnlockPacing;
+  /**
+   * GATE-4 unit id, or `null` when none is configured. The panel never invents one. Tests inject
+   * `test-rewarded-unit`.
+   */
+  readonly rewardedAdUnitId?: string | null;
 }
 
 export function UnlockPanel({
@@ -98,9 +106,14 @@ export function UnlockPanel({
   onClose,
   onEntitlementChanged,
   pacing,
+  rewardedAdUnitId = null,
 }: UnlockPanelProps): React.JSX.Element {
   const api = useUnlockApi();
   const offer = describeUnlockOffer(episode, capabilities);
+  const adsOffered =
+    capabilities.ads === true &&
+    rewardedAdUnitId !== null &&
+    (offer.kind === 'COINS' || offer.kind === 'ADS');
 
   const unlock = useCoinUnlock({
     api,
@@ -108,6 +121,14 @@ export function UnlockPanel({
     episodeId: episode.id,
     onEntitlementChanged,
     ...(pacing === undefined ? {} : { pacing }),
+  });
+
+  const adUnlock = useAdUnlock({
+    api,
+    bridge,
+    episodeId: episode.id,
+    adUnitId: rewardedAdUnitId,
+    onEntitlementChanged,
   });
 
   /**
@@ -166,9 +187,33 @@ export function UnlockPanel({
             episode={episode}
             state={unlock.state.status}
             stage={unlock.state.status === 'RUNNING' ? unlock.state.stage : null}
-            settled={settled}
+            settled={unlock.state.status === 'SETTLED' ? unlock.state.outcome : null}
             onStart={unlock.start}
+            ads={
+              adsOffered
+                ? {
+                    state: adUnlock.state.status,
+                    stage: adUnlock.state.status === 'RUNNING' ? adUnlock.state.stage : null,
+                    settled: adUnlock.state.status === 'SETTLED' ? adUnlock.state.outcome : null,
+                    onStart: adUnlock.start,
+                  }
+                : null
+            }
           />
+        ) : offer.kind === 'ADS' ? (
+          rewardedAdUnitId !== null ? (
+            <AdChannel
+              state={adUnlock.state.status}
+              stage={adUnlock.state.status === 'RUNNING' ? adUnlock.state.stage : null}
+              settled={adUnlock.state.status === 'SETTLED' ? adUnlock.state.outcome : null}
+              episode={episode}
+              onStart={adUnlock.start}
+            />
+          ) : (
+            <p className="unlock-panel__message" data-testid="unlock-ad-unavailable">
+              {translate('unlock.adUnavailable')}
+            </p>
+          )
         ) : offer.kind === 'VIP' ? (
           <VipChannel />
         ) : (
@@ -197,6 +242,7 @@ function CoinChannel({
   stage,
   settled,
   onStart,
+  ads,
 }: {
   readonly offer: Extract<UnlockOffer, { kind: 'COINS' }>;
   readonly episode: EpisodeItem;
@@ -204,6 +250,12 @@ function CoinChannel({
   readonly stage: CoinUnlockStage | null;
   readonly settled: CoinUnlockSettlement | null;
   readonly onStart: () => void;
+  readonly ads: {
+    readonly state: 'OFFERED' | 'RUNNING' | 'SETTLED';
+    readonly stage: AdUnlockStage | null;
+    readonly settled: AdUnlockSettlement | null;
+    readonly onStart: () => void;
+  } | null;
 }): React.JSX.Element {
   if (stage !== null) {
     return (
@@ -215,6 +267,34 @@ function CoinChannel({
 
   if (settled !== null) {
     return <Settlement episode={episode} settlement={settled} onRetry={onStart} />;
+  }
+
+  if (ads !== null && ads.stage !== null) {
+    return (
+      <AdChannel
+        state={ads.state}
+        stage={ads.stage}
+        settled={ads.settled}
+        episode={episode}
+        onStart={ads.onStart}
+      />
+    );
+  }
+
+  if (
+    ads !== null &&
+    ads.settled !== null &&
+    (ads.settled.kind === 'UNLOCKED' || ads.settled.kind === 'ALREADY_UNLOCKED')
+  ) {
+    return (
+      <AdChannel
+        state={ads.state}
+        stage={null}
+        settled={ads.settled}
+        episode={episode}
+        onStart={ads.onStart}
+      />
+    );
   }
 
   return (
@@ -232,6 +312,15 @@ function CoinChannel({
       >
         {translate('unlock.coinAction', undefined, { n: offer.priceCoins })}
       </button>
+      {ads === null ? null : (
+        <AdChannel
+          state={ads.state}
+          stage={ads.stage}
+          settled={ads.settled}
+          episode={episode}
+          onStart={ads.onStart}
+        />
+      )}
     </>
   );
 }
@@ -260,8 +349,7 @@ function UnlockWalletBalance(): React.JSX.Element | null {
  * purpose is to be refused, made after the viewer has been told it would work.
  *
  * There is no subscription order endpoint yet, so the second line states that rather than implying
- * a rail that does not exist. Whole-drama and ad unlocks are the other two channels IA §2 P5
- * reserves structure for; neither has an API, and a greyed placeholder for them would be furniture.
+ * a rail that does not exist.
  */
 function VipChannel(): React.JSX.Element {
   return (
@@ -271,6 +359,96 @@ function VipChannel(): React.JSX.Element {
       </p>
       <p className="unlock-panel__hint">{translate('unlock.vipPending')}</p>
     </>
+  );
+}
+
+const AD_STAGE_KEYS: Readonly<Record<AdUnlockStage, TranslationKey>> = {
+  SESSION: 'unlock.adStageSession',
+  SHOWING: 'unlock.adStageShowing',
+  GRANTING: 'unlock.adStageGranting',
+};
+
+const AD_FAILURE_KEYS: Readonly<Record<AdUnlockFailure, TranslationKey>> = {
+  NOT_COMPLETED: 'unlock.adNotCompleted',
+  QUOTA_EXCEEDED: 'unlock.adQuotaExceeded',
+  SIGN_IN_REQUIRED: 'unlock.failedSignIn',
+  NOT_FOR_SALE: 'unlock.failedNotForSale',
+  UNREACHABLE: 'unlock.failedUnreachable',
+  REFUSED: 'unlock.adRefused',
+  NO_UNIT: 'unlock.adUnavailable',
+  UNSUPPORTED: 'unlock.adUnavailable',
+};
+
+function AdChannel({
+  state,
+  stage,
+  settled,
+  episode,
+  onStart,
+}: {
+  readonly state: 'OFFERED' | 'RUNNING' | 'SETTLED';
+  readonly stage: AdUnlockStage | null;
+  readonly settled: AdUnlockSettlement | null;
+  readonly episode: EpisodeItem;
+  readonly onStart: () => void;
+}): React.JSX.Element {
+  if (stage !== null) {
+    return (
+      <p className="unlock-panel__message" data-testid="unlock-ad-progress" role="status" aria-busy>
+        {translate(AD_STAGE_KEYS[stage])}
+      </p>
+    );
+  }
+
+  if (settled !== null) {
+    if (settled.kind === 'UNLOCKED' || settled.kind === 'ALREADY_UNLOCKED') {
+      return (
+        <>
+          <p className="unlock-panel__message" data-testid="unlock-ad-success">
+            {translate('unlock.unlocked')}
+          </p>
+          <Link className="unlock-panel__action" data-testid="unlock-play" to={playPath(episode.id)}>
+            {translate('unlock.play')}
+          </Link>
+        </>
+      );
+    }
+    if (settled.kind === 'FAILED') {
+      return (
+        <>
+          <p
+            className="unlock-panel__message"
+            data-testid="unlock-ad-failure"
+            data-reason={settled.reason}
+            role="alert"
+          >
+            {translate(AD_FAILURE_KEYS[settled.reason])}
+          </p>
+          {settled.reason === 'NOT_COMPLETED' || settled.reason === 'UNREACHABLE' ? (
+            <button
+              className="unlock-panel__action"
+              data-testid="unlock-ad-retry"
+              type="button"
+              onClick={onStart}
+            >
+              {translate('unlock.retry')}
+            </button>
+          ) : null}
+        </>
+      );
+    }
+  }
+
+  return (
+    <button
+      className="unlock-panel__action"
+      data-testid="unlock-ad"
+      type="button"
+      disabled={state !== 'OFFERED'}
+      onClick={onStart}
+    >
+      {translate('unlock.adAction')}
+    </button>
   );
 }
 

@@ -88,7 +88,7 @@ describe('check-migrate CLI', () => {
     const result = run(['--dir', defaultMigrationsDir()]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('migrate up → down → up passed (7 migrations, 10 tables)');
+    expect(result.stdout).toContain('migrate up → down → up passed (8 migrations, 12 tables)');
     expect(result.stderr).not.toContain('did not drop');
     expect(result.stderr).not.toContain('up-only');
   });
