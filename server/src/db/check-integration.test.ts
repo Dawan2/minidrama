@@ -4,7 +4,13 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { checkSqliteIntegration, refuseDatabaseUrl, sqliteFileUrl } from './check-integration.js';
+import {
+  checkSqliteIntegration,
+  parseIntegrationArgs,
+  refuseDatabaseUrl,
+  runCheckIntegrationCli,
+  sqliteFileUrl,
+} from './check-integration.js';
 
 /**
  * Reverse verification for G2.2. The L2 job runs the CLI; these fixtures are the injection that
@@ -87,5 +93,120 @@ describe('checkSqliteIntegration', () => {
     if (result.ok) return;
     expect(result.message).toContain('scheme "postgres"');
     expect(result.message).not.toContain('survived a restart');
+  });
+});
+
+describe('parseIntegrationArgs', () => {
+  it('rejects an unknown argument rather than ignoring it', () => {
+    expect(parseIntegrationArgs(['--allow-unknown'])).toEqual({
+      ok: false,
+      message: 'unknown argument: --allow-unknown',
+    });
+  });
+
+  it('rejects --db without a path', () => {
+    expect(parseIntegrationArgs(['--db'])).toEqual({
+      ok: false,
+      message: '--db requires a path',
+    });
+  });
+
+  it('rejects passing both --db and --database-url', () => {
+    expect(
+      parseIntegrationArgs(['--db', 'g22.sqlite', '--database-url', 'sqlite:g22.sqlite']),
+    ).toEqual({
+      ok: false,
+      message: 'pass --db or --database-url, not both',
+    });
+  });
+
+  it('turns --db into a sqlite URL', () => {
+    expect(parseIntegrationArgs(['--db', '/tmp/g22.sqlite'])).toEqual({
+      ok: true,
+      args: { databaseUrl: 'sqlite:/tmp/g22.sqlite' },
+    });
+  });
+
+  it('keeps --database-url as-is', () => {
+    expect(parseIntegrationArgs(['--database-url', 'sqlite:/tmp/g22.sqlite'])).toEqual({
+      ok: true,
+      args: { databaseUrl: 'sqlite:/tmp/g22.sqlite' },
+    });
+  });
+
+  it('omits the URL when no flags are passed, so the runner creates a temp file', () => {
+    expect(parseIntegrationArgs([])).toEqual({
+      ok: true,
+      args: { databaseUrl: undefined },
+    });
+  });
+});
+
+function capturingIo(): {
+  io: { stdout: { write(chunk: string): void }; stderr: { write(chunk: string): void } };
+  stdout: string;
+  stderr: string;
+} {
+  const captured = { stdout: '', stderr: '' };
+  return {
+    get stdout() {
+      return captured.stdout;
+    },
+    get stderr() {
+      return captured.stderr;
+    },
+    io: {
+      stdout: {
+        write(chunk: string) {
+          captured.stdout += chunk;
+        },
+      },
+      stderr: {
+        write(chunk: string) {
+          captured.stderr += chunk;
+        },
+      },
+    },
+  };
+}
+
+describe('runCheckIntegrationCli', () => {
+  it('returns 2 on an unknown argument', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli(['--allow-unknown'], captured.io);
+
+    expect(status).toBe(2);
+    expect(captured.stderr).toContain('unknown argument');
+    expect(captured.stdout).not.toContain('passed');
+  });
+
+  it('returns 1 on a postgres URL rather than rewriting it to a file', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli(
+      ['--database-url', 'postgres://localhost/minidrama'],
+      captured.io,
+    );
+
+    expect(status).toBe(1);
+    expect(captured.stderr).toContain('scheme "postgres"');
+    expect(captured.stdout).not.toContain('passed');
+  });
+
+  it('returns 1 on :memory:', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli(['--db', ':memory:'], captured.io);
+
+    expect(status).toBe(1);
+    expect(captured.stderr).toContain(':memory: is not a database');
+    expect(captured.stdout).not.toContain('passed');
+  });
+
+  it('returns 0 against a temp sqlite file', async () => {
+    const captured = capturingIo();
+    const status = await runCheckIntegrationCli([], captured.io);
+
+    expect(status).toBe(0);
+    expect(captured.stdout).toContain('sqlite integration passed');
+    expect(captured.stderr).not.toContain('in-memory');
   });
 });

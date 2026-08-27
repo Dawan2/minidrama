@@ -1,5 +1,9 @@
-import type { FastifyInstance } from 'fastify';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
+
+import type { FastifyInstance } from 'fastify';
 
 import { buildApp } from '../app.js';
 import { loadConfig } from '../config.js';
@@ -237,4 +241,93 @@ function isFavorited(body: unknown, dramaId: string): boolean {
 function listHasDrama(body: unknown, dramaId: string): boolean {
   if (!isRecord(body) || !Array.isArray(body['items'])) return false;
   return body['items'].some((item) => isRecord(item) && item['id'] === dramaId);
+}
+
+export const INTEGRATION_CLI_USAGE =
+  'usage: check-integration [--db <sqlite-path>] [--database-url <url>]';
+
+interface ParsedArgs {
+  readonly databaseUrl: string | undefined;
+}
+
+export type ParseIntegrationArgsResult =
+  | { readonly ok: true; readonly args: ParsedArgs }
+  | { readonly ok: false; readonly message: string };
+
+export function parseIntegrationArgs(argv: readonly string[]): ParseIntegrationArgsResult {
+  let databaseUrl: string | undefined;
+  let dbPath: string | undefined;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const flag = argv[index] ?? '';
+    if (flag !== '--db' && flag !== '--database-url') {
+      return { ok: false, message: `unknown argument: ${flag}` };
+    }
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith('--')) {
+      return {
+        ok: false,
+        message: `${flag} requires a ${flag === '--db' ? 'path' : 'url'}`,
+      };
+    }
+    if (flag === '--db') {
+      dbPath = value;
+    } else {
+      databaseUrl = value;
+    }
+    index += 1;
+  }
+
+  if (databaseUrl !== undefined && dbPath !== undefined) {
+    return { ok: false, message: 'pass --db or --database-url, not both' };
+  }
+
+  if (databaseUrl !== undefined) {
+    return { ok: true, args: { databaseUrl } };
+  }
+  if (dbPath !== undefined) {
+    return { ok: true, args: { databaseUrl: sqliteFileUrl(dbPath) } };
+  }
+  return { ok: true, args: { databaseUrl: undefined } };
+}
+
+export interface CliIo {
+  readonly stdout: { write(chunk: string): void };
+  readonly stderr: { write(chunk: string): void };
+}
+
+/**
+ * The G2.2 L2 entry, minus `process.exit`. A temp sqlite file is created when `--db` and
+ * `--database-url` are omitted, so CI does not need `DATABASE_URL` and cannot pass by pointing
+ * at an in-memory store or a postgres URL rewritten to a file.
+ */
+export async function runCheckIntegrationCli(
+  argv: readonly string[],
+  io: CliIo = process,
+): Promise<number> {
+  const parsed = parseIntegrationArgs(argv);
+  if (!parsed.ok) {
+    io.stderr.write(`${parsed.message}\n${INTEGRATION_CLI_USAGE}\n`);
+    return 2;
+  }
+
+  let databaseUrl = parsed.args.databaseUrl;
+  let tempRoot: string | undefined;
+  if (databaseUrl === undefined) {
+    tempRoot = mkdtempSync(join(tmpdir(), 'check-integration-'));
+    databaseUrl = sqliteFileUrl(join(tempRoot, 'g22.sqlite'));
+  }
+
+  const result = await checkSqliteIntegration({ databaseUrl });
+  if (tempRoot !== undefined) {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+
+  if (!result.ok) {
+    io.stderr.write(`${result.message}\n`);
+    return 1;
+  }
+
+  io.stdout.write(`${result.message}\n`);
+  return 0;
 }
