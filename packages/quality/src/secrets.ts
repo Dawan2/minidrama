@@ -150,8 +150,9 @@ export function buildGitleaksArgv(options: { readonly source: string }): string[
     'error',
     '--report-format',
     'json',
+    // Gitleaks treats "-" as stdout. `/dev/stdout` is "not writable" on some runners.
     '--report-path',
-    '/dev/stdout',
+    '-',
     options.source,
   ];
 }

@@ -154,7 +154,7 @@ describe('buildGitleaksArgv', () => {
       '--report-format',
       'json',
       '--report-path',
-      '/dev/stdout',
+      '-',
       '/repo',
     ]);
   });
