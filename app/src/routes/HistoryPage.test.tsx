@@ -10,7 +10,7 @@ import {
   stubSession,
   watchHistoryEntry,
 } from '../testing/history-fixtures';
-import { renderSurface } from '../testing/render';
+import { renderSettled, renderSurface, settle } from '../testing/render';
 
 /**
  * SCR-07. The assertions that matter are the ones separating the three ways this screen can show
@@ -216,6 +216,13 @@ describe('history failures that are neither', () => {
   });
 });
 
+/**
+ * Two-round paging tests are driven through `renderSettled`/`settle` rather than stacked
+ * `findBy*`/`waitFor`. Each async utility is a one-second wall-clock budget that a worker
+ * descheduled under parallel load can spend without doing any work. `act` returns when React has
+ * run out of work rather than when a timer says so, which starvation delays but cannot break. The
+ * rest of this file keeps `findBy*` because those assertions need one round of the stub.
+ */
 describe('history paging', () => {
   it('appends the next page and stops offering more when the cursor runs out', async () => {
     const historyApi = stubHistoryApi({
@@ -224,13 +231,13 @@ describe('history paging', () => {
           ? ok(page([watchHistoryEntry({ drama: dramaSummary({ id: 'drm_1' }) })], 'cur_2'))
           : ok(page([watchHistoryEntry({ drama: dramaSummary({ id: 'drm_2' }) })])),
     });
-    renderSurface(<HistoryPage />, { historyApi });
+    await renderSettled(<HistoryPage />, { historyApi });
 
-    fireEvent.click(await screen.findByTestId('load-more-history'));
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('history-row')).toHaveLength(2);
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more-history'));
     });
+
+    expect(screen.getAllByTestId('history-row')).toHaveLength(2);
     expect(screen.queryByTestId('load-more-history')).toBeNull();
     expect(historyApi.historyCalls[1]?.cursor).toBe('cur_2');
   });
@@ -243,13 +250,13 @@ describe('history paging', () => {
           ? ok(page([watchHistoryEntry()], 'cur_2'))
           : err(offlineFailure()),
     });
-    renderSurface(<HistoryPage />, { historyApi });
+    await renderSettled(<HistoryPage />, { historyApi });
 
-    fireEvent.click(await screen.findByTestId('load-more-history'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('retryable-error')).toBeDefined();
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more-history'));
     });
+
+    expect(screen.getByTestId('retryable-error')).toBeDefined();
     expect(screen.getAllByTestId('history-row')).toHaveLength(1);
   });
 
@@ -265,13 +272,13 @@ describe('history paging', () => {
           ? ok(page([watchHistoryEntry()], 'cur_2'))
           : err(historyHttpFailure(401)),
     });
-    renderSurface(<HistoryPage />, { historyApi });
+    await renderSettled(<HistoryPage />, { historyApi });
 
-    fireEvent.click(await screen.findByTestId('load-more-history'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('history-sign-in-more')).toBeDefined();
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more-history'));
     });
+
+    expect(screen.getByTestId('history-sign-in-more')).toBeDefined();
     expect(screen.getAllByTestId('history-row')).toHaveLength(1);
     expect(screen.queryByTestId('retryable-error')).toBeNull();
     expect(screen.getByTestId('history-page').getAttribute('data-state')).toBe('ready');

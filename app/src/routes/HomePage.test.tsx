@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { err, ok } from '@minidrama/shared';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { HomePage } from './HomePage';
 import {
@@ -12,7 +12,7 @@ import {
   page,
   stubCatalogApi,
 } from '../testing/catalog-fixtures';
-import { renderSurface } from '../testing/render';
+import { renderSettled, renderSurface, settle } from '../testing/render';
 
 /**
  * SCR-02. The assertions are about the five states of the IA (§8.1) and about the two card types
@@ -186,6 +186,13 @@ describe('feed card destinations', () => {
   });
 });
 
+/**
+ * Two-round paging tests are driven through `renderSettled`/`settle` rather than stacked
+ * `findBy*`/`waitFor`. Each async utility is a one-second wall-clock budget that a worker
+ * descheduled under parallel load can spend without doing any work. `act` returns when React has
+ * run out of work rather than when a timer says so, which starvation delays but cannot break. The
+ * rest of this file keeps `findBy*` because those assertions need one round of the stub.
+ */
 describe('feed paging', () => {
   it('appends the next page and stops offering more when the cursor runs out', async () => {
     const api = stubCatalogApi({
@@ -194,13 +201,13 @@ describe('feed paging', () => {
           ? ok(page([feedCard({ drama: dramaSummary({ id: 'drm_1' }) })], 'cur_2'))
           : ok(page([feedCard({ drama: dramaSummary({ id: 'drm_2' }) })])),
     });
-    renderSurface(<HomePage />, { api });
+    await renderSettled(<HomePage />, { api });
 
-    fireEvent.click(await screen.findByTestId('load-more'));
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('feed-card')).toHaveLength(2);
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more'));
     });
+
+    expect(screen.getAllByTestId('feed-card')).toHaveLength(2);
     expect(screen.queryByTestId('load-more')).toBeNull();
     expect(api.feedCalls[1]?.cursor).toBe('cur_2');
   });
@@ -213,36 +220,25 @@ describe('feed paging', () => {
           ? ok(page([feedCard({ drama: repeated })], 'cur_2'))
           : ok(page([feedCard({ drama: repeated, trackingId: 'trk_second' })])),
     });
-    renderSurface(<HomePage />, { api });
+    await renderSettled(<HomePage />, { api });
 
-    fireEvent.click(await screen.findByTestId('load-more'));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('load-more')).toBeNull();
+    await settle(() => {
+      fireEvent.click(screen.getByTestId('load-more'));
     });
+
+    expect(screen.queryByTestId('load-more')).toBeNull();
     expect(screen.getAllByTestId('feed-card')).toHaveLength(1);
   });
 
-  /**
-   * The cards the viewer is reading stay on screen. The error goes underneath them.
-   *
-   * Driven through `act` rather than the `findBy*`/`waitFor` idiom the rest of this file uses. This
-   * is the only assertion here that needs two rounds of the stub to land — the first page, and then
-   * the append that fails — and each async utility is a one-second wall-clock budget that a worker
-   * descheduled under parallel load can spend without doing any work. `act` returns when React has
-   * run out of work rather than when a timer says so, which is a condition that starvation delays
-   * but cannot break, so nothing here is left to lose a race.
-   */
+  // The cards the viewer is reading stay on screen. The error goes underneath them.
   it('keeps the loaded cards when the next page fails', async () => {
     const api = stubCatalogApi({
       feed: (request) =>
         request.cursor === undefined ? ok(page([feedCard()], 'cur_2')) : err(offlineFailure()),
     });
+    await renderSettled(<HomePage />, { api });
 
-    await act(async () => {
-      renderSurface(<HomePage />, { api });
-    });
-    await act(async () => {
+    await settle(() => {
       fireEvent.click(screen.getByTestId('load-more'));
     });
 

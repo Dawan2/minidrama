@@ -1,5 +1,5 @@
 import { MemoryRouter } from 'react-router';
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import type { RenderResult } from '@testing-library/react';
 
 import { CatalogApiProvider } from '../data/catalog-api-context';
@@ -72,4 +72,34 @@ export function renderSurface(
       </CatalogApiProvider>
     </SessionProvider>,
   );
+}
+
+/**
+ * `renderSurface` plus a flush of React's work loop. Pair with `settle` for a test that needs two
+ * rounds of a stub: the first page has to land before the click target exists, and the append has
+ * to land before the assertion. `findBy*` and `waitFor` are the same wall-clock budget
+ * (`asyncUtilTimeout`, 1000 ms); stacking them is the flake class
+ * `docs/handoff/w9-work-homepage-flake.md` closed for one test. `act` returns when React has run
+ * out of work rather than when a timer says so, which starvation delays but cannot break.
+ *
+ * One-round tests keep `findBy*` — that idiom reads better and is not this class of exposure.
+ */
+export async function renderSettled(
+  element: React.ReactNode,
+  options: RenderSurfaceOptions = {},
+): Promise<RenderResult> {
+  return settle(() => renderSurface(element, options));
+}
+
+/**
+ * Run `work` inside `act` and wait until React is idle. The click that starts the second stub
+ * round belongs here, so no `getBy*` in a two-round test runs before the state it reads has been
+ * committed.
+ */
+export async function settle<T>(work: () => T | Promise<T>): Promise<T> {
+  let result!: T;
+  await act(async () => {
+    result = await work();
+  });
+  return result;
 }
