@@ -19,7 +19,8 @@
     "check:sca": "tsx src/cli/check-sca.ts",
     "check:smoke": "tsx src/cli/check-smoke.ts",
     "check:secrets": "tsx src/cli/check-secrets.ts",
-    "check:contract": "tsx src/cli/check-contract.ts"
+    "check:contract": "tsx src/cli/check-contract.ts",
+    "check:commits": "tsx src/cli/check-commits.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

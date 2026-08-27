@@ -31,7 +31,8 @@
     "check:smoke": "pnpm --filter @minidrama/quality run check:smoke",
     "check:secrets": "pnpm --filter @minidrama/quality run check:secrets",
     "check:contract": "pnpm --filter @minidrama/quality run check:contract",
-    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
+    "check:commits": "pnpm --filter @minidrama/quality run check:commits",
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run check:commits && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

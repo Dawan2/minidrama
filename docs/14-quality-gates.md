@@ -64,6 +64,15 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 - 分支必须基于最新 `main`(或启用 merge queue),防止"绿色 PR 合并后主干变红"。
 - **禁止**仓库管理员绕过分支保护直接 push `main`。
 
+### 2.1 Dated implementation notes (slot C)
+
+**2026-08-27 (W16 C5-01 remainder / D-20).** G1.9 is `pnpm check:commits`, an L1 step in
+`.github/workflows/ci.yml` and a required step inside `pnpm verify`. The range is
+merge-base with `origin/main` (or `--base`) through `HEAD`. Merge commits are skipped so
+absorbing `main` does not rewrite history. A prose subject is red. A comment that names
+Conventional Commits is not this gate. G1.10 skip detection and G1.7 (dated as G2.5 Trivy
+on the sibling C5-01 slice) are not this job.
+
 ---
 
 ## 3. 覆盖率门禁与 ratchet 机制
