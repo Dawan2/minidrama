@@ -11,10 +11,12 @@ import { createCatalogApi } from './data/catalog-api';
 import { createHistoryApi } from './data/history-api';
 import { createHttpClient } from './data/http';
 import { createSearchApi } from './data/search-api';
+import { createUnlockApi } from './data/unlock-api';
 import { HistoryApiProvider } from './data/history-api-context';
 import { SearchApiProvider } from './data/search-api-context';
 import { SessionProvider } from './auth/session-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
+import { UnlockApiProvider } from './data/unlock-api-context';
 
 /**
  * Boot entry point.
@@ -55,7 +57,7 @@ async function boot(): Promise<void> {
     fetch: (url, init) => fetch(url, init),
   });
   /**
-   * One transport, three read clients. The history read is session-scoped and the catalogue and
+   * One transport, four API clients. The history read is session-scoped and the catalogue and
    * search reads are not, so they are separate interfaces — but they share the timeout, the single
    * automatic retry and the envelope handling, which is the whole reason `http.ts` exists.
    *
@@ -66,6 +68,18 @@ async function boot(): Promise<void> {
   const api = createCatalogApi(http);
   const search = createSearchApi(http);
   const historyApi = createHistoryApi(http);
+
+  /**
+   * The unlock orders share that transport too, deliberately: the timeout, the failure
+   * classification and — when session handling lands — the `Authorization` header all belong in one
+   * place. They do not share a client interface, because a coin order is a write against an account
+   * and the catalogue reads are anonymous.
+   *
+   * It is provided unconditionally rather than behind a capability check. Whether a purchase can
+   * be *made* is `bridge.canIUse('pay')`, asked per render at the surface that offers one; a
+   * missing provider here would only turn that question into a crash.
+   */
+  const unlockApi = createUnlockApi(http);
 
   /**
    * The session the app boots with. Silent login is the remaining continuation above, so today this
@@ -83,9 +97,11 @@ async function boot(): Promise<void> {
         <CatalogApiProvider api={api}>
           <SearchApiProvider api={search}>
             <HistoryApiProvider api={historyApi}>
-              <HashRouter>
-                <App bridge={bridge} />
-              </HashRouter>
+              <UnlockApiProvider api={unlockApi}>
+                <HashRouter>
+                  <App bridge={bridge} />
+                </HashRouter>
+              </UnlockApiProvider>
             </HistoryApiProvider>
           </SearchApiProvider>
         </CatalogApiProvider>

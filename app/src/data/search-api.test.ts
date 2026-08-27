@@ -10,9 +10,9 @@ import {
   normalizeSearchQuery,
 } from './search-api';
 import { apiFailure } from './failure';
-import type { HttpClient } from './http';
+import type { HttpReader } from './http';
 
-function httpStub(body: unknown): HttpClient {
+function httpStub(body: unknown): HttpReader {
   return { getJson: () => Promise.resolve(ok(body)) };
 }
 
@@ -80,14 +80,14 @@ describe('deciding whether there is a query at all', () => {
 
 describe('the search client', () => {
   it('sends the query as q', async () => {
-    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(results([]))));
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(results([]))));
     await createSearchApi({ getJson }).search({ query: 'twin moons' });
 
     expect(getJson).toHaveBeenCalledWith(SEARCH_PATH, { q: 'twin moons', limit: undefined });
   });
 
   it('sends a limit when one is asked for', async () => {
-    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(results([]))));
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(results([]))));
     await createSearchApi({ getJson }).search({ query: 'twin', limit: SEARCH_LIMIT.max });
 
     expect(getJson).toHaveBeenCalledWith(SEARCH_PATH, { q: 'twin', limit: 50 });

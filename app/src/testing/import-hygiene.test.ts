@@ -145,3 +145,65 @@ describe('the free-window rule is not reimplemented on the client', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * The unlock flow's central rule, as a source scan.
+ *
+ * `runCoinUnlock` decides one thing — whether the *server* said this order bought the episode — and
+ * everything downstream renders that decision. The two shapes below are how a second, client-side
+ * entitlement decision would get written by accident:
+ *
+ * 1. reading `unlockGranted` at a surface, which puts an access decision next to a render;
+ * 2. reading an order `status` as access. `PAID` means the viewer was charged and says nothing
+ *    about whether the episode is playable — today it never becomes playable — so a component
+ *    switching on it would show a locked episode as unlocked.
+ *
+ * Both are backstops behind the real guarantee, which is that `viewerAccess` arrives already
+ * decided and is the only thing the row reads.
+ */
+describe('the client never decides an unlock', () => {
+  /** The flow that interprets an order, the client that parses one, and the fixtures. */
+  const ORDER_READERS = new Set([
+    join('src', 'unlock', 'coin-unlock.ts'),
+    join('src', 'data', 'unlock-api.ts'),
+    join('src', 'testing', 'unlock-fixtures.ts'),
+  ]);
+
+  function offendersMatching(pattern: RegExp, permitted: ReadonlySet<string>): readonly string[] {
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles()) {
+      const path = relativeToApp(file);
+      if (isTestFile(path) || permitted.has(path)) {
+        continue;
+      }
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, index) => {
+          if (!isCommentLine(line) && pattern.test(line)) {
+            offenders.push(`${path}:${String(index + 1)} ${line.trim()}`);
+          }
+        });
+    }
+
+    return offenders;
+  }
+
+  it('reads unlockGranted only where an order outcome is decided', () => {
+    expect(offendersMatching(/\bunlockGranted\b/, ORDER_READERS)).toEqual([]);
+  });
+
+  it('never compares an order status against PAID or FULFILLED to decide anything', () => {
+    expect(offendersMatching(/['"](PAID|FULFILLED)['"]/, ORDER_READERS)).toEqual([]);
+  });
+
+  /**
+   * `viewerAccess` is the server's answer. Building one on the client — to mark an episode unlocked
+   * after a purchase, say — is the free-window mistake in a more expensive place: an episode
+   * rendered as playable that the playback endpoint will refuse.
+   */
+  it('never constructs a viewerAccess outside the fixtures', () => {
+    const permitted = new Set([join('src', 'testing', 'catalog-fixtures.ts')]);
+    expect(offendersMatching(/viewerAccess:\s*[{'"]/, permitted)).toEqual([]);
+  });
+});

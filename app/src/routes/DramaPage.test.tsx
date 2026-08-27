@@ -16,6 +16,13 @@ import {
   stubCatalogApi,
   viewerAccess,
 } from '../testing/catalog-fixtures';
+import {
+  coinOrder,
+  grantedCoinOrder,
+  instantPacing,
+  paidCoinOrder,
+  stubUnlockApi,
+} from '../testing/unlock-fixtures';
 import { renderSurface } from '../testing/render';
 import type { CapabilityName } from '../platform/types';
 import type { CatalogApi } from '../data/catalog-api';
@@ -336,14 +343,14 @@ describe('episode access states are visibly different', () => {
     expect(screen.getByTestId('episode-row').getAttribute('data-action')).toBe('SUBSCRIBE');
   });
 
-  // The unlock panel belongs to the entitlement slot. Until it exists the call to action is
-  // disabled: an enabled button that does nothing is the worst thing a purchase surface can do.
-  it('disables the unlock call to action while there is no unlock flow', async () => {
+  // The panel exists now, so the call to action is live. `EpisodeRow.test.tsx` keeps the other
+  // half of that contract: a row with nothing behind it is still disabled and still says so.
+  it('gives the unlock call to action something to do', async () => {
     await renderWithEpisodes([lockedEpisodeItem()]);
 
     const action = screen.getByTestId('episode-action');
     expect(action.tagName).toBe('BUTTON');
-    expect((action as HTMLButtonElement).disabled).toBe(true);
+    expect((action as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('records the reason the server gave on the row, unchanged', async () => {
@@ -351,5 +358,182 @@ describe('episode access states are visibly different', () => {
     expect(screen.getByTestId('episode-row').getAttribute('data-access-reason')).toBe(
       'NEED_UNLOCK',
     );
+  });
+});
+
+/**
+ * The wiring, which is the point of this slot: a tap on a locked row opens PNL-02, and what the
+ * panel achieves reaches the list only by asking the server again.
+ */
+describe('the unlock panel opens from the episode list', () => {
+  async function renderEpisodes(
+    episodes: readonly EpisodeItem[],
+    unlockApi = stubUnlockApi(),
+    unavailable: readonly CapabilityName[] = [],
+  ) {
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: () => ok(page(episodes)),
+    });
+    const bridge = await readyBridge(unavailable);
+
+    renderSurface(
+      <Routes>
+        <Route
+          path={ROUTES.drama}
+          element={<DramaPage bridge={bridge} unlockPacing={instantPacing()} />}
+        />
+      </Routes>,
+      { api, unlockApi, path: '/drama/drm_test_0001' },
+    );
+    await screen.findByTestId('episode-list');
+    return api;
+  }
+
+  it('is closed until a locked episode asks for it', async () => {
+    await renderEpisodes([lockedEpisodeItem()]);
+    expect(screen.queryByTestId('unlock-panel')).toBeNull();
+  });
+
+  it('opens for the episode whose row was tapped', async () => {
+    await renderEpisodes([
+      episodeItem({ globalEpisodeNumber: 1 }),
+      lockedEpisodeItem({ globalEpisodeNumber: 4, priceCoins: 80 }),
+    ]);
+
+    fireEvent.click(screen.getAllByTestId('episode-action')[1]!);
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('unlock-price').textContent).toContain('80');
+  });
+
+  // Priced, because a VIP-only episode can reach the client carrying a coin price it must not
+  // be sold for. See `unlock-offer.test.ts`.
+  it('opens the VIP panel, not the coin one, for a VIP episode that carries a price', async () => {
+    const unlockApi = stubUnlockApi();
+    await renderEpisodes(
+      [episodeItem({ priceCoins: 120, viewerAccess: viewerAccess('NEED_VIP') })],
+      unlockApi,
+    );
+
+    fireEvent.click(screen.getByTestId('episode-action'));
+
+    expect((await screen.findByRole('dialog')).getAttribute('data-offer')).toBe('VIP');
+    expect(screen.queryByTestId('unlock-confirm')).toBeNull();
+    expect(unlockApi.createCalls).toEqual([]);
+  });
+
+  it('closes again without touching the list', async () => {
+    const api = await renderEpisodes([lockedEpisodeItem()]);
+    const callsBefore = api.episodeCalls.length;
+
+    fireEvent.click(screen.getByTestId('episode-action'));
+    await screen.findByTestId('unlock-panel');
+    fireEvent.click(screen.getByTestId('unlock-panel-close'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('unlock-panel')).toBeNull();
+    });
+    expect(api.episodeCalls).toHaveLength(callsBefore);
+  });
+
+  /**
+   * The rule from `docs/handoff/w2-work-h.md` §6: after a successful unlock, refetch. Patching the
+   * item in place would be faster and would be the client deciding an entitlement, which is the one
+   * thing the whole access path exists to prevent.
+   */
+  it('refetches the episodes after a grant rather than patching the row', async () => {
+    const unlockApi = stubUnlockApi({
+      create: () => ok(coinOrder()),
+      read: () => ok(grantedCoinOrder()),
+    });
+    const api = await renderEpisodes([lockedEpisodeItem()], unlockApi);
+    const callsBefore = api.episodeCalls.length;
+
+    fireEvent.click(screen.getByTestId('episode-action'));
+    fireEvent.click(await screen.findByTestId('unlock-confirm'));
+
+    await screen.findByTestId('unlock-success');
+    await waitFor(() => {
+      expect(api.episodeCalls.length).toBeGreaterThan(callsBefore);
+    });
+  });
+
+  it('leaves the list alone when the purchase did not buy anything', async () => {
+    const unlockApi = stubUnlockApi({
+      create: () => ok(coinOrder()),
+      read: () => ok(paidCoinOrder()),
+    });
+    const api = await renderEpisodes([lockedEpisodeItem()], unlockApi);
+    const callsBefore = api.episodeCalls.length;
+
+    fireEvent.click(screen.getByTestId('episode-action'));
+    fireEvent.click(await screen.findByTestId('unlock-confirm'));
+
+    await screen.findByTestId('unlock-awaiting');
+    expect(api.episodeCalls).toHaveLength(callsBefore);
+  });
+
+  /**
+   * The row goes from locked to playable because the *server* now says so. Nothing between the two
+   * renders edited an episode.
+   */
+  it('renders the server\u2019s new answer for the episode, not a locally patched one', async () => {
+    const unlockApi = stubUnlockApi({
+      create: () => ok(coinOrder()),
+      read: () => ok(grantedCoinOrder()),
+    });
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: (_request, index) =>
+        ok(
+          page([
+            index === 0
+              ? lockedEpisodeItem()
+              : lockedEpisodeItem({ viewerAccess: viewerAccess('UNLOCKED') }),
+          ]),
+        ),
+    });
+
+    renderSurface(
+      <Routes>
+        <Route
+          path={ROUTES.drama}
+          element={<DramaPage bridge={await readyBridge()} unlockPacing={instantPacing()} />}
+        />
+      </Routes>,
+      { api, unlockApi, path: '/drama/drm_test_0001' },
+    );
+
+    await screen.findByTestId('episode-list');
+    expect(screen.getByTestId('episode-row').getAttribute('data-action')).toBe('UNLOCK');
+
+    fireEvent.click(screen.getByTestId('episode-action'));
+    fireEvent.click(await screen.findByTestId('unlock-confirm'));
+    await screen.findByTestId('unlock-success');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('episode-row').getAttribute('data-action')).toBe('PLAY');
+    });
+  });
+
+  // A row that must never start a purchase has no button, so the panel has no way to open.
+  it('cannot be opened from an unavailable or blocked row', async () => {
+    await renderEpisodes(
+      [
+        episodeItem({ priceCoins: 60, viewerAccess: viewerAccess('UNAVAILABLE') }),
+        lockedEpisodeItem({ globalEpisodeNumber: 5 }),
+      ],
+      stubUnlockApi(),
+      ['pay'],
+    );
+
+    for (const action of screen.getAllByTestId('episode-action')) {
+      fireEvent.click(action);
+    }
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('unlock-panel')).toBeNull();
+    });
   });
 });

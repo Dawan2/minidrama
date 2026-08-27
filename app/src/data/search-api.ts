@@ -3,7 +3,7 @@ import type { DramaSearchMatch, Result } from '@minidrama/shared';
 
 import { apiFailure } from './failure';
 import type { ApiFailure } from './failure';
-import type { HttpClient } from './http';
+import type { HttpReader } from './http';
 
 /**
  * The search read surface, as the client sees it.
@@ -104,7 +104,7 @@ export interface SearchApi {
   search(request: SearchRequest): Promise<Result<SearchResults, ApiFailure>>;
 }
 
-export function createSearchApi(http: HttpClient): SearchApi {
+export function createSearchApi(http: HttpReader): SearchApi {
   return {
     search: async (request) => {
       const body = await http.getJson(SEARCH_PATH, { q: request.query, limit: request.limit });

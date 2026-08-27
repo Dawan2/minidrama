@@ -200,3 +200,82 @@ describe('the http client', () => {
     }
   });
 });
+
+describe('the http client posting', () => {
+  it('sends a serialised body and asks for json back', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(201, { orderId: 'o1' })));
+    const result = await client(fetchImpl).postJson('/v1/unlock/coin-orders', { episodeId: 'e1' });
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('https://api.example.invalid/v1/unlock/coin-orders');
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe('{"episodeId":"e1"}');
+    expect(init.headers['Content-Type']).toBe('application/json');
+    expect(result).toEqual({ ok: true, value: { orderId: 'o1' } });
+  });
+
+  it('carries the caller\u2019s headers, which is how the idempotency key travels', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(201, {})));
+    await client(fetchImpl).postJson(
+      '/v1/unlock/coin-orders',
+      {},
+      {
+        headers: { 'Idempotency-Key': 'unl_abc' },
+      },
+    );
+
+    expect(fetchImpl.mock.calls[0]![1].headers['Idempotency-Key']).toBe('unl_abc');
+  });
+
+  /**
+   * The rule that separates a write from a read here. A `GET` retries once because repeating it
+   * changes nothing; a `POST` that opens a payment must not, because a transport failure does not
+   * say whether the request arrived, and a second attempt is a second thing the viewer can be
+   * charged for. Repeating it is the caller's decision, made with the same idempotency key.
+   */
+  it('never retries a post, whatever failed', async () => {
+    const transportFailure = vi.fn<FetchLike>(() => Promise.reject(new TypeError('Failed')));
+    await client(transportFailure).postJson('/v1/unlock/coin-orders', {});
+    expect(transportFailure).toHaveBeenCalledTimes(1);
+
+    const serverFault = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(503, {})));
+    await client(serverFault).postJson('/v1/unlock/coin-orders', {});
+    expect(serverFault).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the error envelope off a refused post', async () => {
+    const result = await client(() =>
+      Promise.resolve(
+        jsonResponse(409, {
+          error: { code: 'UNLOCK_ALREADY_UNLOCKED', message: 'owned', traceId: 'trace_3' },
+        }),
+      ),
+    ).postJson('/v1/unlock/coin-orders', {});
+
+    expect(result.ok ? null : result.error).toMatchObject({
+      status: 409,
+      code: 'UNLOCK_ALREADY_UNLOCKED',
+      traceId: 'trace_3',
+    });
+  });
+
+  it('bounds a post with the same timeout as a read', async () => {
+    const result = await client(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => {
+            reject(new Error('aborted'));
+          });
+        }),
+      { timeoutMs: 5 },
+    ).postJson('/v1/unlock/coin-orders', {});
+
+    expect(result.ok ? null : result.error.kind).toBe('TIMEOUT');
+  });
+
+  it('never rejects', async () => {
+    await expect(
+      client(() => Promise.reject(new Error('boom'))).postJson('/v1/x', {}),
+    ).resolves.toMatchObject({ ok: false });
+  });
+});

@@ -5,9 +5,9 @@ import { WATCH_HISTORY_PATH, createHistoryApi, narrowWatchHistoryEntry } from '.
 import { apiFailure } from './failure';
 import { dramaSummary, page } from '../testing/catalog-fixtures';
 import { watchHistoryEntry } from '../testing/history-fixtures';
-import type { HttpClient } from './http';
+import type { HttpReader } from './http';
 
-function httpStub(body: unknown): HttpClient {
+function httpStub(body: unknown): HttpReader {
   return { getJson: () => Promise.resolve(ok(body)) };
 }
 
@@ -17,7 +17,7 @@ describe('the watch-history endpoint', () => {
   });
 
   it('pages on an opaque cursor and never invents a limit', async () => {
-    const getJson = vi.fn<HttpClient['getJson']>(() => Promise.resolve(ok(page([]))));
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(page([]))));
     await createHistoryApi({ getJson }).fetchWatchHistory({ cursor: 'cur_2' });
 
     expect(getJson).toHaveBeenCalledWith(WATCH_HISTORY_PATH, {
