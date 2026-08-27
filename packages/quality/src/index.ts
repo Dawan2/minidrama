@@ -48,3 +48,17 @@ export {
   runCodeqlCheck,
 } from './codeql.js';
 export type { CodeqlCheckArgs, CodeqlFinding, CodeqlRule } from './codeql.js';
+
+export {
+  HIGH_FIX_GRACE_MS,
+  LOCKFILE_NAME,
+  USAGE as SCA_USAGE,
+  buildTrivyArgv,
+  defaultLockfile,
+  formatVulnerability,
+  isBlockingVulnerability,
+  parseScaArgs,
+  parseTrivyResults,
+  runScaCheck,
+} from './sca.js';
+export type { ScaCheckArgs, ScaVulnerability } from './sca.js';
