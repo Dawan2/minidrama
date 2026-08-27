@@ -83,6 +83,7 @@ describe('unknown routes', () => {
     const body = response.json<{ error: { code: string; traceId: string } }>();
     expect(body.error.code).toBe('COMMON_RESOURCE_NOT_FOUND');
     expect(body.error.traceId).toMatch(/^req_/);
+    expect(response.headers['x-request-id']).toBe(body.error.traceId);
   });
 });
 
@@ -221,6 +222,38 @@ describe('GET /v1/users/me/watch-history', () => {
 
       expect(login.statusCode).toBe(200);
       expect(response.statusCode).toBe(200);
+    } finally {
+      await sessionApp.close();
+    }
+  });
+});
+
+describe('GET /v1/wallet', () => {
+  it('refuses a request that carries no session', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/wallet' });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+    expect(response.body).not.toMatch(/coinBalance|totalBalance/);
+  });
+
+  it('answers 200 with the figure omitted, not zero, to a session that has no platform balance', async () => {
+    const sessionStore = createInMemorySessionStore();
+    const sessionApp = await buildApp({ ...loadConfig({}), logLevel: 'silent' }, { sessionStore });
+    await sessionApp.ready();
+
+    try {
+      const response = await sessionApp.inject({
+        method: 'GET',
+        url: '/v1/wallet',
+        headers: { authorization: `Bearer ${sessionStore.issue('open_abc').accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({});
+      expect(JSON.stringify(response.json())).not.toMatch(
+        /"coinBalance":0|"totalBalance":0|"bonusBalance":0/,
+      );
     } finally {
       await sessionApp.close();
     }

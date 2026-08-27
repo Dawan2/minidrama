@@ -8,6 +8,7 @@ import {
   parseOriginAllowlist,
   readRequestOrigin,
 } from './origin-policy.js';
+import { REQUEST_ID_HEADER } from './logging.js';
 import type { CorsRequest, CorsVerdict } from './origin-policy.js';
 
 /**
@@ -173,6 +174,10 @@ describe('decideCors', () => {
     const verdict = decideCors(policy, request({ origin: APP_ORIGIN }));
 
     expect(verdict).toMatchObject({ kind: 'ALLOWED', origin: APP_ORIGIN });
+    expect(headersOf(verdict)).toEqual({
+      'access-control-allow-origin': APP_ORIGIN,
+      'access-control-expose-headers': REQUEST_ID_HEADER,
+    });
   });
 
   it('denies an origin that is not on the list', () => {
@@ -216,10 +221,21 @@ describe('decideCors, preflight', () => {
     expect(verdict).toMatchObject({ kind: 'PREFLIGHT_ALLOWED', origin: APP_ORIGIN });
     expect(headersOf(verdict)).toEqual({
       'access-control-allow-origin': APP_ORIGIN,
+      'access-control-expose-headers': REQUEST_ID_HEADER,
       'access-control-allow-methods': ALLOWED_METHODS.join(', '),
       'access-control-allow-headers': ALLOWED_REQUEST_HEADERS.join(', '),
       'access-control-max-age': '600',
     });
+  });
+
+  it('lets a preflight ask to send the request id', () => {
+    const verdict = decideCors(
+      policy,
+      preflight({ origin: APP_ORIGIN, requestHeaders: 'Authorization, X-Request-Id' }),
+    );
+
+    expect(verdict).toMatchObject({ kind: 'PREFLIGHT_ALLOWED' });
+    expect(ALLOWED_REQUEST_HEADERS).toContain(REQUEST_ID_HEADER);
   });
 
   it('allows the headers the client actually sends on an unlock write', () => {
