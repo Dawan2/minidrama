@@ -76,6 +76,11 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      # A prose subject on origin/main..HEAD exits 1. History on main is not rewritten.
+      # There is no continue-on-error: a comment that forbids prose is not G1.9.
+      - name: G1.9 commit convention
+        run: pnpm run check:commits
+
       # A committed .skip( / .only( / it.todo / empty it('…', () => {}) exits 1.
       # There is no continue-on-error: a comment that forbids skips is not G1.10.
       - name: G1.10 skip/empty tests

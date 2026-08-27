@@ -118,3 +118,15 @@ export {
   scanTestFile,
 } from './skips.js';
 export type { SkipCheckArgs, SkipHit } from './skips.js';
+
+export {
+  CONVENTIONAL_TYPES,
+  DEFAULT_FROM,
+  USAGE as COMMITS_USAGE,
+  evaluateCommit,
+  formatHit as formatCommitHit,
+  parseCommitArgs,
+  parseConventionalHeader,
+  runCommitCheck,
+} from './commits.js';
+export type { CommitCheckArgs, CommitHit, GitCommit } from './commits.js';

@@ -13,7 +13,7 @@ Requires Node ≥ 22 and pnpm 10.
 
 ```bash
 pnpm install
-pnpm verify                            # the full gate: format, lint, types, tests+coverage, build, guardrails
+pnpm verify                            # format, lint, types, G1.9 commits, G1.10 skips, tests+coverage, build, guardrails
 
 pnpm --filter @minidrama/app dev       # client at http://localhost:5173
 pnpm --filter @minidrama/server dev    # API at http://localhost:8080
@@ -76,17 +76,18 @@ pnpm check:smoke         # G2.3 Playwright P0 smoke; a missing binary, dist, or 
 pnpm check:secrets       # G1.8 Gitleaks; a missing binary or a finding fails
 pnpm check:contract      # G1.6 oasdiff breaking; a missing binary or an ERR-level break fails
 pnpm check:skips         # G1.10 skip/empty tests; a committed skip or empty it() fails
+pnpm check:commits       # G1.9 Conventional Commits; a prose subject on origin/main..HEAD fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
 L1 CI (`.github/workflows/ci.yml`) runs G1.8 Gitleaks, then G1.6 oasdiff, then format, lint,
-types, G1.10 skip/empty-test detection, tests+coverage, build, and guardrails, on every pull
-request, every push to `main` or a `cursor/**` branch, and on `workflow_dispatch`. L2 CI
-(`.github/workflows/l2.yml`) runs the G2.8 license whitelist, the
+types, G1.9 commit convention, G1.10 skip/empty-test detection, tests+coverage, build, and
+guardrails, on every pull request, every push to `main` or a `cursor/**` branch, and on
+`workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`) runs the G2.8 license whitelist, the
 G2.7 migrate check, the G2.2 sqlite integration check, the G2.6 artifact budget, the G2.4
 Semgrep + CodeQL SAST checks, the G2.5 Trivy SCA check, and the G2.3 Playwright smoke on the
 same events; it does not skip, filter, or `continue-on-error` the L1 suite.
 `check:migrate`, `check:integration`, `check:artifact`, `check:sast`, `check:codeql`,
 `check:sca`, `check:smoke`, `check:secrets`, and `check:contract` are not folded into `verify`.
-`check:skips` is folded into `verify` — it has no extra binary, and a comment that forbids
-skips is not the gate.
+`check:commits` and `check:skips` are folded into `verify` — they have no extra binary, and a
+comment that forbids prose or skips is not the gate.

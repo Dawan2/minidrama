@@ -68,7 +68,9 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 
 **2026-08-27 (W16 C5-01 / D-20).** G1.10 is `pnpm check:skips`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. R3 / §6: skip exemptions do not apply. A committed skip / only / todo / empty `it('…', () => {})` in `app`, `server`, or `packages` test files is red. A comment that forbids skips is not this gate.
 
-**2026-08-27 (W16 C5-01 / D-20).** G1.7 is discharged by G2.5 Trivy (`pnpm check:sca`, L2 job `sca`). Critical findings fail; high findings with a published fix older than seven days fail. A second L1 `osv-scanner` / `npm audit` job would duplicate that engine. G1.9 Conventional Commits remains a further slice; commit subjects stay prose.
+**2026-08-27 (W16 C5-01 / D-20).** G1.7 is discharged by G2.5 Trivy (`pnpm check:sca`, L2 job `sca`). Critical findings fail; high findings with a published fix older than seven days fail. A second L1 `osv-scanner` / `npm audit` job would duplicate that engine.
+
+**2026-08-27 (W16 C5 leftover / D-20).** G1.9 is `pnpm check:commits`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. It lints `origin/main..HEAD`. A prose subject, a Conventional header with no requirement/defect id, a missing git binary, or a missing `origin/main` is red. Merge commits (two parents) are not rewritten. An empty range is 0 new commits, not a skip — G1.9 does not rewrite history on `main`. A comment that forbids prose is not this gate.
 
 ---
 
