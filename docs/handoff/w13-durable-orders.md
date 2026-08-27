@@ -109,19 +109,20 @@ done.
 
 ## 6. Verification
 
-`pnpm verify` green on this branch (exit 0, first try, then again after merging `origin/main`).
-`origin/main` moved from `96788f3` to `dd37df6` while this slot ran (GET `/v1/progress/dramas`,
-then D9 chrome). Merged twice; `server/src/app.ts` auto-merged with drama progress (sqlite wiring
-untouched) and D9 did not touch server files. No overlap with order sqlite files.
+`pnpm verify` green on this branch (exit 0, first try, then after each `origin/main` merge).
+`origin/main` moved from `96788f3` while this slot ran: drama progress GET, D9 chrome, then
+watch-progress sqlite (`8c2ec29`, migration `0005` so it composes with orders `0004`). Merged;
+`server/src/app.ts` auto-merged then conflict-resolved so both stores share one sqlite file.
+No overlap with order sqlite files besides the shared runner and wiring comments.
 
 | Package | Tests |
 | --- | ---: |
 | `packages/shared` | 55 |
 | `packages/config` | 45 |
 | `packages/quality` | 37 |
-| `server` | 1,520 |
+| `server` | 1,537 |
 | `app` | 916 |
-| **Total** | **2,573** |
+| **Total** | **2,590** |
 
 Guardrails passed against `app/dist`. Bundle `index-Da9f2iuu.js` 327.17 kB (gzip 100.37 kB).
 `node:sqlite` is experimental on Node 22 and prints a warning; it is not a failure.
@@ -138,7 +139,6 @@ Guardrails passed against `app/dist`. Bundle `index-Da9f2iuu.js` 327.17 kB (gzip
 - **Redis (T15).** Not read. Do not add it as a no-op client.
 - **C3-05 D9.** Still the cheapest unblocked client item. Different files.
 
-Drama progress OpenAPI (`bc-046f6d65`) landed on `main` as `45d6f65` while this slot ran; D9
-chrome (`bc-5894f9dd` wallet-ledger UI) landed as `dd37df6`. This branch has taken both;
-`server/src/app.ts` auto-merged with drama progress and the order and migration files do not
-overlap. This slot did not edit the wallet page, the picker, or OpenAPI.
+Drama progress OpenAPI (`bc-046f6d65`) landed as `45d6f65`; D9 chrome as `dd37df6`; watch-progress
+sqlite (`bc-2fda0be7`) as `8c2ec29` with migration `0005` so it composes with this slot's `0004`.
+This branch has taken all three. This slot did not edit the wallet page, the picker, or OpenAPI.
