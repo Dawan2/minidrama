@@ -120,7 +120,23 @@ Safe to merge onto `main` without a pull request if those paths are still disjoi
 
 ---
 
-## 6. Left open
+## 6. Verification
+
+`pnpm verify` green after merging `origin/main` at `a6c04d3` (silent-login and VePlayer, no overlap). First try, exit 0.
+
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 51 |
+| `packages/config` | 45 |
+| `server` | 1,329 |
+| `app` | 805 |
+| **Total** | **2,230** |
+
+Guardrails passed against `app/dist`. Bundle `index-BfoN7A5C.js` 308.47 kB (gzip 96.08 kB).
+
+---
+
+## 7. Left open
 
 - **W8-c `lastWatched`.** `viewer.lastWatched` is still `null`. Progress exists; folding it is a
   follow-up, not this projection.
