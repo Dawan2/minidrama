@@ -764,6 +764,165 @@ paths:
         '400':
           $ref: '#/components/responses/Error'
 
+  /v1/search:
+    get:
+      operationId: searchDramas
+      summary: Keyword search over drama titles and tags
+      description: |
+        Closes gap **G5** (`docs/02-information-architecture.md` §10), which is why the 剧场 tab's
+        search entry exists but is hidden. Anonymous: browsing must work before login, and the
+        Minis client's silent login can fail before the viewer has typed anything.
+
+        Matching is over the title and the tags only, on a folded copy of both — case, fullwidth
+        forms and Latin diacritics are folded, kana voiced marks are not. Results are ordered by
+        match tier (title prefix, title substring, exact tag, partial tag), then by play count,
+        then by identifier, which makes the order total and stable across requests.
+
+        Only published dramas are returned. Unreviewed and delisted content is not discoverable
+        (`docs/14-test-plan.md` §5.2, `E-13`).
+
+        There is no cursor. Relevance order is not a keyset, so paging a ranking needs a snapshot
+        of that ranking to mean anything; `truncated` says that more matched than `limit` allowed
+        through, and the client's move is to narrow the query.
+      tags: [discovery]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: |
+            Required and non-empty. An empty query is a `400`, not an empty result set: "no results
+            for nothing" is indistinguishable from a query that genuinely matched nothing, which is
+            the one state the empty-result screen exists for.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+        - name: limit
+          in: query
+          required: false
+          description: |
+            An out-of-range limit is refused rather than clamped: a client that asks for 500 and
+            silently receives 50 believes it has seen every match.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: The matches, ordered. Empty `items` is a normal answer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DramaSearchResults'
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /v1/dramas/{dramaId}/favorite:
+    parameters:
+      - name: dramaId
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+    get:
+      operationId: getDramaFavorite
+      summary: Whether this viewer follows this drama
+      description: |
+        Answers `200` with `favorited: false` when they do not — the common case, and not an error.
+
+        The read applies no publication check: a viewer must be able to see their own row for a
+        drama that has since been delisted, because that row is why the drama is still on their
+        favourites screen.
+
+        `private, no-store`: the answer is per viewer, and a shared cache holding one is a
+        cross-user leak waiting for a misconfigured proxy.
+      tags: [discovery]
+      security:
+        - bearerSession: []
+      responses:
+        '200':
+          description: This viewer's favourite state for this drama.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteState'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: No verifiable session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      operationId: addDramaFavorite
+      summary: Follow a drama
+      description: |
+        Idempotent: a repeated `PUT` answers `204` and does **not** move `favoritedAt`. A
+        double-tapped button and a retry after a network failure are the same single decision.
+
+        This is the one operation here that consults the catalogue. Following a drama creates a
+        reference to it, and a reference to something that does not exist reaches the viewer as a
+        permanently broken card on their favourites screen. A drama that was never published
+        answers `404` rather than `410`, so the endpoint cannot be used to confirm that an
+        unannounced title exists.
+      tags: [discovery]
+      security:
+        - bearerSession: []
+      responses:
+        '204':
+          description: The viewer follows this drama. Empty body.
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: No verifiable session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            No such drama, or one that has never been published. `CONTENT_NOT_FOUND`, with
+            `details.resourceType` and `details.resourceId`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: |
+            The drama has been delisted. `CONTENT_OFFLINE` — a viewer cannot start following
+            content that is no longer served, though one who already follows it keeps the row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: removeDramaFavorite
+      summary: Unfollow a drama
+      description: |
+        Idempotent and unconditional: `204` whether or not there was a row, and whatever the
+        catalogue says about the drama. Un-following must never be the operation that fails —
+        refusing it for a delisted drama would trap the row on the viewer's screen with no way to
+        clear it, and a `404` for a row that is already gone makes a retried `DELETE` look like an
+        error.
+      tags: [discovery]
+      security:
+        - bearerSession: []
+      responses:
+        '204':
+          description: The viewer does not follow this drama. Empty body.
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: No verifiable session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/auth/login:
     post:
       operationId: login
@@ -1272,6 +1431,69 @@ components:
               description: |
                 The platform's identifier for the payment, and the only field the callback is
                 correlated on.
+
+    DramaSearchHit:
+      type: object
+      required: [dramaId, title, tags, matchedOn]
+      description: |
+        What search itself knows about a match, and nothing else. Cover art, episode counts and
+        statistics are `DramaSummary` fields and are deliberately not duplicated here — a second,
+        partial copy of a summary is how two shapes of one drama start disagreeing. The client
+        renders a title-and-tags row today; the handoff records the field (`items[].drama`) that
+        folds the real summary in.
+      properties:
+        dramaId:
+          type: string
+        title:
+          type: string
+          description: The stored title, verbatim. Matching runs on a folded copy nobody sees.
+        tags:
+          type: array
+          items:
+            type: string
+        matchedOn:
+          type: string
+          enum: [TITLE, TAG]
+          description: |
+            Which field matched. Display information — a client may label a genre hit differently
+            from a title hit — and also the primary sort key, so a client that ignores it still
+            receives the rows in the order this says they are in.
+
+    DramaSearchResults:
+      type: object
+      required: [query, items, truncated]
+      properties:
+        query:
+          type: string
+          description: |
+            The query as searched: trimmed and whitespace-collapsed, in the viewer's own casing.
+            Plain text in a JSON body and never HTML — search-term echo is on the XSS list in
+            `docs/14-security.md` §2 precisely because it is so often rendered as markup.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DramaSearchHit'
+        truncated:
+          type: boolean
+          description: |
+            True when more dramas matched than `limit` allowed through. There is no cursor; see the
+            operation description.
+
+    FavoriteState:
+      type: object
+      required: [dramaId, favorited]
+      properties:
+        dramaId:
+          type: string
+        favorited:
+          type: boolean
+        favoritedAt:
+          type: string
+          format: date-time
+          description: |
+            Server time when the favourite was *first* recorded. Absent when `favorited` is false,
+            and unchanged by a repeated `PUT`: "following since" is a fact about the viewer's
+            history, not about their most recent tap.
 
     WatchProgressReport:
       type: object

@@ -5,11 +5,13 @@ import { catalogRoutes } from './modules/catalog/routes.js';
 import { createAnonymousViewerResolver } from './modules/catalog/viewer.js';
 import { createEmptyContinueWatchingSource } from './modules/discovery/feed.js';
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
+import { createInMemoryFavoritesStore } from './modules/search/favorites.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
 import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createMockIdentityPort } from './modules/identity/test-login.js';
+import { createSeedDramaDirectory } from './modules/search/dramas.js';
 import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
@@ -30,6 +32,7 @@ import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
 import { progressRoutes } from './modules/progress/routes.js';
 import { registerCors } from './core/cors.js';
+import { searchRoutes } from './modules/search/routes.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
 import { watchHistoryRoutes } from './modules/progress/history-routes.js';
 import type { CatalogStore } from './modules/catalog/store.js';
@@ -38,7 +41,9 @@ import type { CatalogStore } from './modules/catalog/store.js';
 // request to the viewer's unlocks and VIP state. Both are wired below, one per lineage.
 import type { ViewerResolver as CatalogViewerResolver } from './modules/catalog/viewer.js';
 import type { ContinueWatchingSource } from './modules/discovery/feed.js';
+import type { DramaDirectory } from './modules/search/dramas.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
+import type { FavoritesStore } from './modules/search/favorites.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { PlatformTradeOrderPort } from './modules/unlock/trade-order-port.js';
@@ -118,6 +123,14 @@ export interface AppDependencies {
    */
   readonly watchProgressStore?: WatchProgressStore;
   readonly watchHistoryCatalogPort?: WatchHistoryCatalogPort;
+  /**
+   * Search and favourites. The favourites store defaults to the in-memory skeleton; the drama
+   * directory the two read defaults to a seed, and `modules/search/dramas.ts` explains why it is a
+   * port rather than a second catalogue — the catalogue module owns the records, and wiring these
+   * two together is a follow-up rather than an integration decision.
+   */
+  readonly favoritesStore?: FavoritesStore;
+  readonly dramaDirectory?: DramaDirectory;
   readonly now?: () => number;
 }
 
@@ -274,6 +287,17 @@ export async function buildApp(
   });
 
   await app.register(identityRoutes, { identityPort, sessionStore });
+
+  // Search and favourites. `searchRoutes` was `discoveryRoutes` on its own branch and collided by
+  // name with the feed above; both are registered here, which is the whole of A2's resolution.
+  // Favourites take the same viewer resolver as progress and watch history, because two things
+  // resolving sessions is how one endpoint accepts the credential another rejects.
+  await app.register(searchRoutes, {
+    directory: dependencies.dramaDirectory ?? createSeedDramaDirectory(),
+    favorites: dependencies.favoritesStore ?? createInMemoryFavoritesStore(),
+    viewerResolver,
+    now,
+  });
 
   await app.register(platformTiktokRoutes, {
     signatureVerifier,
