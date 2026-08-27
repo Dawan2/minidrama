@@ -8,6 +8,10 @@
  * SQL: `INSERT … ON CONFLICT (user_id, drama_id) DO NOTHING` keeps the original `created_at`, which
  * is the property the route's contract depends on.
  *
+ * **Default is process-local.** The in-memory map dies with the process, so a restart forgets every
+ * favourite it held. `DATABASE_URL=sqlite:<path>` puts a SQLite table behind this same interface; a
+ * postgres URL is refused rather than rewritten to a file. Redis (T15) is not read.
+ *
  * Four properties of this in-memory implementation are contracts rather than implementation
  * details:
  *
