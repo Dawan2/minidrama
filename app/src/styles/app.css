@@ -330,6 +330,23 @@ a {
   font-size: 13px;
 }
 
+.settings-block {
+  margin-top: 8px;
+}
+
+.settings-block p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.settings-value {
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+}
+
 /* A sign-in prompt is not an error and not an empty state, so it does not look like either. */
 .state--sign-in {
   margin-top: 8px;
