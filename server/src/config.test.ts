@@ -31,6 +31,41 @@ describe('loadConfig', () => {
     expect(loadConfig({ TIKTOK_WEBHOOK_TOLERANCE_SEC: '60' }).webhookToleranceSec).toBe(60);
   });
 
+  // Nothing is the default, and nothing is what an unusable value falls back to. A deployment that
+  // forgot the variable serves no browser; a deployment that mistyped it serves no browser either.
+  it('allows no browser origin until one is configured', () => {
+    expect(loadConfig({}).corsAllowedOrigins).toEqual([]);
+    expect(loadConfig({ CORS_ALLOWED_ORIGINS: '' }).corsAllowedOrigins).toEqual([]);
+  });
+
+  it('reads the allowlist from the environment', () => {
+    const config = loadConfig({
+      CORS_ALLOWED_ORIGINS: 'https://a.example.com, http://localhost:5173',
+    });
+
+    expect(config.corsAllowedOrigins).toEqual(['https://a.example.com', 'http://localhost:5173']);
+    expect(config.corsRejectedOrigins).toEqual([]);
+  });
+
+  // There is no value of this variable that means "any origin". `*` is the configuration a hurried
+  // deployment reaches for, and on an API that reads an Authorization header it is account access
+  // for every page on the internet.
+  it('never turns a wildcard into an allowed origin', () => {
+    const config = loadConfig({ CORS_ALLOWED_ORIGINS: '*' });
+
+    expect(config.corsAllowedOrigins).toEqual([]);
+    expect(config.corsRejectedOrigins).toEqual([{ value: '*', reason: 'WILDCARD' }]);
+  });
+
+  it('reports the entries it discarded so a typo is visible', () => {
+    const config = loadConfig({ CORS_ALLOWED_ORIGINS: 'https://good.example.com,not-an-origin' });
+
+    expect(config.corsAllowedOrigins).toEqual(['https://good.example.com']);
+    expect(config.corsRejectedOrigins).toEqual([
+      { value: 'not-an-origin', reason: 'NOT_AN_ABSOLUTE_URL' },
+    ]);
+  });
+
   // The window is not a switch. A value that would disable or invert the replay check falls back to
   // the default instead of widening it, so a typo cannot quietly turn verification into a formality.
   it.each(['0', '-1', 'forever', ''])(

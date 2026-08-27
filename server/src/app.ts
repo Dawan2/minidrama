@@ -10,6 +10,7 @@ import { createUnavailableEntitlementFactsPort } from './modules/entitlement/fac
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
 import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
+import { createCorsPolicy } from './core/origin-policy.js';
 import { createUnresolvedViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
@@ -19,6 +20,7 @@ import { loadConfig } from './config.js';
 import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
+import { registerCors } from './core/cors.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
@@ -94,6 +96,17 @@ export async function buildApp(
       toleranceSec: config.webhookToleranceSec,
       now,
     });
+
+  // Before every route, and before the 404 handler below: a request from an origin we do not
+  // serve is refused without its path being confirmed and without its body being read. The
+  // allowlist is whatever configuration supplied, which by default is nothing.
+  for (const rejected of config.corsRejectedOrigins) {
+    app.log.warn(
+      { origin: rejected.value, reason: rejected.reason },
+      'CORS_ALLOWED_ORIGINS entry ignored',
+    );
+  }
+  registerCors(app, createCorsPolicy(config.corsAllowedOrigins));
 
   app.setNotFoundHandler(async (request, reply) => {
     return reply

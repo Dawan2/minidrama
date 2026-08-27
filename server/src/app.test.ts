@@ -48,6 +48,31 @@ describe('GET /health', () => {
   });
 });
 
+describe('cross-origin access', () => {
+  // `loadConfig({})` is a deployment nobody configured, and it allows no browser origin at all.
+  // The exhaustive cases are in `core/cors.test.ts`; this one is here because the default has to
+  // be a property of the assembled app rather than of a policy object somebody remembered to pass.
+  it('refuses a browser origin when no allowlist is configured', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { origin: 'https://webview.example.invalid' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe(
+      'COMMON_ORIGIN_NOT_ALLOWED',
+    );
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('leaves a request that carried no origin to the route', async () => {
+    const response = await app.inject({ method: 'GET', url: '/health' });
+
+    expect(response.statusCode).toBe(200);
+  });
+});
+
 describe('unknown routes', () => {
   it('answers with the standard error envelope', async () => {
     const response = await app.inject({ method: 'GET', url: '/nope' });
