@@ -6,6 +6,7 @@ import { createSessionIssuer } from './modules/identity/session.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import { createUnavailableEntitlementFactsPort } from './modules/entitlement/facts-port.js';
+import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
 import { createUnresolvedViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
@@ -18,6 +19,7 @@ import { playbackRoutes } from './modules/playback/routes.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
+import type { PlaybackMediaPort } from './modules/playback/media-port.js';
 import type { ServerConfig } from './config.js';
 import type { SessionIssuer } from './modules/identity/session.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
@@ -51,6 +53,11 @@ export interface AppDependencies {
    */
   readonly entitlementFactsPort?: EntitlementFactsPort;
   readonly viewerResolver?: ViewerResolver;
+  /**
+   * Playback reads the same entitlement facts and, only once they permit it, the media asset.
+   * The default refuses too, so an unwired deployment cannot hand out a video id.
+   */
+  readonly playbackMediaPort?: PlaybackMediaPort;
   readonly now?: () => number;
 }
 
@@ -107,12 +114,25 @@ export async function buildApp(
     return reply.status(500).send(errorBody('COMMON_INTERNAL_ERROR', 'Internal error', request.id));
   });
 
+  // One facts port and one viewer resolver for both modules. Playback enforces the decision that
+  // entitlement reports, so giving them separate sources of facts is how the browse view and the
+  // play attempt start disagreeing about what a viewer owns.
+  const entitlementFactsPort =
+    dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort();
+  const viewerResolver = dependencies.viewerResolver ?? createUnresolvedViewerResolver();
+
   await app.register(healthRoutes);
-  await app.register(playbackRoutes);
+
+  await app.register(playbackRoutes, {
+    factsPort: entitlementFactsPort,
+    viewerResolver,
+    mediaPort: dependencies.playbackMediaPort ?? createUnavailablePlaybackMediaPort(),
+    now,
+  });
 
   await app.register(entitlementRoutes, {
-    factsPort: dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort(),
-    viewerResolver: dependencies.viewerResolver ?? createUnresolvedViewerResolver(),
+    factsPort: entitlementFactsPort,
+    viewerResolver,
     now,
   });
 

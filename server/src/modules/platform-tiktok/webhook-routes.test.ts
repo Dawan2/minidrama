@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
+import {
+  createFixtureEntitlementFactsPort,
+  createFixtureViewerResolver,
+} from '../entitlement/fixtures.js';
 import { TIKTOK_WEBHOOK_PATH } from './routes.js';
 import { buildApp } from '../../app.js';
 import { computeWebhookSignature } from './webhook-signature.js';
+import { createFixturePlaybackMediaPort } from '../playback/fixtures.js';
 import { createInMemoryWebhookEventStore } from './event-store.js';
 import { createPlatformCredentials } from './credentials.js';
 import { loadConfig } from '../../config.js';
@@ -49,6 +54,12 @@ async function startApp(secret = SECRET): Promise<void> {
     {
       platformCredentials: createPlatformCredentials(CLIENT_KEY, secret),
       webhookEventStore: eventStore,
+      // Only for the scoping control at the bottom of this file: it needs a route outside this
+      // plugin that answers something other than an error, and playback now refuses unless the
+      // entitlement facts are wired.
+      entitlementFactsPort: createFixtureEntitlementFactsPort(),
+      viewerResolver: createFixtureViewerResolver(),
+      playbackMediaPort: createFixturePlaybackMediaPort(),
       now: () => NOW_MS,
     },
   );
@@ -418,10 +429,10 @@ describe('the raw-body parser is scoped to this module', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/playback/sessions',
-      payload: { episodeId: 'ep_free_0001' },
+      payload: { episodeId: 'ep_fx_s1e01' },
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json<{ episodeId: string }>().episodeId).toBe('ep_free_0001');
+    expect(response.json<{ episodeId: string }>().episodeId).toBe('ep_fx_s1e01');
   });
 });
