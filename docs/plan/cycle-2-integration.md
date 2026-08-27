@@ -320,6 +320,16 @@ is highest and most visible.
 These are the decisions the merge cannot make on its own. Each is stated as: what was built twice,
 what the evidence says, and the recommendation. **The integrator decides; this plan recommends.**
 
+> **Amended in place after the merge**, as §9 condition 6 requires. Each of A1–A6 below now carries
+> a **Decided** note recording what the integrator actually did. A **seventh** adjudication, A7, was
+> not foreseen by this plan and is added at the end of this section: two W7 client branches built the
+> HTTP transport's write half twice. The full account of the run is
+> `docs/handoff/w6-integrate.md`; the merge commits carry the reasoning per step.
+>
+> All six recommendations here were followed. The one place this plan was materially incomplete is
+> that A1–A6 are all about *server* modules and route tables, and the collision that cost the most
+> to resolve was in a *client* module — see A7.
+
 ### A1 — the progress module: `w4-work-q-8f92` over `w2-work-j-acf5`
 
 Both branches contain `server/src/modules/progress/{progress,store,routes,viewer}.ts` and their
@@ -334,6 +344,11 @@ viewer-rows listing that watch-history is built from. `q`'s own comments documen
 `/v1/progress/episodes/{episodeId}`, so no endpoint is lost. Record the test-count delta in the
 merge commit per D-C2-4.
 
+**Decided: as recommended.** `q`'s six conflicting files taken whole; `progress.ts` and its test
+were byte-identical on both sides, so nothing was chosen there. `j`'s 38 discarded progress tests
+were replaced by `q`'s 43 in the same three files plus watch history's 72. Both branches publish the
+endpoint, so nothing was lost. Recorded in the step-6 merge commit with the counts, per D-C2-4.
+
 ### A2 — `server/src/modules/discovery/routes.ts`: two different modules, one path
 
 `j` uses `discovery/` for search, favourites and drama listing (11 files); `r` and `m` use
@@ -346,6 +361,13 @@ This is an add/add conflict that is not a duplicate — **both bodies of work ar
 the OpenAPI `tags: [discovery]` grouping that `j`'s contract already declares, and is acceptable if
 the integrator prefers it; what is not acceptable is choosing one file and losing the other's
 endpoints.
+
+**Decided: as recommended.** `discovery/` stays the recommendation feed; `j`'s eleven files moved
+verbatim to `server/src/modules/search/` and its plugin was renamed `searchRoutes`. `app.ts`
+registers both. The move needed no rewriting inside the module — every import it makes is
+module-relative or `../../`-relative. One reconciliation was needed: `j`'s favourites were written
+against its own viewer seam in `progress/viewer.ts`, which A1 had just discarded, so they now use the
+seam that won. Every assertion, token and expected status is unchanged.
 
 ### A3 — the identity session: `q` already contains `l`
 
@@ -371,6 +393,10 @@ This is the one piece of C1 work that makes every authenticated endpoint testabl
 after the merge the whole of `q`'s progress and watch-history surface can actually be exercised
 with a session. Preserve the gate exactly as written; it is the reason this is safe.
 
+**Decided: as recommended.** The byte-identical claim held — verified, not assumed. `l` reduced to
+`test-login.ts`, its test, and the `config.ts` flag. The two-condition gate is preserved verbatim
+and still refuses by default.
+
 ### A4 — the client shell: `m` and `r` collide in four files, and nowhere else
 
 `m` and `r` share the ancestor `w2-work-h-5c79`, so their **server trees are identical** and their
@@ -393,6 +419,19 @@ files rather than a redesign. After it, the client holds 7 of 13 screens.
 The one thing to check by hand rather than by merge: `m` and `r` both modify
 `app/src/components/states.tsx` and git will merge both. Read the result — two slots' empty/error
 states in one file is exactly where a silently-wrong merge hides.
+
+**Decided: as recommended, and the shape recurred three more times.** The union was taken in all
+four files, and the same four files conflicted again on each later client branch — the provider
+nesting in `main.tsx` and `testing/render.tsx` is now five deep. Two corrections to this section:
+
+- **The route table's dangerous copy is in a test, not in `routes.ts`.**
+  `app/src/routes/routes.test.ts` enumerates `Object.keys(ROUTES)` against a literal list, and that
+  list is what a merge shortens. It happened: the favourites merge dropped `search` from it. The
+  suite went red only because the list was *shorter* than reality; had it lost an entry with no route
+  behind it, the merge would have been green and wrong.
+- **`app/src/core/i18n/locales/{en,ar}.json` conflict on every client merge**, always additively and
+  always in disjoint key namespaces. Worth checking by key count on both files rather than by
+  reading: they are 119 keys each and must stay equal.
 
 ### A5 — one contract
 
@@ -417,6 +456,26 @@ not a diff review:
 Parity against doc 12's 40 endpoints is *measured and written down* here, not closed. Closing it is
 C2 feature work, not integration.
 
+**Decided: done, and this section understated the job in one way.** 19 documented, 19 registered,
+sets equal — enumerated from `printRoutes` on the built app, not read off `app.ts`. All three named
+survivors are served. Parity is **19 of 40**.
+
+Two things this section did not anticipate:
+
+- **`contract.test.ts` only asserted one direction.** It dispatched every documented operation
+  against the real app, so a lost `register` call could not hide — but nothing asserted that a
+  *served* route is documented, so dropping a path block from the contract left the suite green. The
+  only record of what ought to be there was a hand-written `arrayContaining` list, and that list was
+  missing `POST /v1/entitlement/episode-access` when step 7 began. The test now compares both sets
+  in both directions, and both halves were probed with the defect they exist to catch.
+- **Four schemas were defined twice** (`PageInfo`, `DramaStat`, `DramaSummary`, `ViewerAccess`) after
+  five merges of `openapi.yaml`. A repeated YAML key resolves to the last definition, so for four
+  names the effective contract was whichever branch merged later. Three were cosmetic. `ViewerAccess`
+  was not: the winning block asserted "`UNAVAILABLE` is not returned here" while the server returns
+  exactly that from two call sites and `packages/shared` has carried it in the union all along. **A
+  duplicate key is how a contract contradicts its own code invisibly** — this is worth a step of its
+  own in any future cycle that merges a contract more than twice.
+
 ### A6 — `server/src/app.ts` is rewritten, not merged
 
 It appears in all five conflict sets. Resolving it five times line-by-line will produce five
@@ -428,6 +487,58 @@ every port wired, registration order chosen rather than inherited from whichever
 `entitlementRoutes` and `unlockRoutes`; `r`'s and `m`'s versions of `app.ts` do not. A three-way
 merge that takes "their" side of a hunk drops the unlock economy from the server and every remaining
 test still passes, because the tests that covered it came from a branch whose `app.ts` lost.
+
+**Decided: as recommended, and this was the most useful paragraph in the plan.** `app.ts` was
+composed once as the deliberate union rather than resolved five times: eleven route plugins, every
+port wired, registration order chosen. `entitlementRoutes` and `unlockRoutes` are both registered.
+The five branches merged after step 6 added no server route, so it needed no further edit.
+
+The specific trap named above is real and was defused, but the mechanism deserves promoting out of
+prose: **the reason a dropped registration would have gone unnoticed is that nothing asserted it.**
+A5's new both-directions test is what makes A6 checkable by command instead of by remembering to
+read this paragraph. If C3 keeps one thing from this plan, keep that test.
+
+### A7 — `app/src/data/http.ts`: the client transport's write half, built twice
+
+**Not foreseen by this plan. Added after the fact.** A1–A6 concern server modules and route tables;
+this is the one collision that was in a client module, and it cost more to resolve than any of them.
+
+`w7-work-unlock-overlay-ec70` and `w7-work-favorites-6ca8` both gave the client transport a write
+verb, from independent starts, neither able to see the other:
+
+- **unlock** added `postJson`, and deliberately routed it *around* the single automatic retry: a
+  `POST` that opens a payment must not be repeated by the transport, because a transport failure does
+  not say whether the request arrived.
+- **favourites** added `send(method, path, query)` for `PUT`/`DELETE`, taught `attempt` to skip
+  `json()` on a `204`, hoisted the retry into a `withRetry` helper applied to reads and idempotent
+  writes alike, and introduced `WRITE_METHODS` as the list the retry may repeat.
+
+**This is A2's shape, not A1's:** the file collides, the contents do not, and both bodies of work are
+wanted. So the resolution is a union, not a choice — but per D-C2-4 not a hand-blend either.
+
+**Decided: `http.ts` composed once as the deliberate union.** `attempt(url, request, successBody)`
+takes unlock's full request init and favourites' `'JSON' | 'NONE'` success mode; `withRetry` wraps it
+for `getJson` and `send`; `postJson` calls `attempt` directly. The two authors' rules turned out to
+be one rule stated twice — `POST`'s absence from `WRITE_METHODS` *is* unlock's no-retry rule,
+enforced by the type rather than at the call site — and the module comment now says it once.
+
+**The generalisable finding is about test doubles, and it is the failure mode C3 should expect.**
+Every API client's double in this codebase is structural: favourites' supplies `{getJson, send}`,
+unlock's supplies `{getJson, postJson}`. A single `HttpClient` carrying all three methods makes
+*both* sets stop typechecking. The same thing happened one merge earlier, when unlock's `postJson`
+broke the read-only doubles in `history-api.test.ts` and `search-api.test.ts`.
+
+Both times the fix was the same and both times an author had reached it independently: **narrow the
+consumer to the capability it uses.** `http.ts` now publishes `HttpReader`, `HttpWriter` and
+`HttpPoster`, with `HttpClient` extending all three; `createFavoritesApi` takes
+`HttpReader & HttpWriter`, `createUnlockApi` takes `HttpReader & HttpPoster`, and the read clients
+take `HttpReader`. Only annotations moved — no assertion, fixture or expectation was touched, which
+is what keeps this on the right side of §7.
+
+**For C3:** a slot that widens a shared interface should expect to narrow some consumers in the same
+change, and an integrator should expect a widened interface to break doubles on every branch that
+forked before it. This is not a merge conflict — git merges it cleanly and `tsc` is what objects — so
+it will not appear in any `merge-tree` survey done in advance.
 
 ---
 
@@ -461,6 +572,37 @@ A third possibility deserves naming: further slots may push branches during W7 w
 progress. **A branch that appears after the integrator has started step 4 is merged in C3, not
 squeezed in.** The cost of this cycle was 31 branches assembled at the end; the fix is not to
 assemble 33 at the end.
+
+**What actually happened: the catalogue cover branch landed and was merged, and the "merge in C3"
+rule was applied to three branches out of seven.** Seven branches arrived after this plan was
+written. Splitting them was a judgement, and the line drawn was *whether deferring costs more than
+merging*:
+
+| Branch | Taken? | Why |
+|---|---|---|
+| `w4-work-s-cover-url-check-6186` | merged | The §6 "in flight" row above. Landed before step 4, merged where this section says. Closes D-02's caller gap |
+| `w6-work-jsx-scan-b942` | merged | Remediation: the bundle scan could not see JSX-runtime element calls, so a native player could reach the artifact with `check:guardrails` green |
+| `w6-work-ci-074b` | merged | Remediation: CI had never run on anything. Backlog T0-1, §9 condition 4 |
+| `w7-work-unlock-overlay-ec70` | merged | The only caller of `/v1/unlock/coin-orders`, which the trunk has served since W2 |
+| `w7-work-favorites-6ca8` | merged | The only caller of `j`'s three favourite endpoints, merged one step earlier |
+| `w7-work-auth-header-96d6` | **C3** | Arrived after step 7 began |
+| `w8-work-favorites-list-a666` | **C3** | Arrived after step 7 began. Adds a 20th endpoint |
+| `w8-work-session-viewer-bc30` | **C3** | Arrived after step 7 began |
+
+The rule as written is a good default and the reason given for it — do not assemble 33 at the end —
+is the right reason. But it reads as a rule about *timing*, and timing was not what made the
+difference. Four of the five branches taken were either remediation or **the missing caller for an
+endpoint C1 had already built**, and deferring those reproduces D-02 exactly: an implemented half
+with nothing on the other side of it. Deferring the three W8 branches costs nothing, because the work
+they extend is now on one tree for the first time.
+
+**Suggested restatement for C3:** a branch that arrives mid-merge is deferred *unless* it is
+remediation of a defect the cycle's own report names, or it is the only consumer of something already
+merged. Those two exceptions are narrow enough not to reopen the 33-branch problem.
+
+One consequence worth flagging: **`w7-work-auth-header-96d6` conflicts with A7 by construction.** It
+rewrites `main.tsx`'s transport wiring and adds its own `transports.ts`, against a base that has
+neither `postJson` nor `send`. Read A7 before merging it.
 
 ---
 
