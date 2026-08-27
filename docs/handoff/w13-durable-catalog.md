@@ -121,7 +121,21 @@ constraint on `id` throws on the second open. Empty-check stays.
 
 ## 6. Verification
 
-Recorded after `pnpm verify` on this branch.
+`pnpm verify` green on this branch (exit 0) after merging `origin/main` at `d182043`
+(favourites sqlite `0006` and SCR-03 browse). Shared wiring lists both stores; catalogue
+tables do not overlap with `favorite`.
+
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 55 |
+| `packages/config` | 45 |
+| `packages/quality` | 37 |
+| `server` | 1,590 |
+| `app` | 950 |
+| **Total** | **2,677** |
+
+Guardrails passed against `app/dist`. Bundle `index-Dm7zgKrK.js` 333.58 kB (gzip 101.93 kB).
+`node:sqlite` is experimental on Node 22 and prints a warning; it is not a failure.
 
 ---
 
