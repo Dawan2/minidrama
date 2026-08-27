@@ -46,7 +46,10 @@ afterEach(async () => {
   }
 });
 
-function report(positionSec: number, atIso: string): {
+function report(
+  positionSec: number,
+  atIso: string,
+): {
   readonly positionSec: number;
   readonly durationSec: number;
   readonly clientUpdatedAt: string;
