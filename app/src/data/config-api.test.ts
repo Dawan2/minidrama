@@ -110,7 +110,7 @@ describe('resolveClientConfig', () => {
   });
 
   it('falls back to comments off, ads off, heartbeat 10 when the read fails', () => {
-    const failure = apiFailure({ kind: 'UNREACHABLE', message: 'timeout' });
+    const failure = apiFailure({ kind: 'TIMEOUT', message: 'timeout' });
     expect(resolveClientConfig(err(failure))).toEqual(CONSERVATIVE_CLIENT_CONFIG);
     expect(resolveClientConfig(err(failure)).features.comments).toBe(false);
   });
