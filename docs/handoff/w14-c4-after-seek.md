@@ -7,8 +7,9 @@
 > watch-progress store heartbeats write. Anonymous stays the catalogue mix. A rejected
 > session is not a 401.
 > **Not in scope:** Resume-seek (on `main` as `795baaf`). G2.3 Playwright (`bc-9578758f`,
-> in flight). Post-G1.8 C4 (`bc-84ec4fdd`, in flight). C4-03 Postgres. C4-07 VIP. Beans,
-> enabling wallet top-up, inventing ad-unit ids, G1.6 / G1.7 / G1.10. No pull request.
+> in flight). Post-G1.8 C4 (`bc-84ec4fdd`, G1.6, landed as `3cb724c` while this slot ran).
+> C4-03 Postgres. C4-07 VIP. Beans, enabling wallet top-up, inventing ad-unit ids,
+> G1.7 / G1.10. No pull request.
 
 ---
 
@@ -112,7 +113,7 @@ expected []
 | --- | --- |
 | Resume-seek (`795baaf`) | Already on `main` at pick. Client `startTime`. This slot does not edit `app/` |
 | G2.3 (`bc-9578758f`) | Playwright / `l2.yml`. This slot does not touch `.github/workflows/` |
-| Post-G1.8 (`bc-84ec4fdd`) | Likely `ci.yml` / `packages/quality` (G1.6 / G1.7 / G1.10). Not touched |
+| Post-G1.8 (`bc-84ec4fdd`) | **Landed.** G1.6 oasdiff on `main` at `3cb724c`. `ci.yml`, `packages/quality/src/contract*`. Merged in; no overlap with discovery / progress |
 
 `git diff origin/main -- .github/workflows/` is empty of this slot's work.
 
@@ -120,23 +121,24 @@ expected []
 
 ## 5. Verification
 
-`pnpm verify` green on this branch. L1 sequence unchanged: format → lint →
-typecheck → test:coverage → check:coverage → build → guardrails. G1.8
-`check:secrets` stays in `ci.yml`, not in `pnpm verify`.
+`pnpm verify` green on `85d0bc9`, then again after merging `origin/main` (`3cb724c` G1.6
+oasdiff). L1 sequence unchanged: format → lint → typecheck → test:coverage →
+check:coverage → build → guardrails. G1.8 `check:secrets` and G1.6 `check:contract` stay
+in `ci.yml`, not in `pnpm verify`.
 
 | Package | Tests |
 | --- | ---: |
 | shared | 61 |
-| quality | 220 |
+| quality | 250 |
 | config | 45 |
 | server | 1,752 |
 | app | 1,121 |
-| **Total** | **3,199** |
+| **Total** | **3,229** |
 
-Zero skipped. Coverage gate:
+Zero skipped. Coverage gate after the G1.6 merge:
 
 ```
-coverage global lines 94.01% (15066/16026), branches 91.63%, core lines 95.50%, diff lines 100.00% (33/33)
+coverage global lines 94.07% (15279/16242), branches 91.60%, core lines 95.50%, diff lines 100.00% (33/33)
 coverage gate passed
 ```
 
@@ -148,8 +150,8 @@ the resume-seek merge's artifact, not this slot's). Native `<video>` remains abs
 ## 6. Left open
 
 - **G2.3 Playwright.** Left for `bc-9578758f`. Not faked with a grep.
-- **G1.6 / G1.7 / G1.10.** oasdiff, osv-scanner, skip/empty-test detection. Left for
-  `bc-84ec4fdd`.
+- **G1.6.** Landed as `3cb724c` while this slot ran. Not retaken.
+- **G1.7 / G1.10.** osv-scanner, skip/empty-test detection. Further L1 slices.
 - **Drama-detail continue-watching CTA.** `viewer.lastWatched` is still unused on
   `DramaPage`; inventing a resume from the episode list would be a guess.
 - **`play_auth_token` for TikTok clients below 44.5.0.** Still deferred (W10).
