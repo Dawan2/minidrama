@@ -451,17 +451,53 @@ describe('login, order, pay', () => {
 
     expect(delivered.statusCode).toBe(200);
     expect(body(await readOrder(order.orderId, accessToken))).toMatchObject({
-      status: 'PAID',
+      status: 'FULFILLED',
       paidAt: '2026-08-27T10:00:00.000Z',
     });
   });
 
-  // Paid is not unlocked. The `Unlock` row is a later slot's, and until it exists the episode stays
-  // locked — which is the only direction a half-built payment path may fail in.
-  it('grants nothing by being paid', async () => {
+  /**
+   * The receipt is written for the account the session named, and it is the whole funnel that says
+   * so: the login endpoint issued the token, the token attributed the order, the callback named the
+   * same open id, and the entitlement decision — asked with the same token — now reports the
+   * purchase. Every identifier in that chain has to be the same one, and this is the assertion that
+   * fails the moment any of them stops being.
+   */
+  it('grants the episode to the account that paid', async () => {
     const { accessToken, openId } = await login(BUYER);
     const order = await openOrder(accessToken);
     await callback(order.payment.tradeOrderId, openId);
+
+    expect(body(await readOrder(order.orderId, accessToken)).unlockGranted).toBe(true);
+    const access = await episodeAccess(COIN_OR_VIP_EPISODE, accessToken);
+    expect(access.json<{ viewerAccess: { reason: string } }>().viewerAccess.reason).toBe(
+      'UNLOCKED',
+    );
+  });
+
+  // A purchase belongs to the account, not to the credential that made it, so it survives the
+  // session that bought it. A viewer whose token expires mid-purchase signs in again and owns the
+  // episode; a store keyed on anything the session carries would lose it.
+  it('keeps the episode unlocked for a later session of the same account', async () => {
+    const { accessToken, openId } = await login(BUYER);
+    const order = await openOrder(accessToken);
+    await callback(order.payment.tradeOrderId, openId);
+
+    const later = await login(BUYER);
+    const access = await episodeAccess(COIN_OR_VIP_EPISODE, later.accessToken);
+
+    expect(access.json<{ viewerAccess: { reason: string } }>().viewerAccess.reason).toBe(
+      'UNLOCKED',
+    );
+  });
+
+  // An unverifiable callback grants nothing, and this is that case at the funnel level: the payer
+  // is authentic and is not the account that opened the order, so nobody's episode is unlocked.
+  it('grants nothing to either account when the payer is not the buyer', async () => {
+    const { accessToken } = await login(BUYER);
+    const order = await openOrder(accessToken);
+
+    await callback(order.payment.tradeOrderId, SUBSCRIBER);
 
     expect(body(await readOrder(order.orderId, accessToken)).unlockGranted).toBe(false);
     const access = await episodeAccess(COIN_OR_VIP_EPISODE, accessToken);
