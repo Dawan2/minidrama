@@ -59,6 +59,34 @@ function documentedOperations(yaml: string): readonly Operation[] {
 
 const operations = documentedOperations(readFileSync(CONTRACT_PATH, 'utf8'));
 
+/**
+ * Values for the templated segments of documented paths.
+ *
+ * Dispatching `/v1/dramas/{dramaId}` literally would reach the handler and be answered "no such
+ * drama", which proves nothing about whether the route exists. Every parameter therefore needs a
+ * sample that resolves in the seed catalogue, and a parameter without one fails the suite — so a
+ * new templated path cannot be added to the contract and left untested by omission.
+ */
+const SAMPLE_PATH_PARAMETERS: Readonly<Record<string, string>> = {
+  dramaId: 'drm_revenge_0001',
+  episodeId: 'ep_revenge_e01',
+  // No such order, deliberately. The route refuses an unauthenticated read before it looks one up,
+  // so what this proves is that the path is dispatched — which is all this suite claims.
+  orderId: 'ord_0000000000000000000000000000',
+};
+
+const PATH_PARAMETER = /\{([A-Za-z0-9_]+)\}/g;
+
+function concretePath(path: string): string {
+  return path.replace(PATH_PARAMETER, (_match, name: string) => {
+    const sample = SAMPLE_PATH_PARAMETERS[name];
+    if (sample === undefined) {
+      throw new Error(`contract.test.ts has no sample value for the path parameter {${name}}`);
+    }
+    return sample;
+  });
+}
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
@@ -83,14 +111,23 @@ describe('contracts/openapi.yaml', () => {
         { method: 'post', path: '/v1/payments/callbacks/tiktok' },
         { method: 'post', path: '/v1/unlock/coin-orders' },
         { method: 'get', path: '/v1/unlock/coin-orders/{orderId}' },
+        { method: 'get', path: '/v1/dramas' },
+        { method: 'get', path: '/v1/dramas/{dramaId}' },
+        { method: 'get', path: '/v1/dramas/{dramaId}/episodes' },
+        { method: 'get', path: '/v1/episodes/{episodeId}' },
+        { method: 'get', path: '/v1/recommendations/feed' },
       ]),
     );
+  });
+
+  it('has a sample value for every documented path parameter', () => {
+    expect(() => operations.map((operation) => concretePath(operation.path))).not.toThrow();
   });
 
   it.each(operations)('routes $method $path to a handler', async ({ method, path }) => {
     const response = await app.inject({
       method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-      url: path,
+      url: concretePath(path),
       headers: { 'content-type': 'application/json' },
       ...(method === 'get' ? {} : { payload: '{}' }),
     });

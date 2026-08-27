@@ -53,6 +53,20 @@ describe('platform lint guardrails', () => {
     expect(ruleIds).toContain('no-restricted-syntax');
   });
 
+  /**
+   * The player directory is the one place where a native video element would look reasonable — it
+   * is where the mock player lives, and a mock built on `<video>` is the shortest path to a blocked
+   * UI reaching a build. A per-directory override that exempted it would be invisible in review and
+   * would silently pass every other test in this file.
+   */
+  it.each([
+    ['the mock player', 'export const v = document.createElement("video");', 'mock-veplayer.ts'],
+    ['the player surface', 'export const S = () => <video />;', 'PlayerSurface.tsx'],
+  ])('rejects a native video element in %s', async (_label, code, file) => {
+    const ruleIds = await ruleIdsFor(code, `app/src/player/${file}`);
+    expect(ruleIds).toContain('no-restricted-syntax');
+  });
+
   it('rejects an iframe', async () => {
     const ruleIds = await ruleIdsFor(
       'export const F = () => <iframe title="x" />;',

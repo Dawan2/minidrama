@@ -27,6 +27,19 @@ export interface VePlayerConfig {
   readonly autoSubtitle: boolean;
 }
 
+/**
+ * One entry of the ordered playlist handed to `setPreloadList`.
+ *
+ * The identifiers only, and the same ones the constructor takes. There is no URL here for the same
+ * reason there is none in `PlaybackDescriptor`: the media plane is not ours (correction A4).
+ */
+export interface VePlayerPlaylistItem {
+  readonly albumId: string;
+  readonly episodeId: string;
+  readonly vid: string;
+  readonly playAuthToken?: string;
+}
+
 export interface VePlayerInstance {
   play(): void;
   pause(): void;
@@ -35,6 +48,13 @@ export interface VePlayerInstance {
   destroy(): void;
   on(event: VePlayerEventName, handler: (payload?: unknown) => void): void;
   off(event: VePlayerEventName, handler: (payload?: unknown) => void): void;
+  /**
+   * The ordered episodes the player preloads and advances through (§5.3). Optional because it
+   * belongs to the preload module, which needs MP4 + MSE and is therefore absent below the MSE bar
+   * (risk M-3). A client without it plays and switches; it just starts each episode cold, so this
+   * is feature-detected rather than assumed.
+   */
+  setPreloadList?(items: readonly VePlayerPlaylistItem[]): void;
 }
 
 export type VePlayerConstructor = new (config: VePlayerConfig) => VePlayerInstance;

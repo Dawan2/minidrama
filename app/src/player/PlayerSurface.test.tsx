@@ -6,12 +6,17 @@ import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from './mock-veplayer';
 import { PlayerSurface } from './PlayerSurface';
 
-const descriptor: PlaybackDescriptor = {
-  albumId: 'album_1',
-  episodeId: 'ep_1',
-  vid: 'vid_1',
-  resumePositionSec: 0,
-};
+function episode(episodeNumber: number): PlaybackDescriptor {
+  return {
+    albumId: 'album_1',
+    episodeId: `ep_${String(episodeNumber)}`,
+    vid: `vid_${String(episodeNumber)}`,
+    resumePositionSec: 0,
+  };
+}
+
+const playlist = [episode(1), episode(2), episode(3)];
+const descriptor = playlist[0]!;
 
 beforeEach(() => {
   MockVePlayer.reset();
@@ -23,21 +28,43 @@ async function readyBridge(...args: ConstructorParameters<typeof MockBridge>) {
   return bridge;
 }
 
+/** The constraint the whole playback design rests on, asserted over the live DOM. */
+function forbiddenElements(): readonly Element[] {
+  return [...screen.getByTestId('player-container').querySelectorAll('video, audio, iframe')];
+}
+
 describe('PlayerSurface', () => {
   it('mounts a player into its container', async () => {
     const bridge = await readyBridge();
-    render(<PlayerSurface bridge={bridge} descriptor={descriptor} />);
+    render(<PlayerSurface bridge={bridge} playlist={playlist} episodeId={descriptor.episodeId} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('player-surface').dataset['state']).toBe('playing');
     });
     expect(MockVePlayer.instances).toHaveLength(1);
-    expect(screen.getByTestId('player-container').querySelector('video')).toBeNull();
+    expect(forbiddenElements()).toEqual([]);
+  });
+
+  it('starts on the episode it was asked for, not on the first of the album', async () => {
+    const bridge = await readyBridge();
+    render(<PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_2" />);
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    expect(MockVePlayer.instances[0]?.config.episodeId).toBe('ep_2');
+    // The queue behind it is the rest of the album, so "next" from here is ep_3.
+    expect(MockVePlayer.instances[0]?.preloadList.map((item) => item.episodeId)).toEqual([
+      'ep_2',
+      'ep_3',
+    ]);
   });
 
   it('destroys the player when it unmounts', async () => {
     const bridge = await readyBridge();
-    const { unmount } = render(<PlayerSurface bridge={bridge} descriptor={descriptor} />);
+    const { unmount } = render(
+      <PlayerSurface bridge={bridge} playlist={playlist} episodeId={descriptor.episodeId} />,
+    );
 
     await waitFor(() => {
       expect(MockVePlayer.instances).toHaveLength(1);
@@ -49,12 +76,116 @@ describe('PlayerSurface', () => {
     });
   });
 
+  it('switches episode on the retained instance rather than building a second one', async () => {
+    const bridge = await readyBridge();
+    const { rerender } = render(
+      <PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_1" />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const first = MockVePlayer.instances[0]!;
+
+    rerender(<PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_2" />);
+
+    await waitFor(() => {
+      expect(first.playNextCount).toBe(1);
+    });
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances[0]).toBe(first);
+    expect(first.destroyed).toBe(false);
+    expect(first.currentEpisodeId).toBe('ep_2');
+    expect(screen.getByTestId('player-surface').dataset['episodeId']).toBe('ep_2');
+    expect(forbiddenElements()).toEqual([]);
+  });
+
+  it('walks the whole album on one instance', async () => {
+    const bridge = await readyBridge();
+    const { rerender } = render(
+      <PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_1" />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+
+    rerender(<PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_2" />);
+    rerender(<PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_3" />);
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances[0]?.currentEpisodeId).toBe('ep_3');
+    });
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances[0]?.playNextCount).toBe(2);
+  });
+
+  // A re-render is not an episode change. This is the regression the descriptor dependency caused:
+  // a fresh object of the same shape rebuilt the player and threw away the preloaded next episode.
+  it('does not rebuild the player when it re-renders with the same episode', async () => {
+    const bridge = await readyBridge();
+    const { rerender } = render(
+      <PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_1" />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const first = MockVePlayer.instances[0]!;
+
+    rerender(<PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_1" />);
+    rerender(<PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_1" />);
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    expect(first.destroyed).toBe(false);
+    expect(first.playNextCount).toBe(0);
+  });
+
+  /**
+   * The other half of the rule. `playNext()` cannot go backwards, so this one *must* rebuild — and
+   * the old instance must be destroyed, or the album ends up with two live players in one
+   * container, both holding the network.
+   */
+  it('rebuilds, and destroys the old instance, when the episode is not reachable by advancing', async () => {
+    const bridge = await readyBridge();
+    const { rerender } = render(
+      <PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_2" />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const first = MockVePlayer.instances[0]!;
+
+    rerender(<PlayerSurface bridge={bridge} playlist={playlist} episodeId="ep_1" />);
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(2);
+    });
+    expect(first.destroyed).toBe(true);
+    expect(first.playNextCount).toBe(0);
+    expect(MockVePlayer.instances[1]?.config.episodeId).toBe('ep_1');
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(1);
+    // One player, one placeholder: the rebuilt player did not stack a second surface on the first.
+    expect(screen.getByTestId('player-container').children).toHaveLength(1);
+  });
+
   it('shows a retryable message instead of an empty frame when the player is unavailable', async () => {
     const bridge = await readyBridge({ unavailable: ['getPlayer'] });
-    render(<PlayerSurface bridge={bridge} descriptor={descriptor} />);
+    render(<PlayerSurface bridge={bridge} playlist={playlist} episodeId={descriptor.episodeId} />);
 
     expect(await screen.findByTestId('player-unavailable')).toBeDefined();
     expect(screen.getByTestId('player-surface').dataset['state']).toBe('unavailable');
+    expect(MockVePlayer.instances).toHaveLength(0);
+  });
+
+  it('degrades rather than building a player with nothing to play', async () => {
+    const bridge = await readyBridge();
+    render(<PlayerSurface bridge={bridge} playlist={[]} episodeId="ep_1" />);
+
+    expect(await screen.findByTestId('player-unavailable')).toBeDefined();
     expect(MockVePlayer.instances).toHaveLength(0);
   });
 });

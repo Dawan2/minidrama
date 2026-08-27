@@ -7,6 +7,12 @@ import { join, relative, sep } from 'node:path';
  * The one that matters most: `window.TTMinis` may be referenced only inside `src/platform/`.
  * That containment is what makes every platform-dependent feature testable off-device, and it is
  * what keeps an SDK namespace change (open item O-1) a one-line fix.
+ *
+ * The second one closes a hole under the first-line defences. The ESLint rule matches
+ * `createElement('video')` in the AST and the bundle scan greps the same literal in the artifact;
+ * `createElement(tagFromSomewhereElse)` is invisible to both, and it creates exactly the element
+ * TikTok replaces with a blocked UI. Demanding a literal element name costs nothing — no surface
+ * in this app has a reason to compute one — and it makes the other two rules mean what they claim.
  */
 
 export interface SourceViolation {
@@ -19,6 +25,9 @@ export interface SourceViolation {
 export const PLATFORM_DIR = join('src', 'platform');
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx'];
+
+/** A `createElement` whose first argument is not a quoted name — a variable, a call, a template. */
+const COMPUTED_ELEMENT_NAME = /\bcreateElement\s*\(\s*[^'"`)]/;
 
 export function listSourceFiles(root: string): readonly string[] {
   const found: string[] = [];
@@ -48,11 +57,22 @@ export function checkSourceTree(appRoot: string): readonly SourceViolation[] {
     const lines = readFileSync(file, 'utf8').split('\n');
 
     lines.forEach((line, index) => {
-      if (!isPlatformModule && /\bTTMinis\b/.test(line) && !isComment(line)) {
+      if (isComment(line)) {
+        return;
+      }
+      if (!isPlatformModule && /\bTTMinis\b/.test(line)) {
         violations.push({
           file: relativePath,
           line: index + 1,
           rule: `TTMinis may only be referenced inside ${PLATFORM_DIR}/`,
+          evidence: line.trim(),
+        });
+      }
+      if (COMPUTED_ELEMENT_NAME.test(line)) {
+        violations.push({
+          file: relativePath,
+          line: index + 1,
+          rule: 'createElement must be given a literal element name',
           evidence: line.trim(),
         });
       }

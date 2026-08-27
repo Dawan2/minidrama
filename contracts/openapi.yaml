@@ -543,6 +543,227 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/dramas:
+    get:
+      operationId: listDramas
+      summary: Browse published dramas
+      description: |
+        Anonymous-capable, like every catalogue read (`docs/12-api-contracts.md` §2.2): browsing and
+        free episodes must work before login, and silent login can fail.
+
+        Only published dramas are served. Drafts and delisted dramas are absent from every list
+        regardless of how they rank.
+
+        Pagination is keyset, not offset: `cursor` names the last item of the previous page. A
+        cursor is only valid for the query that produced it — replaying a `sort=HOT` cursor against
+        `sort=NEW` is a `400` rather than a page that is quietly wrong.
+      tags: [catalog]
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DramaCategory'
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [HOT, NEW]
+            default: HOT
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Out-of-range values are rejected rather than clamped, so a client learns.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: A page of drama summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DramaPage'
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /v1/dramas/{dramaId}:
+    get:
+      operationId: getDrama
+      summary: Drama detail
+      description: |
+        A draft drama answers `404` and a delisted one answers `410`. The distinction is what lets a
+        deep link or a history entry show "no longer available" instead of "wrong link"
+        (`docs/architecture/system-overview.md` §6.2), while unannounced content stays
+        indistinguishable from a typo.
+
+        `seasons` lists published seasons only. `viewer` is `null` until favourites and watch
+        progress exist — a `favorited: false` we cannot verify renders as a confirmed empty heart.
+      tags: [catalog]
+      parameters:
+        - $ref: '#/components/parameters/DramaId'
+      responses:
+        '200':
+          description: The drama.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DramaDetail'
+        '404':
+          $ref: '#/components/responses/Error'
+        '410':
+          description: The drama was delisted. `details.resourceType` is `DRAMA`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/dramas/{dramaId}/episodes:
+    get:
+      operationId: listDramaEpisodes
+      summary: The drama's episodes, flattened across seasons
+      description: |
+        One running order for the whole drama (W1B decision 10). Every item carries
+        `globalEpisodeNumber`, the position within the drama, alongside the per-season
+        `episodeNumber`.
+
+        **The drama-level free window is measured in `globalEpisodeNumber`.** Measuring it in
+        `episodeNumber` would give away the opening episodes of every season a drama ever ships,
+        because that number restarts at 1 in each season.
+
+        A withdrawn episode stays in the list, reported `UNAVAILABLE`, so the grid does not renumber
+        itself; the episodes of a withdrawn *season* are not listed at all, and their numbers stay
+        reserved.
+      tags: [catalog]
+      parameters:
+        - $ref: '#/components/parameters/DramaId'
+        - name: seasonNumber
+          in: query
+          required: false
+          description: A season the drama does not have answers `404`, not an empty page.
+          schema:
+            type: integer
+            minimum: 1
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: A page of episodes in global episode order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodePage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '410':
+          description: The drama was delisted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/episodes/{episodeId}:
+    get:
+      operationId: getEpisode
+      summary: One episode, with the viewer's access to it
+      tags: [catalog]
+      parameters:
+        - name: episodeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The episode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeItem'
+        '404':
+          $ref: '#/components/responses/Error'
+        '410':
+          description: |
+            The episode, its season or its drama was withdrawn. `details.resourceType` says which,
+            because the three have different client recoveries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/recommendations/feed:
+    get:
+      operationId: getRecommendationFeed
+      summary: The home and player recommendation feed
+      description: |
+        A rule mix, not a model: continue watching, then a popularity/recency alternation
+        (`docs/handoff/w1-work-b.md` decision 7). Anonymous viewers have no progress and receive the
+        non-personalised remainder.
+
+        `scene=PLAYER` carries no continue-watching card — it sits beside something already playing.
+
+        Every card carries a `trackingId` minted for that card in that response. It is the join key
+        between an impression and the click it produced, so it is never reused across responses.
+      tags: [discovery]
+      parameters:
+        - name: scene
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [HOME, PLAYER]
+            default: HOME
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: A page of feed cards.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedPage'
+        '400':
+          $ref: '#/components/responses/Error'
+
   /v1/auth/login:
     post:
       operationId: login
@@ -668,6 +889,252 @@ components:
         uptimeSec:
           type: integer
           minimum: 0
+
+    DramaCategory:
+      type: string
+      enum: [ROMANCE, REVENGE, FAMILY, SUSPENSE, COMEDY, FANTASY, OTHER]
+
+    UnlockPolicy:
+      type: string
+      description: |
+        The **effective** policy: the drama-level free window is already folded in, so an episode
+        inside the window reports `FREE` whatever is stored against it.
+      enum: [FREE, COIN, VIP_ONLY, COIN_OR_VIP]
+
+    PageInfo:
+      type: object
+      required: [nextCursor, hasMore]
+      properties:
+        nextCursor:
+          type: [string, 'null']
+          description: Opaque. Echoed back verbatim; non-null exactly when `hasMore` is true.
+        hasMore:
+          type: boolean
+
+    DramaStat:
+      type: object
+      required: [playCount, favoriteCount, score]
+      properties:
+        playCount:
+          type: integer
+          minimum: 0
+        favoriteCount:
+          type: integer
+          minimum: 0
+        score:
+          type: number
+
+    DramaSummary:
+      type: object
+      required:
+        [id, title, coverUrl, category, tags, totalEpisodes, freeEpisodes, isCompleted, stat]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        coverUrl:
+          type: string
+          description: A poster image. The catalogue never carries a video handle of any kind.
+        category:
+          $ref: '#/components/schemas/DramaCategory'
+        tags:
+          type: array
+          items:
+            type: string
+        totalEpisodes:
+          type: integer
+          minimum: 0
+          description: Counted over listed episodes, so it matches the grid the client renders.
+        freeEpisodes:
+          type: integer
+          minimum: 0
+          description: |
+            Display copy ("first 3 free"), counted in `globalEpisodeNumber`. It is never the input
+            to a playability decision — that arrives decided, in `EpisodeItem.viewerAccess`.
+        isCompleted:
+          type: boolean
+        stat:
+          $ref: '#/components/schemas/DramaStat'
+
+    SeasonSummary:
+      type: object
+      required: [id, seasonNumber, title, episodeCount]
+      properties:
+        id:
+          type: string
+        seasonNumber:
+          type: integer
+          minimum: 1
+        title:
+          type: [string, 'null']
+        episodeCount:
+          type: integer
+          minimum: 0
+
+    DramaDetail:
+      allOf:
+        - $ref: '#/components/schemas/DramaSummary'
+        - type: object
+          required: [description, horizontalCoverUrl, seasons, viewer]
+          properties:
+            description:
+              type: string
+            horizontalCoverUrl:
+              type: [string, 'null']
+            seasons:
+              type: array
+              items:
+                $ref: '#/components/schemas/SeasonSummary'
+            viewer:
+              type: [object, 'null']
+              description: |
+                `null` for an anonymous viewer, and while favourites and progress are unimplemented.
+              properties:
+                favorited:
+                  type: boolean
+                lastWatched:
+                  type: [object, 'null']
+
+    ViewerAccess:
+      type: object
+      required: [playable, reason, unlockedBy]
+      description: |
+        The server's answer to "may this viewer watch this episode". The client branches on it and
+        never recomputes it: the rules live server-side only (`docs/12-domain-model.md` §3.4).
+
+        `playable` is a statement about entitlement, not a promise of a frame. The platform enforces
+        moderation, online version and listing independently and may still refuse.
+      properties:
+        playable:
+          type: boolean
+        reason:
+          type: string
+          enum: [FREE, UNLOCKED, VIP, NEED_UNLOCK, NEED_VIP, UNAVAILABLE]
+          description: |
+            `UNAVAILABLE` is not a commercial state and must not be offered an unlock: buying it
+            would buy nothing.
+        unlockedBy:
+          type: [string, 'null']
+          enum: [COIN, VIP, AD, GRANT, null]
+          description: Non-null only when `reason` is `UNLOCKED`.
+
+    EpisodeItem:
+      type: object
+      required:
+        [
+          id,
+          dramaId,
+          seasonId,
+          seasonNumber,
+          episodeNumber,
+          globalEpisodeNumber,
+          title,
+          durationSec,
+          unlockPolicy,
+          priceCoins,
+          viewerAccess,
+        ]
+      description: |
+        A catalogue listing. It deliberately carries no `vid`, no asset key and no URL: playback
+        identifiers are issued only by `POST /v1/playback/sessions`, which re-checks entitlement.
+      properties:
+        id:
+          type: string
+        dramaId:
+          type: string
+        seasonId:
+          type: string
+        seasonNumber:
+          type: integer
+          minimum: 1
+        episodeNumber:
+          type: integer
+          minimum: 1
+          description: Position within its season. Unique per season, not per drama.
+        globalEpisodeNumber:
+          type: integer
+          minimum: 1
+          description: |
+            Position within the drama, across seasons. This is the number the client displays, the
+            number deep links carry, and the number the free window is measured in.
+        title:
+          type: [string, 'null']
+        durationSec:
+          type: integer
+          minimum: 0
+        unlockPolicy:
+          $ref: '#/components/schemas/UnlockPolicy'
+        priceCoins:
+          type: [integer, 'null']
+          description: '`null` when the effective policy cannot be satisfied with coins.'
+        viewerAccess:
+          $ref: '#/components/schemas/ViewerAccess'
+
+    DramaPage:
+      type: object
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DramaSummary'
+        pageInfo:
+          $ref: '#/components/schemas/PageInfo'
+
+    EpisodePage:
+      type: object
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EpisodeItem'
+        pageInfo:
+          $ref: '#/components/schemas/PageInfo'
+
+    FeedCard:
+      type: object
+      required: [cardType, drama, continueEpisode, recReason, trackingId]
+      properties:
+        cardType:
+          type: string
+          enum: [CONTINUE_WATCHING, DRAMA]
+        drama:
+          $ref: '#/components/schemas/DramaSummary'
+        continueEpisode:
+          type: [object, 'null']
+          description: Present only on a `CONTINUE_WATCHING` card.
+          properties:
+            episodeId:
+              type: string
+            globalEpisodeNumber:
+              type: integer
+              minimum: 1
+            positionSec:
+              type: integer
+              minimum: 0
+        recReason:
+          type: [string, 'null']
+          description: |
+            Display copy. Server-side localisation does not exist yet, so it is English; conflict C9
+            (`docs/handoff/w1-p3.md` §3) requires it to follow `Accept-Language`.
+        trackingId:
+          type: string
+          description: |
+            Minted per card per response. It joins an impression to the click it produced, so it is
+            never reused — two responses for the same drama carry different ones.
+
+    FeedPage:
+      type: object
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedCard'
+        pageInfo:
+          $ref: '#/components/schemas/PageInfo'
 
     CreatePlaybackSessionRequest:
       type: object
@@ -1067,6 +1534,14 @@ components:
         is not a JWT and carries no claims: the mapping from token to user is the server's, so a
         token cannot be constructed. Declared on the endpoints that are per-viewer; endpoints without
         it either serve everyone the same answer or enforce their own rule.
+
+  parameters:
+    DramaId:
+      name: dramaId
+      in: path
+      required: true
+      schema:
+        type: string
 
   responses:
     Error:

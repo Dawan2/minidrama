@@ -3,6 +3,7 @@ import type { FastifyError, FastifyInstance } from 'fastify';
 
 import { catalogRoutes } from './modules/catalog/routes.js';
 import { createAnonymousViewerResolver } from './modules/catalog/viewer.js';
+import { createEmptyContinueWatchingSource } from './modules/discovery/feed.js';
 import { createInMemoryCatalogStore } from './modules/catalog/store.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
@@ -18,6 +19,7 @@ import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-po
 import { createUnavailableWatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { createCorsPolicy } from './core/origin-policy.js';
+import { discoveryRoutes } from './modules/discovery/routes.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
@@ -33,9 +35,9 @@ import { watchHistoryRoutes } from './modules/progress/history-routes.js';
 import type { CatalogStore } from './modules/catalog/store.js';
 // Aliased because the entitlement module publishes an interface of the same name that answers a
 // different question: it maps an `Authorization` header to a viewer id, where this one maps a
-// request to the viewer's unlocks and VIP state. Reconciling the two is an integration decision,
-// not this slot's (`docs/handoff/w4-work-s.md` §5).
+// request to the viewer's unlocks and VIP state. Both are wired below, one per lineage.
 import type { ViewerResolver as CatalogViewerResolver } from './modules/catalog/viewer.js';
+import type { ContinueWatchingSource } from './modules/discovery/feed.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
@@ -83,6 +85,12 @@ export interface AppDependencies {
    */
   readonly catalogStore?: CatalogStore;
   readonly catalogViewerResolver?: CatalogViewerResolver;
+  /**
+   * The rows the recommendation feed's "continue watching" rail is built from. Empty by default:
+   * the feed is assembled from the catalogue, and a rail invented for a viewer nobody resolved is
+   * worse than an absent one.
+   */
+  readonly continueWatching?: ContinueWatchingSource;
   /**
    * Entitlement reads content and viewer state. The facts port defaults to refusing until the data
    * layer exists, so a deployment cannot serve invented entitlements by omission. The viewer
@@ -203,9 +211,23 @@ export async function buildApp(
 
   await app.register(healthRoutes);
 
+  // One catalogue store and one catalogue viewer resolver for the storefront and the feed. The feed
+  // is assembled from the same records the drama pages serve, so a second store would let the two
+  // disagree about what is published — and a second resolver would let the feed offer an episode
+  // the drama page then refuses to play.
+  const catalogStore = dependencies.catalogStore ?? createInMemoryCatalogStore();
+  const catalogViewerResolver =
+    dependencies.catalogViewerResolver ?? createAnonymousViewerResolver();
+
   await app.register(catalogRoutes, {
-    store: dependencies.catalogStore ?? createInMemoryCatalogStore(),
-    viewerResolver: dependencies.catalogViewerResolver ?? createAnonymousViewerResolver(),
+    store: catalogStore,
+    viewerResolver: catalogViewerResolver,
+  });
+
+  await app.register(discoveryRoutes, {
+    store: catalogStore,
+    viewerResolver: catalogViewerResolver,
+    continueWatching: dependencies.continueWatching ?? createEmptyContinueWatchingSource(),
   });
 
   await app.register(playbackRoutes, {

@@ -2,7 +2,7 @@ import { bridgeError, err, ok } from '@minidrama/shared';
 import type { BridgeError, PlaybackDescriptor, Result } from '@minidrama/shared';
 
 import type { PlatformBridge } from '../platform/types';
-import type { VePlayerEventName, VePlayerInstance } from './veplayer-types';
+import type { VePlayerEventName, VePlayerInstance, VePlayerPlaylistItem } from './veplayer-types';
 
 /**
  * The player facade.
@@ -12,25 +12,59 @@ import type { VePlayerEventName, VePlayerInstance } from './veplayer-types';
  * React state mirrors the player's internal state — the player is the source of truth for
  * playback and we subscribe to it.
  *
- * The two invariants this module exists to hold:
+ * The three invariants this module exists to hold:
  *   1. exactly one live instance per surface, and `destroy()` always runs;
- *   2. a failure to obtain the player degrades to a typed error, never an exception. A user who
+ *   2. an episode switch happens *on* that instance through `playNext()`, never by building a
+ *      second one — a new player per episode throws away the preloaded next episode and pays the
+ *      cold first-frame cost the preload module exists to avoid (§5.3, `docs/architecture/
+ *      system-overview.md`);
+ *   3. a failure to obtain the player degrades to a typed error, never an exception. A user who
  *      never opens the player must not be blocked by a player failure (§3.1).
  */
 
 export interface PlayerFacadeOptions {
   readonly container: HTMLElement;
+  /** The episode the instance is built on. */
   readonly descriptor: PlaybackDescriptor;
+  /**
+   * The rest of the album in viewing order, which is what makes `playNext()` mean something: the
+   * player is told the playlist through `setPreloadList` (§5.3) and we keep the same order so the
+   * facade can say which episode is on screen without asking the player.
+   *
+   * Omitted means "this episode and nothing after it" — `playNext()` then has nowhere to go and
+   * says so, rather than asking the player for an episode nobody holds a session for.
+   */
+  readonly upNext?: readonly PlaybackDescriptor[];
   readonly lang?: string;
   readonly autoplay?: boolean;
   readonly onEvent?: (event: VePlayerEventName, payload?: unknown) => void;
 }
 
+/**
+ * What happened when a caller asked for an episode, which the caller has to know because one of
+ * the three answers is "this one is not reachable, rebuild me".
+ */
+export type EpisodeSwitch =
+  | 'UNCHANGED'
+  | 'ADVANCED'
+  /**
+   * `playNext()` is the only switch verb the player gives us, so the only episode reachable from
+   * here is the following one. A jump — backwards, across albums, or five episodes ahead — is a
+   * new instance, because the alternative is calling `playNext()` in a loop and playing every
+   * episode in between, with the events and the analytics that implies.
+   */
+  | 'OUT_OF_REACH';
+
 export interface PlayerFacade {
   readonly instance: VePlayerInstance;
+  /** The episode the retained instance is playing right now. Moves with `playNext()`. */
+  currentEpisode(): PlaybackDescriptor;
   play(): void;
   pause(): void;
-  playNext(): void;
+  /** Advances one episode. `false` — and nothing called on the player — at the end of the queue. */
+  playNext(): boolean;
+  /** Moves the retained instance to `episodeId` when it can get there without being rebuilt. */
+  switchToEpisode(episodeId: string): EpisodeSwitch;
   /** Idempotent. Safe to call from a React cleanup that may run twice under StrictMode. */
   destroy(): void;
 }
@@ -55,7 +89,8 @@ export async function createPlayerFacade(
   }
 
   const { descriptor } = options;
-  let instance: VePlayerInstance;
+  const queue: readonly PlaybackDescriptor[] = [descriptor, ...(options.upNext ?? [])];
+  let instance: VePlayerInstance | undefined;
   try {
     instance = new ctorResult.value({
       el: options.container,
@@ -75,10 +110,23 @@ export async function createPlayerFacade(
       lang: options.lang ?? 'en',
       autoSubtitle: true,
     });
+    // The player's own copy of the order. Without it `playNext()` is a request to advance through
+    // a playlist the player was never given.
+    instance.setPreloadList?.(queue.map(toPlaylistItem));
   } catch (cause) {
-    return err(bridgeError('BRIDGE_UNKNOWN', 'VePlayer construction threw', cause));
+    // An instance that was built and then failed to configure is still a live instance. Dropping
+    // the reference here would leak it with nothing left able to destroy it.
+    try {
+      instance?.destroy();
+    } catch {
+      // The player is already failing; a teardown that also throws adds nothing to the report.
+    }
+    return err(
+      bridgeError('BRIDGE_UNKNOWN', 'VePlayer construction or configuration threw', cause),
+    );
   }
 
+  const player = instance;
   const { onEvent } = options;
   const subscriptions: [VePlayerEventName, (payload?: unknown) => void][] = [];
   if (onEvent) {
@@ -86,22 +134,53 @@ export async function createPlayerFacade(
       const handler = (payload?: unknown): void => {
         onEvent(event, payload);
       };
-      instance.on(event, handler);
+      player.on(event, handler);
       subscriptions.push([event, handler]);
     }
   }
 
+  let cursor = 0;
   let destroyed = false;
+
+  /**
+   * Every method is inert after teardown rather than throwing. The calls that arrive late are the
+   * ones from a `then` that resolved after the surface unmounted, and a destroyed player is the
+   * correct answer to them — not a crash on a screen the user has already left.
+   */
   const facade: PlayerFacade = {
-    instance,
+    instance: player,
+    currentEpisode: () => queue[cursor] ?? descriptor,
     play: () => {
-      instance.play();
+      if (!destroyed) {
+        player.play();
+      }
     },
     pause: () => {
-      instance.pause();
+      if (!destroyed) {
+        player.pause();
+      }
     },
     playNext: () => {
-      instance.playNext();
+      if (destroyed || cursor + 1 >= queue.length) {
+        return false;
+      }
+      cursor += 1;
+      player.playNext();
+      return true;
+    },
+    switchToEpisode: (episodeId) => {
+      if (destroyed) {
+        return 'OUT_OF_REACH';
+      }
+      if (queue[cursor]?.episodeId === episodeId) {
+        return 'UNCHANGED';
+      }
+      if (queue[cursor + 1]?.episodeId !== episodeId) {
+        return 'OUT_OF_REACH';
+      }
+      cursor += 1;
+      player.playNext();
+      return 'ADVANCED';
     },
     destroy: () => {
       if (destroyed) {
@@ -109,12 +188,21 @@ export async function createPlayerFacade(
       }
       destroyed = true;
       for (const [event, handler] of subscriptions) {
-        instance.off(event, handler);
+        player.off(event, handler);
       }
       subscriptions.length = 0;
-      instance.destroy();
+      player.destroy();
     },
   };
 
   return ok(facade);
+}
+
+function toPlaylistItem(descriptor: PlaybackDescriptor): VePlayerPlaylistItem {
+  return {
+    albumId: descriptor.albumId,
+    episodeId: descriptor.episodeId,
+    vid: descriptor.vid,
+    ...(descriptor.playAuthToken === undefined ? {} : { playAuthToken: descriptor.playAuthToken }),
+  };
 }
