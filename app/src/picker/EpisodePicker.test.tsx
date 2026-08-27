@@ -76,7 +76,11 @@ function renderPicker(
         }
       />
     </Routes>,
-    { api, path: `/play/${episodeId}`, progressApi: options.progressApi },
+    {
+      api,
+      path: `/play/${episodeId}`,
+      ...(options.progressApi === undefined ? {} : { progressApi: options.progressApi }),
+    },
   );
 
   return { onClose };
