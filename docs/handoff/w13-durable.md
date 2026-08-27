@@ -112,12 +112,20 @@ is not enough.
 
 ## 6. Verification
 
-Server tests at this slice: `src/db/migrate.test.ts` (7), `database-url.test.ts` (6),
-`unlock-store.test.ts` (18 — 8 contract cases × 2 backends + 2 constructors),
-`sqlite-unlock-store.test.ts` (2), `durable-unlock.test.ts` (2). `pnpm --filter @minidrama/server
-test` green, 1,357 tests.
+`pnpm verify` green on this branch (first try, exit 0) before taking `origin/main`. After merging
+the seed-floor commit (`828dfab`, catalog fixtures only, no overlap) the same command is re-run
+before this lands on `main`.
 
-`pnpm verify` is the gate; numbers after it lands go here.
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 51 |
+| `packages/config` | 45 |
+| `server` | 1,357 |
+| `app` | 805 |
+| **Total** | **2,258** |
+
+Guardrails passed against `app/dist`. Bundle `index-BfoN7A5C.js` 308.47 kB (gzip 96.08 kB).
+`node:sqlite` is experimental on Node 22 and prints a warning; it is not a failure.
 
 ---
 
@@ -125,8 +133,10 @@ test` green, 1,357 tests.
 
 - **The other seven stores.** Sessions, orders, webhook events, favourites, progress, catalogue,
   search directory. Orders and webhook events are the other two C3-06 named as severe.
-- **Seed scale.** ≥80 episodes. Sibling slot. This branch does not touch `fixtures.ts`.
 - **PostgreSQL / Drizzle (T14 / T16).** The interfaces are async so the swap does not touch
   callers. Do not rewrite `DATABASE_URL` to a file to make the swap look done.
 - **Redis (T15).** Not read. Do not add it as a no-op client.
 - **C3-05 D9.** Still the cheapest unblocked client item. Different files.
+
+Seed scale (≥80 episodes) landed on `main` as `828dfab` while this slot ran (`w13-work-seed-floor-e1f8`).
+This branch has taken it; the files do not overlap.
