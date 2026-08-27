@@ -101,6 +101,19 @@ describe('App routing', () => {
 
   // The same rule as the history screen: there is no login screen to leave to, so a 401 is resolved
   // where the viewer already is.
+  it('keeps an unauthorised favourites read on its own screen', async () => {
+    const favoritesApi = stubFavoritesApi({ list: () => err(favoritesHttpFailure(401)) });
+    const bridge = new MockBridge();
+    renderSurface(<App bridge={bridge} />, {
+      api: stubCatalogApi({ feed: () => ok(page([feedCard()])) }),
+      favoritesApi,
+      path: '/favorites',
+    });
+
+    expect(await screen.findByTestId('favorites-sign-in')).toBeDefined();
+    expect(screen.queryByTestId('fallback-page')).toBeNull();
+  });
+
   it('renders the wallet route', async () => {
     renderAt('/wallet');
     expect(await screen.findByTestId('wallet-page')).toBeDefined();
