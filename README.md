@@ -72,13 +72,14 @@ pnpm check:artifact      # G2.6 client ZIP / first-screen JS; empty files, maps,
 pnpm check:sast          # G2.4 Semgrep 14-security §2.1 rules; a missing binary fails
 pnpm check:codeql        # G2.4 CodeQL security-extended; a missing binary or high finding fails
 pnpm check:sca           # G2.5 Trivy lockfile SCA; a missing binary or CRITICAL finding fails
+pnpm check:secrets       # G1.8 Gitleaks; a missing binary or a finding fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
-L1 CI (`.github/workflows/ci.yml`) runs the verify sequence on every pull request, every push to
-`main` or a `cursor/**` branch, and on `workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`)
-runs the G2.8 license whitelist, the G2.7 migrate check, the G2.2 sqlite integration check,
-the G2.6 artifact budget, the G2.4 Semgrep + CodeQL SAST checks, and the G2.5 Trivy SCA check
-on the same events; it does not skip, filter, or `continue-on-error` the L1 suite.
-`check:migrate`, `check:integration`, `check:artifact`, `check:sast`, `check:codeql`, and
-`check:sca` are not folded into `verify`.
+L1 CI (`.github/workflows/ci.yml`) runs G1.8 Gitleaks, then the verify sequence, on every pull
+request, every push to `main` or a `cursor/**` branch, and on `workflow_dispatch`. L2 CI
+(`.github/workflows/l2.yml`) runs the G2.8 license whitelist, the G2.7 migrate check, the G2.2
+sqlite integration check, the G2.6 artifact budget, the G2.4 Semgrep + CodeQL SAST checks, and
+the G2.5 Trivy SCA check on the same events; it does not skip, filter, or `continue-on-error`
+the L1 suite. `check:migrate`, `check:integration`, `check:artifact`, `check:sast`,
+`check:codeql`, `check:sca`, and `check:secrets` are not folded into `verify`.

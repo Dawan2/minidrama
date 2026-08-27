@@ -4,7 +4,7 @@ import { createSessionStore, DEFAULT_EXPIRY_GUARD_MS } from './session-store';
 import type { SessionGrant } from './session-store';
 
 const GRANT: SessionGrant = {
-  accessToken: 'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo',
+  accessToken: 'tok_fixture',
   expiresInSec: 3_600,
   openId: 'open_abc',
 };
