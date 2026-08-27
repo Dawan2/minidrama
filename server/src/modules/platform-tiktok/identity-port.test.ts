@@ -307,7 +307,9 @@ describe('createTiktokIdentityPort — fail-closed across codes', () => {
     for (const code of ['', AUTH_CODE, 'x'.repeat(500)]) {
       const result = await port.exchangeAuthCode(code);
       expect(result.ok).toBe(false);
-      expect(JSON.stringify(result)).not.toContain(code);
+      if (code.length > 0) {
+        expect(JSON.stringify(result)).not.toContain(code);
+      }
     }
   });
 });
