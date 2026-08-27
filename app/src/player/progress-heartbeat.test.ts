@@ -3,7 +3,11 @@ import { ok } from '@minidrama/shared';
 import type { WatchProgressReport } from '@minidrama/shared';
 
 import { apiFailure } from '../data/failure';
-import { createProgressHeartbeat, observationFromPayload } from './progress-heartbeat';
+import {
+  createProgressHeartbeat,
+  isPreResumeObservation,
+  observationFromPayload,
+} from './progress-heartbeat';
 
 function payload(position: number, duration: number): { currentTime: number; duration: number } {
   return { currentTime: position, duration };
@@ -215,5 +219,88 @@ describe('createProgressHeartbeat', () => {
 
     heartbeat.dispose();
     expect(hidden).toBeUndefined();
+  });
+
+  it('does not report a pre-seek tick behind session resume', async () => {
+    const report = vi.fn(async () => ok(undefined));
+    const heartbeat = createProgressHeartbeat({
+      episodeId: 'ep_1',
+      intervalSec: 10,
+      resumePositionSec: 45,
+      now: () => 6_000,
+      report,
+    });
+
+    heartbeat.observe('play');
+    heartbeat.observe('timeupdate', payload(0, 90));
+    heartbeat.observe('pause');
+    await Promise.resolve();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it('reports once the player has landed at session resume, and honours a later rewind', async () => {
+    const reports: number[] = [];
+    const heartbeat = createProgressHeartbeat({
+      episodeId: 'ep_1',
+      intervalSec: 10,
+      resumePositionSec: 45,
+      now: () => 7_000,
+      report: async (_id, body) => {
+        reports.push(body.positionSec);
+        return ok(undefined);
+      },
+    });
+
+    heartbeat.observe('play');
+    heartbeat.observe('timeupdate', payload(0, 90));
+    heartbeat.observe('timeupdate', payload(45, 90));
+    heartbeat.observe('pause');
+    await vi.waitFor(() => {
+      expect(reports).toEqual([45]);
+    });
+
+    heartbeat.observe('play');
+    heartbeat.observe('timeupdate', payload(0, 90));
+    heartbeat.observe('pause');
+    await vi.waitFor(() => {
+      expect(reports).toEqual([45, 0]);
+    });
+  });
+
+  it('does not hold back a new episode that resumes at 0 after a non-zero one', async () => {
+    const reports: Array<{ episodeId: string; positionSec: number }> = [];
+    const heartbeat = createProgressHeartbeat({
+      episodeId: 'ep_1',
+      intervalSec: 10,
+      resumePositionSec: 45,
+      now: () => 8_000,
+      report: async (episodeId, body) => {
+        reports.push({ episodeId, positionSec: body.positionSec });
+        return ok(undefined);
+      },
+    });
+
+    heartbeat.observe('play');
+    heartbeat.observe('timeupdate', payload(45, 90));
+    heartbeat.setEpisode('ep_2', 0);
+    heartbeat.observe('timeupdate', payload(1, 80));
+    heartbeat.observe('pause');
+    await vi.waitFor(() => {
+      expect(reports).toEqual([
+        { episodeId: 'ep_1', positionSec: 45 },
+        { episodeId: 'ep_2', positionSec: 1 },
+      ]);
+    });
+  });
+});
+
+describe('isPreResumeObservation', () => {
+  it('treats a tick more than two seconds behind resume as not yet landed', () => {
+    expect(isPreResumeObservation(0, 45)).toBe(true);
+    expect(isPreResumeObservation(42, 45)).toBe(true);
+    expect(isPreResumeObservation(43, 45)).toBe(false);
+    expect(isPreResumeObservation(45, 45)).toBe(false);
+    expect(isPreResumeObservation(46, 45)).toBe(false);
+    expect(isPreResumeObservation(0, 0)).toBe(false);
   });
 });

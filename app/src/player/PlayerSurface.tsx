@@ -120,6 +120,9 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
           : createProgressHeartbeat({
               episodeId: wantedEpisodeRef.current,
               intervalSec: progressOptions.intervalSec,
+              // Session resume, not catalog duration. A pre-seek tick at 0 must not LWW-wipe
+              // another device's position (`PRG-001`).
+              resumePositionSec: descriptor.resumePositionSec,
               report: (id, report) => {
                 const current = progressRef.current;
                 // The surface unmounted or a test dropped the reporter. Not a guessed 0 position.
@@ -199,7 +202,9 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
 
     useEffect(() => {
       wantedEpisodeRef.current = episodeId;
-      heartbeatRef.current?.setEpisode(episodeId);
+      const resume =
+        playlistRef.current.find((entry) => entry.episodeId === episodeId)?.resumePositionSec ?? 0;
+      heartbeatRef.current?.setEpisode(episodeId, resume);
       const facade = facadeRef.current;
       if (facade === null) {
         return;

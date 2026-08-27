@@ -656,4 +656,25 @@ describe('watch progress heartbeats', () => {
       /completed|ep_demo_|vid_demo_|beans/i,
     );
   });
+
+  it('does not report a pre-seek 0 after a session resume, which would LWW-wipe the other device', async () => {
+    const progressApi = stubProgressApi();
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) => ok(playbackDescriptor({ episodeId, resumePositionSec: 45 })),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      api: playCatalog([episodeItem({ durationSec: 90 })]),
+      playbackApi,
+      progressApi,
+    });
+    const instance = await player();
+    expect(instance.config.startTime).toBe(45);
+    instance.tick(0, 90);
+    instance.pause();
+    await waitFor(() => {
+      expect(instance.playing).toBe(false);
+    });
+    expect(progressApi.progressReports).toEqual([]);
+  });
 });
