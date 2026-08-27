@@ -352,3 +352,30 @@ describe('native video does not appear in app source', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * The coin→Beans rate does not exist, and inventing one is a commercial decision this client is
+ * not allowed to make (`docs/plan/cycle-3-backlog.md` C3-09). A constant here would be believed.
+ */
+describe('no coin-to-Beans rate is invented on the client', () => {
+  it('names no beansPerCoin, coinToBeans or BEANS_RATE outside comments', () => {
+    const offenders: string[] = [];
+    const rate = /\b(beansPerCoin|coinToBeans|BEANS_RATE|beansRate)\b/;
+
+    for (const file of sourceFiles()) {
+      const path = relativeToApp(file);
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, index) => {
+          if (isCommentLine(line) || isTestFile(path)) {
+            return;
+          }
+          if (rate.test(line)) {
+            offenders.push(`${path}:${String(index + 1)} ${line.trim()}`);
+          }
+        });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});

@@ -2,23 +2,31 @@ import { Link } from 'react-router';
 
 import { ROUTES } from './routes';
 import { SignInPrompt } from '../auth/SignInPrompt';
+import { WalletBalance } from '../wallet/WalletBalance';
 import { isSignedIn } from '../auth/session';
+import { presentSessionReadFailure } from '../data/session-read';
+import { RetryableError, Skeleton, TerminalError } from '../components/states';
 import { translate } from '../core/i18n';
+import { useResource } from '../data/use-resource';
 import { useSession } from '../auth/session-context';
+import { useWalletApi } from '../data/wallet-api-context';
 
 /**
- * SCR-06, "me" — the shell, not the screen.
+ * SCR-06, "me" — the shell, plus the one assets card that can be built honestly today.
  *
- * What is here is the part that can be built honestly today: who the app thinks the viewer is, and
- * the entries that lead to the personal screens. What is deliberately *not* here is the assets area
- * — the balance card, the VIP card, the transaction list. `GET /users/me` and `GET /wallet` do not
- * exist on the server, so every one of those cards would be a number invented on the client, and
- * the IA is explicit that the anonymous assets area shows a login card and **not fake data**
- * (`docs/02-user-journeys.md` J10-B). A "0 coins" placeholder is not a placeholder; it is a wrong
- * balance, and a viewer who has recharged and sees it will not believe the next number either.
+ * Who the app thinks the viewer is, the entries that lead to the personal screens, and a wallet
+ * card that quotes a coin balance only when the server sent one. What is still not here is a VIP
+ * card, a real nickname, or a recharge sheet: `GET /users/me` does not exist, SCR-11 has no
+ * contract, and the Beans rate is `C3-09`.
  *
- * The sections load independently by construction: nothing here shares a request, so a failure in
- * one entry cannot blank the others (`docs/02-screen-inventory.md` SCR-06, sectioned loading).
+ * The wallet card is fail-closed. `GET /v1/wallet` is not served today, and a missing figure is a
+ * statement rather than `0 coins`. A viewer who has recharged and sees an invented zero will not
+ * believe the next number either (`docs/02-user-journeys.md` J10-B,
+ * `docs/plan/cycle-3-backlog.md` C3-04).
+ *
+ * The sections load independently by construction: the identity block, the wallet card and the
+ * entries share no request, so a failure in one cannot blank the others
+ * (`docs/02-screen-inventory.md` SCR-06, sectioned loading).
  */
 export function ProfilePage(): React.JSX.Element {
   const session = useSession();
@@ -52,12 +60,14 @@ export function ProfilePage(): React.JSX.Element {
       </section>
 
       {/*
-        The assets area, in the only form it can honestly take. When there is no session this is the
-        login guidance card, whose tap is a silent-login retry rather than a navigation — there is no
-        login screen in this product (IA §9). When there is one, it is empty rather than fabricated:
-        the wallet endpoints are the entitlement slot's.
+        The assets area. When there is no session this is the login guidance card, whose tap is a
+        silent-login retry rather than a navigation — there is no login screen in this product
+        (IA §9). When there is one, the wallet card asks the server and quotes nothing it cannot
+        read: a missing endpoint is not a zero balance.
       */}
-      {signedIn ? null : (
+      {signedIn ? (
+        <ProfileWalletCard />
+      ) : (
         <SignInPrompt messageKey="profile.signInPrompt" testId="profile-sign-in" />
       )}
 
@@ -65,18 +75,59 @@ export function ProfilePage(): React.JSX.Element {
         <Link className="profile-entry" data-testid="history-entry" to={ROUTES.history}>
           {translate('profile.history')}
         </Link>
-
-        {/*
-          Favourites (SCR-08) is a screen now, so the entry is a link. It was a disabled button for
-          as long as there was nowhere to go: `GET /users/me/favorites` still does not exist, but the
-          screen is built on the per-drama favourite reads instead (`routes/FavoritesPage.tsx`), and
-          an entry that leads to a screen which explains its own limits is a better answer than one
-          that leads nowhere.
-        */}
         <Link className="profile-entry" data-testid="favorites-entry" to={ROUTES.favorites}>
           {translate('profile.favorites')}
         </Link>
+        <Link className="profile-entry" data-testid="wallet-entry" to={ROUTES.wallet}>
+          {translate('profile.wallet')}
+        </Link>
       </nav>
     </main>
+  );
+}
+
+/**
+ * Independent of the identity block and of the entries. A failed wallet read leaves the rest of
+ * the profile exactly where it is; a missing figure is the unavailable card, not a retry that
+ * cannot produce a number the server does not have.
+ */
+function ProfileWalletCard(): React.JSX.Element {
+  const api = useWalletApi();
+  const wallet = useResource(() => api.fetchWallet(), 'profile-wallet');
+
+  if (wallet.resource.status === 'loading') {
+    return <Skeleton rows={1} />;
+  }
+
+  if (wallet.resource.status === 'failed') {
+    const presented = presentSessionReadFailure(wallet.resource.error.failure);
+    if (presented.kind === 'AUTH_REQUIRED') {
+      return (
+        <SignInPrompt
+          messageKey="wallet.signInRequired"
+          onSignedIn={wallet.reload}
+          testId="profile-wallet-sign-in"
+        />
+      );
+    }
+    if (presented.kind === 'UNAVAILABLE') {
+      return <WalletBalance balance={{ kind: 'UNAVAILABLE' }} />;
+    }
+    return presented.error.kind === 'RETRYABLE' ? (
+      <RetryableError error={presented.error} onRetry={wallet.reload} />
+    ) : (
+      <TerminalError
+        reason={presented.error.reason}
+        messageKey="wallet.unavailable"
+        traceId={presented.error.failure.traceId}
+      />
+    );
+  }
+
+  return (
+    <WalletBalance
+      balance={wallet.resource.data}
+      pendingCredit={wallet.resource.data.kind === 'KNOWN' && wallet.resource.data.pendingCredit}
+    />
   );
 }

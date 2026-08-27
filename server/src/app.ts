@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
@@ -11,7 +13,10 @@ import { createInMemoryFavoritesStore } from './modules/search/favorites.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
 import { createInMemoryUnlockStore } from './modules/unlock/unlock-store.js';
+import { createSqliteUnlockStore } from './modules/unlock/sqlite-unlock-store.js';
 import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
+import { databaseNotWiredMessage } from './db/database-url.js';
+import { openMigratedSqlite } from './db/migrate.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createMockIdentityPort } from './modules/identity/test-login.js';
 import { createSeedDramaDirectory } from './modules/search/dramas.js';
@@ -120,7 +125,8 @@ export interface AppDependencies {
   readonly unlockOrderStore?: UnlockOrderStore;
   /**
    * The unlock records a verified payment writes — what a viewer owns. Injected by tests that need
-   * to read the receipts back; it defaults to the in-memory skeleton like the order store.
+   * to read the receipts back. The default is SQLite when `DATABASE_URL=sqlite:<path>`, and the
+   * in-memory skeleton otherwise; a postgres URL is refused rather than rewritten to a file.
    */
   readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
@@ -147,6 +153,10 @@ export async function buildApp(
   config: ServerConfig = loadConfig(),
   dependencies: AppDependencies = {},
 ): Promise<FastifyInstance> {
+  if (config.database.kind === 'unwired') {
+    throw new Error(databaseNotWiredMessage(config.database.scheme));
+  }
+
   const app = Fastify({
     logger: { level: config.logLevel },
     // Fastify's request id is the trace id we echo to clients until OpenTelemetry lands in W2.
@@ -217,7 +227,7 @@ export async function buildApp(
   // wrote a receipt no decision could see would be a purchase that changed nothing — so the join is
   // made here, once, for every module that asks what a viewer owns. It adds facts and decides
   // nothing: a facts port that refuses still refuses, which is what the default deployment does.
-  const unlockStore = dependencies.unlockStore ?? createInMemoryUnlockStore();
+  const unlockStore = dependencies.unlockStore ?? openUnlockStore(app, config);
   const entitlementFactsPort = createGrantedUnlockFactsPort(
     dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort(),
     unlockStore,
@@ -343,4 +353,18 @@ export async function buildApp(
   });
 
   return app;
+}
+
+function openUnlockStore(app: FastifyInstance, config: ServerConfig) {
+  if (config.database.kind !== 'sqlite') {
+    return createInMemoryUnlockStore();
+  }
+
+  const path = config.database.path === ':memory:' ? ':memory:' : resolve(config.database.path);
+  const db = openMigratedSqlite(path);
+  app.addHook('onClose', async () => {
+    db.close();
+  });
+  app.log.info({ path }, 'unlock receipts persist in sqlite');
+  return createSqliteUnlockStore(db);
 }

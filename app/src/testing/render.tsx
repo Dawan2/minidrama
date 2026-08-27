@@ -8,17 +8,20 @@ import { HistoryApiProvider } from '../data/history-api-context';
 import { SearchApiProvider } from '../data/search-api-context';
 import { SessionProvider } from '../auth/session-context';
 import { UnlockApiProvider } from '../data/unlock-api-context';
+import { WalletApiProvider } from '../data/wallet-api-context';
 import { stubCatalogApi } from './catalog-fixtures';
 import { stubFavoritesApi } from './favorites-fixtures';
 import { stubHistoryApi, stubSession } from './history-fixtures';
 import { stubSearchApi } from './search-fixtures';
 import { stubUnlockApi } from './unlock-fixtures';
+import { stubWalletApi } from './wallet-fixtures';
 import type { CatalogApi } from '../data/catalog-api';
 import type { FavoritesApi } from '../data/favorites-api';
 import type { HistoryApi } from '../data/history-api';
 import type { SearchApi } from '../data/search-api';
 import type { Session } from '../auth/session';
 import type { UnlockApi } from '../data/unlock-api';
+import type { WalletApi } from '../data/wallet-api';
 
 /**
  * Renders a surface with the things every surface needs: a router, because every state offers a way
@@ -49,6 +52,7 @@ export interface RenderSurfaceOptions {
   readonly historyApi?: HistoryApi;
   readonly favoritesApi?: FavoritesApi;
   readonly unlockApi?: UnlockApi;
+  readonly walletApi?: WalletApi;
   readonly session?: Session;
   readonly path?: string;
 }
@@ -64,7 +68,9 @@ export function renderSurface(
           <HistoryApiProvider api={options.historyApi ?? stubHistoryApi()}>
             <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
               <UnlockApiProvider api={options.unlockApi ?? stubUnlockApi()}>
-                <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+                <WalletApiProvider api={options.walletApi ?? stubWalletApi()}>
+                  <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+                </WalletApiProvider>
               </UnlockApiProvider>
             </FavoritesApiProvider>
           </HistoryApiProvider>

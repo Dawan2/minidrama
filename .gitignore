@@ -17,3 +17,10 @@ release/
 *.log
 .eslintcache
 .vite/
+
+# Local sqlite files from DATABASE_URL=sqlite:<path>
+data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

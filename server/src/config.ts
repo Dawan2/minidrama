@@ -1,5 +1,7 @@
 import { isTestLoginEnabled } from './modules/identity/test-login.js';
+import { parseDatabaseUrl } from './db/database-url.js';
 import { parseOriginAllowlist } from './core/origin-policy.js';
+import type { DatabaseConfig } from './db/database-url.js';
 import type { RejectedOrigin } from './core/origin-policy.js';
 
 /**
@@ -38,6 +40,11 @@ export interface ServerConfig {
    * what the environment can switch on is visible in one file.
    */
   readonly testLoginEnabled: boolean;
+  /**
+   * Where durable stores read and write. Unset is in-memory, `sqlite:<path>` is this slice, and
+   * any other scheme is `unwired` so a postgres URL cannot silently become a file.
+   */
+  readonly database: DatabaseConfig;
 }
 
 const DEFAULT_WEBHOOK_TOLERANCE_SEC = 300;
@@ -61,5 +68,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     hasPlatformCredentials: Boolean(env['TIKTOK_CLIENT_KEY'] && env['TIKTOK_CLIENT_SECRET']),
     webhookToleranceSec: parseToleranceSec(env['TIKTOK_WEBHOOK_TOLERANCE_SEC']),
     testLoginEnabled: isTestLoginEnabled(env),
+    database: parseDatabaseUrl(env['DATABASE_URL']),
   };
 }

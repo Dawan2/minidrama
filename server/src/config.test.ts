@@ -84,4 +84,22 @@ describe('loadConfig', () => {
       expect(loadConfig({ TIKTOK_WEBHOOK_TOLERANCE_SEC: raw }).webhookToleranceSec).toBe(300);
     },
   );
+
+  it('defaults durable stores to in-memory when DATABASE_URL is unset', () => {
+    expect(loadConfig({}).database).toEqual({ kind: 'memory' });
+  });
+
+  it('reads a sqlite DATABASE_URL', () => {
+    expect(loadConfig({ DATABASE_URL: 'sqlite:./data/minidrama.sqlite' }).database).toEqual({
+      kind: 'sqlite',
+      path: './data/minidrama.sqlite',
+    });
+  });
+
+  it('does not rewrite a postgres DATABASE_URL into a file', () => {
+    expect(loadConfig({ DATABASE_URL: 'postgres://localhost/minidrama' }).database).toEqual({
+      kind: 'unwired',
+      scheme: 'postgres',
+    });
+  });
 });
