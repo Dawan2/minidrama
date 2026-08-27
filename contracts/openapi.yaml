@@ -42,7 +42,24 @@ paths:
         This endpoint owns the commercial gate only. The platform independently enforces
         moderation state, online version, listing state and client authorization, and may refuse
         an episode this endpoint approved.
+
+        The entitlement verdict is the one produced by `POST /v1/entitlement/episode-access`, from
+        the same facts. The two endpoints differ in what they do with it, not in what it says:
+        that one reports state a client renders an unlock panel from, this one is an attempt and
+        refuses. A denial resolves no media identifier at all — the video id is not withheld from
+        the response, it is never looked up.
+
+        Authentication is optional only in the sense that a free episode plays without it. An
+        anonymous attempt on a paid episode is `401`, not `403`: signing in is the step that has
+        to happen first (`docs/12-api-contracts.md` §4.4).
       tags: [playback]
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            type: string
+          description: '`Bearer <accessToken>`. Omit only for a free episode.'
       requestBody:
         required: true
         content:
@@ -58,11 +75,47 @@ paths:
                 $ref: '#/components/schemas/PlaybackDescriptor'
         '400':
           $ref: '#/components/responses/Error'
+        '401':
+          description: |
+            `AUTH_REQUIRED`. The credential could not be read or resolved, or an anonymous viewer
+            attempted a paid episode. In the last case `details` still carries the unlock context,
+            so the client can offer sign-in and the unlock in one step.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: |
-            The viewer is not entitled. `details.unlockOptions` drives the unlock panel. This is a
-            commercial denial and must never be conflated with a platform block, which is an
-            incident rather than a conversion opportunity.
+            The viewer is not entitled. `EPISODE_LOCKED` when the episode can be bought,
+            `EPISODE_VIP_REQUIRED` when it cannot; `details` carries `unlockPolicy`,
+            `unlockOptions` and `priceCoins` and drives the unlock panel. This is a commercial
+            denial and must never be conflated with a platform block, which is an incident rather
+            than a conversion opportunity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            `CONTENT_NOT_FOUND`. The episode does not exist, or it — or its season or drama — is
+            not published. Draft content is reported as absent rather than as withdrawn.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: '`CONTENT_OFFLINE`. The episode, its season or its drama has been withdrawn.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            `COMMON_SERVICE_UNAVAILABLE` when entitlement state could not be established — no data
+            layer, an unresolvable session, or a paid episode whose price is unusable.
+            `EPISODE_ASSET_UNAVAILABLE` when the viewer is entitled and the media asset cannot be
+            named: transcoding, or a storage fault. The second is never reported as a lock, which
+            would invite an entitled viewer to pay again.
           content:
             application/json:
               schema:
