@@ -1,7 +1,4 @@
-import {
-  CONSERVATIVE_CLIENT_CONFIG,
-  type ConfigView,
-} from '@minidrama/shared';
+import { CONSERVATIVE_CLIENT_CONFIG, type ConfigView } from '@minidrama/shared';
 
 /**
  * The configuration `GET /v1/config` serves today.

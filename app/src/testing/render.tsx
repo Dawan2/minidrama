@@ -80,26 +80,26 @@ export function renderSurface(
     <SessionProvider session={options.session ?? stubSession()}>
       <ClientConfigProvider config={options.config ?? CONSERVATIVE_CLIENT_CONFIG}>
         <CatalogApiProvider api={options.api ?? stubCatalogApi()}>
-        <SearchApiProvider api={options.search ?? stubSearchApi()}>
-          <HistoryApiProvider api={options.historyApi ?? stubHistoryApi()}>
-            <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
-              <UnlockApiProvider api={options.unlockApi ?? stubUnlockApi()}>
-                <WalletApiProvider api={options.walletApi ?? stubWalletApi()}>
-                  <MeApiProvider api={options.meApi ?? stubMeApi()}>
-                    <ProgressApiProvider api={options.progressApi ?? stubProgressApi()}>
-                      <PlaybackApiProvider api={options.playbackApi ?? stubPlaybackApi()}>
-                        <MemoryRouter initialEntries={[options.path ?? '/']}>
-                          {element}
-                        </MemoryRouter>
-                      </PlaybackApiProvider>
-                    </ProgressApiProvider>
-                  </MeApiProvider>
-                </WalletApiProvider>
-              </UnlockApiProvider>
-            </FavoritesApiProvider>
-          </HistoryApiProvider>
-        </SearchApiProvider>
-      </CatalogApiProvider>
+          <SearchApiProvider api={options.search ?? stubSearchApi()}>
+            <HistoryApiProvider api={options.historyApi ?? stubHistoryApi()}>
+              <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
+                <UnlockApiProvider api={options.unlockApi ?? stubUnlockApi()}>
+                  <WalletApiProvider api={options.walletApi ?? stubWalletApi()}>
+                    <MeApiProvider api={options.meApi ?? stubMeApi()}>
+                      <ProgressApiProvider api={options.progressApi ?? stubProgressApi()}>
+                        <PlaybackApiProvider api={options.playbackApi ?? stubPlaybackApi()}>
+                          <MemoryRouter initialEntries={[options.path ?? '/']}>
+                            {element}
+                          </MemoryRouter>
+                        </PlaybackApiProvider>
+                      </ProgressApiProvider>
+                    </MeApiProvider>
+                  </WalletApiProvider>
+                </UnlockApiProvider>
+              </FavoritesApiProvider>
+            </HistoryApiProvider>
+          </SearchApiProvider>
+        </CatalogApiProvider>
       </ClientConfigProvider>
     </SessionProvider>,
   );

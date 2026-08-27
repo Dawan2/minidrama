@@ -57,9 +57,7 @@ type ForbiddenConfigKey =
   | 'coinName'
   | 'wallet';
 
-type CarriesNoInventedConfig<T> = Extract<keyof T, ForbiddenConfigKey> extends never
-  ? true
-  : false;
+type CarriesNoInventedConfig<T> = Extract<keyof T, ForbiddenConfigKey> extends never ? true : false;
 
 const _configViewCarriesNoInventedFields: CarriesNoInventedConfig<ConfigView> = true;
 

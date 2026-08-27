@@ -201,27 +201,27 @@ async function boot(): Promise<void> {
     <StrictMode>
       <ClientConfigProvider config={config}>
         <SessionProvider session={session}>
-        <CatalogApiProvider api={api}>
-          <SearchApiProvider api={search}>
-            <HistoryApiProvider api={historyApi}>
-              <FavoritesApiProvider api={favoritesApi}>
-                <UnlockApiProvider api={unlockApi}>
-                  <WalletApiProvider api={walletApi}>
-                    <MeApiProvider api={meApi}>
-                      <ProgressApiProvider api={progressApi}>
-                        <PlaybackApiProvider api={playbackApi}>
-                          <HashRouter>
-                            <App bridge={bridge} />
-                          </HashRouter>
-                        </PlaybackApiProvider>
-                      </ProgressApiProvider>
-                    </MeApiProvider>
-                  </WalletApiProvider>
-                </UnlockApiProvider>
-              </FavoritesApiProvider>
-            </HistoryApiProvider>
-          </SearchApiProvider>
-        </CatalogApiProvider>
+          <CatalogApiProvider api={api}>
+            <SearchApiProvider api={search}>
+              <HistoryApiProvider api={historyApi}>
+                <FavoritesApiProvider api={favoritesApi}>
+                  <UnlockApiProvider api={unlockApi}>
+                    <WalletApiProvider api={walletApi}>
+                      <MeApiProvider api={meApi}>
+                        <ProgressApiProvider api={progressApi}>
+                          <PlaybackApiProvider api={playbackApi}>
+                            <HashRouter>
+                              <App bridge={bridge} />
+                            </HashRouter>
+                          </PlaybackApiProvider>
+                        </ProgressApiProvider>
+                      </MeApiProvider>
+                    </WalletApiProvider>
+                  </UnlockApiProvider>
+                </FavoritesApiProvider>
+              </HistoryApiProvider>
+            </SearchApiProvider>
+          </CatalogApiProvider>
         </SessionProvider>
       </ClientConfigProvider>
     </StrictMode>,

@@ -52,8 +52,6 @@ describe('toConfigView', () => {
     };
     const view = toConfigView(stuffed);
     expect(view).toEqual(CONSERVATIVE_CLIENT_CONFIG);
-    expect(JSON.stringify(view)).not.toMatch(
-      /termsUrl|privacyUrl|adUnitId|coinName|beans|wallet/i,
-    );
+    expect(JSON.stringify(view)).not.toMatch(/termsUrl|privacyUrl|adUnitId|coinName|beans|wallet/i);
   });
 });
