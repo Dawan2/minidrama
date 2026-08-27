@@ -36,7 +36,7 @@ value marked SERVER-ONLY must never appear in anything under `app/`.
 | `server/` | Fastify modular monolith |
 | `packages/shared` | Types shared by client and server |
 | `packages/config` | Trusted-domain registry; generates `app/minis.config.json` |
-| `packages/quality` | G2.8 license whitelist, G1.5 coverage, G1.9 Conventional Commits, G1.8 Gitleaks, G1.6 oasdiff, G2.4 Semgrep + CodeQL, G2.5 Trivy, G2.3 Playwright |
+| `packages/quality` | G2.8 license whitelist, G1.5 coverage, G1.9 Conventional Commits, G1.10 skip/empty-test detection, G1.8 Gitleaks, G1.6 oasdiff, G2.4 Semgrep + CodeQL, G2.5 Trivy, G2.3 Playwright |
 | `contracts/` | OpenAPI 3.1 — the source of truth for the HTTP surface |
 | `docs/` | Architecture, design, plan and engineering documentation |
 
@@ -76,17 +76,18 @@ pnpm check:smoke         # G2.3 Playwright P0 smoke; a missing binary, dist, or 
 pnpm check:secrets       # G1.8 Gitleaks; a missing binary or a finding fails
 pnpm check:contract      # G1.6 oasdiff breaking; a missing binary or an ERR-level break fails
 pnpm check:commits       # G1.9 Conventional Commits; a prose subject on the merge-base range fails
+pnpm check:skips         # G1.10 skip/empty tests; a committed skip or empty it() fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
 L1 CI (`.github/workflows/ci.yml`) runs G1.8 Gitleaks, then G1.6 oasdiff, then format, lint,
-types, G1.9 Conventional Commits, tests+coverage, build, and guardrails, on every pull
-request, every push to `main` or a `cursor/**` branch, and on `workflow_dispatch`. L2 CI
-(`.github/workflows/l2.yml`) runs the G2.8 license whitelist, the
+types, G1.9 Conventional Commits, G1.10 skip/empty-test detection, tests+coverage, build, and
+guardrails, on every pull request, every push to `main` or a `cursor/**` branch, and on
+`workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`) runs the G2.8 license whitelist, the
 G2.7 migrate check, the G2.2 sqlite integration check, the G2.6 artifact budget, the G2.4
 Semgrep + CodeQL SAST checks, the G2.5 Trivy SCA check, and the G2.3 Playwright smoke on the
 same events; it does not skip, filter, or `continue-on-error` the L1 suite.
 `check:migrate`, `check:integration`, `check:artifact`, `check:sast`, `check:codeql`,
 `check:sca`, `check:smoke`, `check:secrets`, and `check:contract` are not folded into `verify`.
-`check:commits` is folded into `verify` — it has no extra binary, and rewriting history is
-not the gate.
+`check:commits` and `check:skips` are folded into `verify` — they have no extra binary.
+Rewriting history is not G1.9. A comment that forbids skips is not G1.10.

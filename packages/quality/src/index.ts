@@ -119,3 +119,16 @@ export {
   runCommitsCheck,
 } from './commits.js';
 export type { CommitSubject, CommitsCheckArgs } from './commits.js';
+
+export {
+  IT_TODO,
+  ONLY_CALL,
+  SKIP_CALL,
+  USAGE as SKIPS_USAGE,
+  emptyItFixture,
+  formatHit as formatSkipHit,
+  parseSkipArgs,
+  runSkipCheck,
+  scanTestFile,
+} from './skips.js';
+export type { SkipCheckArgs, SkipHit } from './skips.js';
