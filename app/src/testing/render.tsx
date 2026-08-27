@@ -3,19 +3,28 @@ import { render } from '@testing-library/react';
 import type { RenderResult } from '@testing-library/react';
 
 import { CatalogApiProvider } from '../data/catalog-api-context';
+import { HistoryApiProvider } from '../data/history-api-context';
 import { SearchApiProvider } from '../data/search-api-context';
+import { SessionProvider } from '../auth/session-context';
 import { stubCatalogApi } from './catalog-fixtures';
+import { stubHistoryApi, stubSession } from './history-fixtures';
 import { stubSearchApi } from './search-fixtures';
 import type { CatalogApi } from '../data/catalog-api';
+import type { HistoryApi } from '../data/history-api';
 import type { SearchApi } from '../data/search-api';
+import type { Session } from '../auth/session';
 
 /**
  * Renders a surface with the things every surface needs: a router, because every state offers a way
- * out and a `<Link>` outside a router throws, and the API clients.
+ * out and a `<Link>` outside a router throws, and the read clients and session the screens resolve
+ * from context.
  *
- * Both clients default to an unscripted stub, so a test supplies only the one its screen actually
- * calls. Leaving the other out entirely would be tidier and would also mean that a screen which
- * grew a second read failed at the context guard rather than at the assertion that matters.
+ * Each dependency defaults to a stub so a test supplies only the one it is about. That is not
+ * convenience — a profile test that had to script a feed response would be asserting on a
+ * dependency it does not use, and the day the feed's shape changes that test would fail for a
+ * reason that has nothing to do with the profile screen. Leaving the others out entirely would be
+ * tidier and would also mean that a screen which grew a second read failed at the context guard
+ * rather than at the assertion that matters.
  *
  * `MemoryRouter` rather than `HashRouter`: the paths under test are the ones in `ROUTES`, and the
  * hash is a deployment constraint (a static ZIP cannot rewrite paths) rather than a property of any
@@ -27,6 +36,8 @@ import type { SearchApi } from '../data/search-api';
 export interface RenderSurfaceOptions {
   readonly api?: CatalogApi;
   readonly search?: SearchApi;
+  readonly historyApi?: HistoryApi;
+  readonly session?: Session;
   readonly path?: string;
 }
 
@@ -35,10 +46,14 @@ export function renderSurface(
   options: RenderSurfaceOptions = {},
 ): RenderResult {
   return render(
-    <CatalogApiProvider api={options.api ?? stubCatalogApi()}>
-      <SearchApiProvider api={options.search ?? stubSearchApi()}>
-        <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
-      </SearchApiProvider>
-    </CatalogApiProvider>,
+    <SessionProvider session={options.session ?? stubSession()}>
+      <CatalogApiProvider api={options.api ?? stubCatalogApi()}>
+        <SearchApiProvider api={options.search ?? stubSearchApi()}>
+          <HistoryApiProvider api={options.historyApi ?? stubHistoryApi()}>
+            <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+          </HistoryApiProvider>
+        </SearchApiProvider>
+      </CatalogApiProvider>
+    </SessionProvider>,
   );
 }

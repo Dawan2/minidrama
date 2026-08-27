@@ -1,4 +1,3 @@
-import { err, ok } from '@minidrama/shared';
 import type {
   DramaDetail,
   DramaSummary,
@@ -10,7 +9,7 @@ import type {
   ViewerAccess,
 } from '@minidrama/shared';
 
-import { apiFailure } from './failure';
+import { asRecord, narrow, narrowPage } from './narrow';
 import type { ApiFailure } from './failure';
 import type { HttpClient } from './http';
 
@@ -85,56 +84,17 @@ export function createCatalogApi(http: HttpClient): CatalogApi {
 /**
  * Response narrowing.
  *
- * A `200` whose body is not the documented shape is a failure, not a value — and it has to be
- * caught here rather than at the point of use, because the alternative is a component reading
- * `items.map` off `undefined` and taking the whole screen down. There is no schema validation
- * generated from the contract yet (`docs/handoff/w2-work-d.md` §4), so these are hand-written and
- * check the fields the surfaces actually depend on: the ones that drive a decision or an
- * identifier, not every leaf.
+ * The generic half — what counts as a page, and what a shape mismatch reports — lives in
+ * `narrow.ts` and is shared with the other read clients. What stays here is the catalogue's own
+ * knowledge: which fields of which view object a surface actually depends on. There is no schema
+ * validation generated from the contract yet (`docs/handoff/w2-work-d.md` §4), so these are
+ * hand-written and check the fields that drive a decision or an identifier, not every leaf.
  *
- * A shape mismatch reports `MALFORMED`, which classifies as retryable, on the reasoning that a
- * truncated body is far more likely in the field than a server that changed its contract.
+ * `narrowDramaSummary` is exported because a drama summary is not only a catalogue shape: the watch
+ * history embeds one per entry (`docs/12-api-contracts.md` §4.7), and a second opinion about what a
+ * valid summary looks like is a second thing to keep in step with the contract.
  */
-function narrow<T>(body: unknown, narrower: (value: unknown) => T | null): Result<T, ApiFailure> {
-  const narrowed = narrower(body);
-  return narrowed === null
-    ? err(apiFailure({ kind: 'MALFORMED', message: 'the response did not match the contract' }))
-    : ok(narrowed);
-}
-
-function narrowPage<T>(
-  body: unknown,
-  narrower: (value: unknown) => T | null,
-): Result<Page<T>, ApiFailure> {
-  const record = asRecord(body);
-  const rawItems = record?.['items'];
-  const pageInfo = asRecord(record?.['pageInfo']);
-  const nextCursor = pageInfo?.['nextCursor'];
-  const hasMore = pageInfo?.['hasMore'];
-
-  if (
-    !Array.isArray(rawItems) ||
-    typeof hasMore !== 'boolean' ||
-    !(typeof nextCursor === 'string' || nextCursor === null)
-  ) {
-    return err(apiFailure({ kind: 'MALFORMED', message: 'the response was not a page' }));
-  }
-
-  const items: T[] = [];
-  for (const raw of rawItems) {
-    const narrowed = narrower(raw);
-    if (narrowed === null) {
-      return err(
-        apiFailure({ kind: 'MALFORMED', message: 'a page item did not match the contract' }),
-      );
-    }
-    items.push(narrowed);
-  }
-
-  return ok({ items, pageInfo: { nextCursor, hasMore } });
-}
-
-function narrowDramaSummary(value: unknown): DramaSummary | null {
+export function narrowDramaSummary(value: unknown): DramaSummary | null {
   const record = asRecord(value);
   if (record === null) return null;
   if (typeof record['id'] !== 'string' || typeof record['title'] !== 'string') return null;
@@ -184,10 +144,4 @@ function narrowFeedCard(value: unknown): FeedCard | null {
   }
 
   return value as FeedCard;
-}
-
-function asRecord(value: unknown): Readonly<Record<string, unknown>> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Readonly<Record<string, unknown>>)
-    : null;
 }

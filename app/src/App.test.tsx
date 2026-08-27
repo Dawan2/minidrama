@@ -1,4 +1,4 @@
-import { ok } from '@minidrama/shared';
+import { err, ok } from '@minidrama/shared';
 import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -6,20 +6,22 @@ import { App } from './App';
 import { MockBridge } from './platform/mock-bridge';
 import { MockVePlayer } from './player/mock-veplayer';
 import { dramaDetail, episodeItem, page, stubCatalogApi } from './testing/catalog-fixtures';
+import { historyHttpFailure, stubHistoryApi, watchHistoryEntry } from './testing/history-fixtures';
 import { renderSurface } from './testing/render';
+import type { StubHistoryApi } from './testing/history-fixtures';
 
 beforeEach(() => {
   MockVePlayer.reset();
 });
 
-function renderAt(path: string) {
+function renderAt(path: string, historyApi: StubHistoryApi = stubHistoryApi()) {
   const bridge = new MockBridge();
   const api = stubCatalogApi({
     drama: () => ok(dramaDetail()),
     episodes: () => ok(page([episodeItem()])),
   });
 
-  return renderSurface(<App bridge={bridge} />, { api, path });
+  return renderSurface(<App bridge={bridge} />, { api, historyApi, path });
 }
 
 describe('App routing', () => {
@@ -48,11 +50,47 @@ describe('App routing', () => {
     expect(screen.getByTestId('search-input').getAttribute('value')).toBe('heiress');
   });
 
+  it('renders the profile route', async () => {
+    renderAt('/me');
+    expect(await screen.findByTestId('profile-page')).toBeDefined();
+  });
+
+  it('renders the history route', async () => {
+    renderAt('/history', stubHistoryApi({ history: () => ok(page([watchHistoryEntry()])) }));
+    expect(await screen.findByTestId('history-page')).toBeDefined();
+    expect(await screen.findByTestId('history-list')).toBeDefined();
+  });
+
+  // The personal screens are reachable from the feed, because a screen nobody can navigate to is
+  // not a delivered screen. There is no tab bar yet (IA §2).
+  it('offers a way from the feed to the profile', async () => {
+    renderAt('/home');
+    expect((await screen.findByTestId('profile-link')).getAttribute('href')).toBe('/me');
+  });
+
+  // A 401 must never be resolved by leaving the screen: there is no login screen to leave to, and
+  // the fallback page would lose the read the viewer asked for (IA §9).
+  it('keeps an unauthorised history on its own screen instead of sending it to the fallback', async () => {
+    renderAt('/history', stubHistoryApi({ history: () => err(historyHttpFailure(401)) }));
+
+    expect(await screen.findByTestId('history-sign-in')).toBeDefined();
+    expect(screen.queryByTestId('fallback-page')).toBeNull();
+  });
+
   // A static ZIP cannot 404 gracefully, so an unknown path must land somewhere with a way out —
   // and with the reason the fallback screen needs to explain itself (IA §5).
   it('sends an unknown route to the fallback screen as a missing page', async () => {
     renderAt('/not-a-real-route');
     const fallback = await screen.findByTestId('fallback-page');
     expect(fallback.getAttribute('data-reason')).toBe('NOT_FOUND');
+  });
+
+  /**
+   * SCR-08 is not built, so `#/favorites` is an unknown path. It must land on the fallback with a
+   * way home rather than on a blank screen — which is also why the profile does not link to it.
+   */
+  it('sends the unbuilt favourites path to the fallback rather than nowhere', async () => {
+    renderAt('/favorites');
+    expect(await screen.findByTestId('fallback-page')).toBeDefined();
   });
 });
