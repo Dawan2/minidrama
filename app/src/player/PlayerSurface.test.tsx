@@ -147,6 +147,67 @@ describe('PlayerSurface', () => {
     expect(onSwipeNext).toHaveBeenCalledTimes(1);
   });
 
+  it('treats a double-tap as a like and a single tap as nothing', async () => {
+    const onDoubleTap = vi.fn();
+    const onSwipeNext = vi.fn();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onDoubleTap={onDoubleTap}
+        onSwipeNext={onSwipeNext}
+        playlist={playlist}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const surface = screen.getByTestId('player-surface');
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientX: 40, clientY: 80 }],
+      touches: [{ clientX: 40, clientY: 80 }],
+    });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 40, clientY: 80 }] });
+    expect(onDoubleTap).not.toHaveBeenCalled();
+
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientX: 42, clientY: 81 }],
+      touches: [{ clientX: 42, clientY: 81 }],
+    });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 42, clientY: 81 }] });
+    expect(onDoubleTap).toHaveBeenCalledTimes(1);
+    expect(onSwipeNext).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a swipe as a like', async () => {
+    const onDoubleTap = vi.fn();
+    const onSwipeNext = vi.fn();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onDoubleTap={onDoubleTap}
+        onSwipeNext={onSwipeNext}
+        playlist={playlist}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const surface = screen.getByTestId('player-surface');
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientX: 40, clientY: 280 }],
+      touches: [{ clientX: 40, clientY: 280 }],
+    });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 40, clientY: 200 }] });
+    expect(onSwipeNext).toHaveBeenCalledTimes(1);
+    expect(onDoubleTap).not.toHaveBeenCalled();
+  });
+
   it('walks the whole album on one instance', async () => {
     const bridge = await readyBridge();
     const { rerender } = render(
