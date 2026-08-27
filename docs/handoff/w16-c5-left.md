@@ -101,7 +101,16 @@ expected [ 'drm_test_0001' ] to deeply equal []
 
 ## 5. Verify
 
-`pnpm verify` on this branch after the implementation.
+`pnpm verify` exited 0 on this branch at `d297708` (cut `614f656`).
+
+| Gate | Result |
+|---|---|
+| Format / lint / types / G1.10 skips | pass — skip-check 224 test files, 0 skips, 0 empty |
+| Tests + coverage | **3,382 passing** — shared 63, quality 313, config 45, server 1,785, app 1,176. Coverage: global lines 94.20%, branches 91.29%, core 95.70%, **diff lines 96.88% (62/64)** |
+| Build | pass — `index-DjeAs2wE.js` 358.15 kB / 109.49 kB gzip |
+| Guardrails | `platform guardrails passed (artifact: /workspace/app/dist)` |
+
+Native `<video>` remains absent. No demo album identifiers in product source. Test count did not fall (3,372 on `main` after C5-01 → 3,382 here; the extra tests are the double-tap slice).
 
 ---
 
