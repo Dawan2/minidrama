@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { WALLET_VIEW_KEYS, toWalletView, walletViewKeys } from './view.js';
+import {
+  EMPTY_WALLET_LEDGER,
+  WALLET_VIEW_KEYS,
+  toWalletTransaction,
+  toWalletTransactionPage,
+  toWalletView,
+  walletViewKeys,
+} from './view.js';
 import { knownBalance } from './fixtures.js';
 import type { WalletBalance } from './balance-port.js';
+import type { WalletLedgerRow } from './ledger-port.js';
 
 describe('toWalletView', () => {
   it('omits every balance field when the platform named nothing', () => {
@@ -84,5 +92,73 @@ describe('WALLET_VIEW_KEYS', () => {
       'totalBalance',
       'pendingCredit',
     ]);
+  });
+});
+
+describe('toWalletTransactionPage', () => {
+  it('is the empty ledger when the platform named nothing, not a guessed CONSUME', () => {
+    expect(toWalletTransactionPage({ kind: 'UNAVAILABLE' })).toEqual(EMPTY_WALLET_LEDGER);
+    expect(EMPTY_WALLET_LEDGER.items).toEqual([]);
+    expect(EMPTY_WALLET_LEDGER.pageInfo).toEqual({ nextCursor: null, hasMore: false });
+  });
+
+  it('forwards a platform row, including a signed consume, without renaming it as Beans', () => {
+    const page = toWalletTransactionPage({
+      kind: 'KNOWN',
+      page: {
+        items: [
+          {
+            id: 'txn_1',
+            type: 'CONSUME',
+            coinDelta: -30,
+            bonusDelta: 0,
+            refType: 'UNLOCK',
+            refId: 'ulk_1',
+            createdAt: '2026-08-27T10:00:00.000Z',
+          },
+        ],
+        pageInfo: { nextCursor: null, hasMore: false },
+      },
+    });
+
+    expect(page.items).toEqual([
+      {
+        id: 'txn_1',
+        type: 'CONSUME',
+        coinDelta: -30,
+        bonusDelta: 0,
+        refType: 'UNLOCK',
+        refId: 'ulk_1',
+        createdAt: '2026-08-27T10:00:00.000Z',
+      },
+    ]);
+    expect(JSON.stringify(page)).not.toMatch(/beans|amountCents|currency|USD|fiat/i);
+  });
+
+  it('omits a missing delta rather than inventing a zero movement', () => {
+    expect(toWalletTransaction({ id: 'txn_1', type: 'RECHARGE' })).toEqual({
+      id: 'txn_1',
+      type: 'RECHARGE',
+    });
+  });
+
+  it('drops Beans and fiat keys rather than quoting them as coin movement', () => {
+    const stuffed = {
+      id: 'txn_1',
+      type: 'RECHARGE' as const,
+      coinDelta: 100,
+      beansAmount: 60,
+      beansPerCoin: 0.7,
+      amountCents: 99,
+    };
+    const row = toWalletTransaction(stuffed);
+
+    expect(row).toEqual({ id: 'txn_1', type: 'RECHARGE', coinDelta: 100 });
+    expect(JSON.stringify(row)).not.toMatch(/beans|amountCents|fiat/i);
+  });
+
+  it('drops a row without an id or a domain type rather than rewriting it as spend', () => {
+    expect(toWalletTransaction({ id: '', type: 'RECHARGE' })).toBeNull();
+    expect(toWalletTransaction({ id: 'txn_1', type: 'SPEND' } as WalletLedgerRow)).toBeNull();
   });
 });
