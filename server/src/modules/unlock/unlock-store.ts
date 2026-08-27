@@ -12,16 +12,18 @@ import type { Unlock } from './unlocks.js';
  * callback for 72 hours, a stored event can be replayed by hand, and a viewer with two open orders
  * for one episode can pay both. All three must end with one row, and none of them is an error.
  *
- * `record` returns a `Result` even though this implementation cannot fail, for the same reason the
- * order store's does: the Postgres table drops in behind it, and the caller is the payment callback,
- * which must not be answered with an exception (`platform-tiktok/paid-trade-orders.ts` —
- * a throw becomes a `500`, the delivery is retried, and the retry is discarded as a duplicate).
+ * `record` returns a `Result` even though the in-memory implementation cannot fail, for the same
+ * reason the order store's does: the durable table drops in behind it, and the caller is the
+ * payment callback, which must not be answered with an exception
+ * (`platform-tiktok/paid-trade-orders.ts` — a throw becomes a `500`, the delivery is retried, and
+ * the retry is discarded as a duplicate). The SQLite implementation returns `UNLOCK_NOT_RECORDED`
+ * when the write cannot be completed.
  *
  * **Nothing evicts.** The order store bounds its map and drops the oldest records, which is
  * survivable there — a forgotten `PENDING` order is a payment to reconcile. Here it would be
  * revoking an episode somebody paid for, silently, under load, so this map only grows. The bound is
- * the process, and the durable table is W7's; a row can only be created by a verified payment, so
- * the growth is paid for.
+ * the process for the in-memory store; the SQLite table is the first durable slice (C3-06) and a
+ * row can only be created by a verified payment, so the growth is paid for.
  */
 
 /**
