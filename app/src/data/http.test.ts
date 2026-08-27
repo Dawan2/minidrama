@@ -21,6 +21,7 @@ function client(
     readonly timeoutMs?: number;
     readonly authToken?: () => string | null;
     readonly onCredentialRefused?: () => void;
+    readonly onCredentialAccepted?: () => void;
   } = {},
 ) {
   return createHttpClient({
@@ -585,5 +586,88 @@ describe('the http client noticing a refused credential', () => {
     }).send('PUT', '/v1/dramas/drm_1/favorite');
 
     expect(onCredentialRefused).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The mirror of the hook above, and the only evidence this client ever gets that its token is
+ * currently good. `session/session-recovery.ts` counts its automatic re-logins against it: a bound
+ * refilled by successful *logins* would not bound anything, because a server that issues tokens and
+ * then refuses them keeps every login successful.
+ */
+describe('the http client noticing a credential that worked', () => {
+  it('reports a 2xx on a request that carried a token', async () => {
+    const onCredentialAccepted = vi.fn();
+    await client(() => Promise.resolve(jsonResponse(200, {})), {
+      authToken: () => 'tok_live',
+      onCredentialAccepted,
+    }).getJson('/v1/users/me/favorites');
+
+    expect(onCredentialAccepted).toHaveBeenCalledTimes(1);
+  });
+
+  /** A `204`: no body, and `json()` rejects the way a real `Response` does on an empty one. */
+  const noContent = (): HttpResponseLike => ({
+    ok: true,
+    status: 204,
+    json: () => Promise.reject(new Error('Unexpected end of JSON input')),
+  });
+
+  // Above the `204` shortcut, like the refusal: a favourite write is the request most likely to be
+  // the only authenticated thing a viewer does for a while.
+  it('reports an accepted idempotent write, which returns before any body is read', async () => {
+    const onCredentialAccepted = vi.fn();
+    await client(() => Promise.resolve(noContent()), {
+      authToken: () => 'tok_live',
+      onCredentialAccepted,
+    }).send('PUT', '/v1/dramas/drm_1/favorite');
+
+    expect(onCredentialAccepted).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays quiet about a 2xx on an anonymous request', async () => {
+    const onCredentialAccepted = vi.fn();
+    await client(() => Promise.resolve(jsonResponse(200, {})), {
+      authToken: () => null,
+      onCredentialAccepted,
+    }).getJson('/v1/dramas/drm_1');
+
+    expect(onCredentialAccepted).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A `2xx` whose body is not what the caller expected is still a request the *credential* was
+   * accepted for. The two questions are separate, and conflating them would let a schema change
+   * quietly disable the re-login budget's only refill.
+   */
+  it('reports a 2xx even when the body turns out to be unreadable', async () => {
+    const onCredentialAccepted = vi.fn();
+    const result = await client(() => Promise.resolve(unreadableResponse(200)), {
+      authToken: () => 'tok_live',
+      onCredentialAccepted,
+    }).getJson('/v1/users/me/favorites');
+
+    expect(onCredentialAccepted).toHaveBeenCalledTimes(1);
+    expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
+  });
+
+  it('says nothing about a request the server refused, whatever the status', async () => {
+    for (const status of [400, 401, 403, 404, 410, 422, 429, 500]) {
+      const onCredentialAccepted = vi.fn();
+      await client(() => Promise.resolve(jsonResponse(status, {})), {
+        authToken: () => 'tok_live',
+        onCredentialAccepted,
+      }).getJson('/v1/x');
+
+      expect(onCredentialAccepted, `status ${String(status)}`).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not need a handler to survive a 2xx', async () => {
+    const result = await client(() => Promise.resolve(jsonResponse(200, { id: 'drm_1' })), {
+      authToken: () => 'tok_live',
+    }).getJson('/v1/dramas/drm_1');
+
+    expect(result.ok ? result.value : null).toEqual({ id: 'drm_1' });
   });
 });
