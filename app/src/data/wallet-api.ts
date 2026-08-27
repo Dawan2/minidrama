@@ -7,11 +7,13 @@ import type { HttpReader } from './http';
 /**
  * The wallet reads: "how many coins do I have", and "what moved them".
  *
- * `GET /v1/wallet` is served. There is still no coin ledger — unlocks do not debit one — so a
- * body with the balance fields omitted is a successful read of an absence, which this module
- * reads as `UNAVAILABLE`. That is not a client bug and it must not render as `0`. The screen
- * inventory (`docs/02-screen-inventory.md` SCR-09) still needs the surface, including the empty
- * ledger, which is a required state rather than an edge case.
+ * `GET /v1/wallet` is served. `GET /v1/wallet/transactions` is served too: when the platform
+ * has given us no ledger, the page is empty rather than a guessed `CONSUME`. Unlocks still
+ * do not debit a wallet (`docs/handoff/w9-work-unlock-grant.md` S73). An empty page is "we
+ * have no rows we can quote", not spend invented from unlock receipts. A missing coin
+ * balance is `UNAVAILABLE` rather than `0`. That is not a client bug and it must not render
+ * as `0`. The screen inventory (`docs/02-screen-inventory.md` SCR-09) still needs the
+ * surface, including the empty ledger, which is a required state rather than an edge case.
  *
  * Two rules this module exists to hold, because both are easy to violate with a placeholder:
  *

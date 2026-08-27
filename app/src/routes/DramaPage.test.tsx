@@ -17,6 +17,11 @@ import {
   viewerAccess,
 } from '../testing/catalog-fixtures';
 import {
+  dramaProgressItem,
+  dramaProgressView,
+  stubProgressApi,
+} from '../testing/progress-fixtures';
+import {
   coinOrder,
   grantedCoinOrder,
   instantPacing,
@@ -26,6 +31,7 @@ import {
 import { renderSurface, settle } from '../testing/render';
 import type { CapabilityName } from '../platform/types';
 import type { CatalogApi } from '../data/catalog-api';
+import type { ProgressApi } from '../data/progress-api';
 import type { EpisodeItem } from '@minidrama/shared';
 
 async function readyBridge(unavailable: readonly CapabilityName[] = []): Promise<MockBridge> {
@@ -34,12 +40,17 @@ async function readyBridge(unavailable: readonly CapabilityName[] = []): Promise
   return bridge;
 }
 
-function renderDrama(api: CatalogApi, bridge: MockBridge, dramaId = 'drm_test_0001') {
+function renderDrama(
+  api: CatalogApi,
+  bridge: MockBridge,
+  dramaId = 'drm_test_0001',
+  extras: { readonly progressApi?: ProgressApi } = {},
+) {
   return renderSurface(
     <Routes>
       <Route path={ROUTES.drama} element={<DramaPage bridge={bridge} />} />
     </Routes>,
-    { api, path: `/drama/${dramaId}` },
+    { api, path: `/drama/${dramaId}`, ...extras },
   );
 }
 
@@ -542,5 +553,168 @@ describe('the unlock panel opens from the episode list', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('unlock-panel')).toBeNull();
     });
+  });
+});
+
+/**
+ * SCR-04 continue CTA. Progress `lastWatched` is a pointer, not a watched-up-to range, and not a
+ * second HOME rail. Resume position stays on the playback session — the href is the episode id.
+ */
+describe('the drama-detail continue CTA', () => {
+  it('asks for drama progress once, for the id in the route', async () => {
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: () => ok(page([episodeItem()])),
+    });
+    const progressApi = stubProgressApi();
+    renderDrama(api, await readyBridge(), 'drm_route_progress', { progressApi });
+
+    await waitFor(() => {
+      expect(progressApi.dramaProgressCalls).toEqual(['drm_route_progress']);
+    });
+  });
+
+  it('points Continue at lastWatched, not at the first openable episode', async () => {
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: () =>
+        ok(
+          page([episodeItem({ globalEpisodeNumber: 1 }), episodeItem({ globalEpisodeNumber: 2 })]),
+        ),
+    });
+    const progressApi = stubProgressApi({
+      dramaProgress: () =>
+        ok(
+          dramaProgressView({
+            items: [
+              dramaProgressItem({
+                episodeId: 'ep_test_0007',
+                episodeNumber: 7,
+                positionSec: 42,
+                completed: false,
+              }),
+            ],
+            lastWatched: { episodeId: 'ep_test_0007', episodeNumber: 7, positionSec: 42 },
+          }),
+        ),
+    });
+    renderDrama(api, await readyBridge(), 'drm_test_0001', { progressApi });
+
+    const cta = await screen.findByTestId('continue-watching');
+    expect(cta.getAttribute('href')).toBe('/play/ep_test_0007');
+    expect(cta.getAttribute('href')).not.toMatch(/position|42|startTime/);
+    expect(cta.textContent).toBe('Continue episode 7');
+    expect(screen.queryByTestId('watch-now')).toBeNull();
+  });
+
+  it('continues at lastWatched even when that episode is not on the loaded page', async () => {
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: () => ok(page([lockedEpisodeItem()])),
+    });
+    const progressApi = stubProgressApi({
+      dramaProgress: () =>
+        ok(
+          dramaProgressView({
+            lastWatched: { episodeId: 'ep_locked_later', episodeNumber: 12, positionSec: 8 },
+          }),
+        ),
+    });
+    renderDrama(api, await readyBridge(), 'drm_test_0001', { progressApi });
+
+    const cta = await screen.findByTestId('continue-watching');
+    expect(cta.getAttribute('href')).toBe('/play/ep_locked_later');
+    expect(cta.textContent).toBe('Continue episode 12');
+    expect(screen.queryByTestId('watch-now')).toBeNull();
+  });
+
+  it('does not treat lastWatched as a watched-up-to range of the list', async () => {
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: () =>
+        ok(
+          page([
+            episodeItem({ globalEpisodeNumber: 1 }),
+            episodeItem({ globalEpisodeNumber: 2 }),
+            episodeItem({ globalEpisodeNumber: 3 }),
+          ]),
+        ),
+    });
+    const progressApi = stubProgressApi({
+      dramaProgress: () =>
+        ok(
+          dramaProgressView({
+            items: [
+              dramaProgressItem({
+                episodeId: 'ep_test_0003',
+                episodeNumber: 3,
+                completed: true,
+              }),
+            ],
+            lastWatched: { episodeId: 'ep_test_0003', episodeNumber: 3, positionSec: 90 },
+          }),
+        ),
+    });
+    renderDrama(api, await readyBridge(), 'drm_test_0001', { progressApi });
+
+    const cta = await screen.findByTestId('continue-watching');
+    expect(cta.getAttribute('href')).toBe('/play/ep_test_0003');
+    expect(cta.getAttribute('href')).not.toBe('/play/ep_test_0001');
+  });
+
+  it('does not invent continue from catalogue viewer.lastWatched', async () => {
+    const api = stubCatalogApi({
+      drama: () =>
+        ok(
+          dramaDetail({
+            viewer: {
+              favorited: false,
+              lastWatched: {
+                episodeId: 'ep_from_catalogue',
+                globalEpisodeNumber: 9,
+                positionSec: 3,
+              },
+            },
+          }),
+        ),
+      episodes: () => ok(page([episodeItem()])),
+    });
+    const progressApi = stubProgressApi();
+    renderDrama(api, await readyBridge(), 'drm_test_0001', { progressApi });
+
+    const cta = await screen.findByTestId('watch-now');
+    expect(cta.getAttribute('href')).toBe('/play/ep_test_0001');
+    expect(screen.queryByTestId('continue-watching')).toBeNull();
+  });
+
+  it('keeps Watch now when progress is 401 rather than inventing a resume', async () => {
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: () => ok(page([episodeItem()])),
+    });
+    const progressApi = stubProgressApi({
+      dramaProgress: () => err(httpFailure(401)),
+    });
+    renderDrama(api, await readyBridge(), 'drm_test_0001', { progressApi });
+
+    const cta = await screen.findByTestId('watch-now');
+    expect(cta.getAttribute('href')).toBe('/play/ep_test_0001');
+    expect(screen.queryByTestId('continue-watching')).toBeNull();
+    expect(screen.queryByTestId('retryable-error')).toBeNull();
+  });
+
+  it('keeps Watch now when the progress read is offline', async () => {
+    const api = stubCatalogApi({
+      drama: () => ok(dramaDetail()),
+      episodes: () => ok(page([episodeItem()])),
+    });
+    const progressApi = stubProgressApi({
+      dramaProgress: () => err(offlineFailure()),
+    });
+    renderDrama(api, await readyBridge(), 'drm_test_0001', { progressApi });
+
+    const cta = await screen.findByTestId('watch-now');
+    expect(cta.getAttribute('href')).toBe('/play/ep_test_0001');
+    expect(screen.queryByTestId('continue-watching')).toBeNull();
   });
 });
