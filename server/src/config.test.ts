@@ -23,6 +23,16 @@ describe('loadConfig', () => {
     expect(JSON.stringify(withCredentials)).not.toContain('secret');
   });
 
+  // Mock login is an authentication bypass, so the interesting assertion is the negative one: it
+  // takes two deliberate values, and the values other flags are enabled with do not enable it.
+  it('leaves the mock login path off unless the environment asks for it twice', () => {
+    expect(loadConfig({}).testLoginEnabled).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'development' }).testLoginEnabled).toBe(false);
+    expect(
+      loadConfig({ MINIDRAMA_TEST_LOGIN: 'true', NODE_ENV: 'development' }).testLoginEnabled,
+    ).toBe(false);
+  });
+
   it('defaults the webhook timestamp window to the five minutes TikTok suggests', () => {
     expect(loadConfig({}).webhookToleranceSec).toBe(300);
   });

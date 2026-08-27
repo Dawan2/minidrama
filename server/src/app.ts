@@ -1,13 +1,14 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
-import { createSessionIssuer } from './modules/identity/session.js';
+import { createMockIdentityPort } from './modules/identity/test-login.js';
+import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import { createUnavailableEntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
-import { createUnresolvedViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
@@ -21,7 +22,7 @@ import type { PlatformCredentials } from './modules/platform-tiktok/credentials.
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { PlaybackMediaPort } from './modules/playback/media-port.js';
 import type { ServerConfig } from './config.js';
-import type { SessionIssuer } from './modules/identity/session.js';
+import type { SessionStore } from './modules/identity/session-store.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
@@ -46,10 +47,16 @@ export interface AppDependencies {
   readonly signatureVerifier?: SignatureVerifier;
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
-  readonly sessionIssuer?: SessionIssuer;
   /**
-   * Entitlement reads content and viewer state. Both defaults refuse until the data layer and
-   * session storage exist, so a deployment cannot serve invented entitlements by omission.
+   * Sessions. Injected by tests that need to mint one for a known user without going through a
+   * platform exchange — which is the supported way to log in during a test, and needs no flag,
+   * because it is reachable from a test process and from nowhere else.
+   */
+  readonly sessionStore?: SessionStore;
+  /**
+   * Entitlement reads content and viewer state. The facts port defaults to refusing until the data
+   * layer exists, so a deployment cannot serve invented entitlements by omission. The viewer
+   * resolver now defaults to the session store above rather than to a refusal.
    */
   readonly entitlementFactsPort?: EntitlementFactsPort;
   readonly viewerResolver?: ViewerResolver;
@@ -119,7 +126,22 @@ export async function buildApp(
   // play attempt start disagreeing about what a viewer owns.
   const entitlementFactsPort =
     dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort();
-  const viewerResolver = dependencies.viewerResolver ?? createUnresolvedViewerResolver();
+
+  // One store, read by the resolver and written by the login route. Two instances here would be an
+  // app that issues sessions it cannot resolve — the state this slot found the server in.
+  const sessionStore = dependencies.sessionStore ?? createInMemorySessionStore({ now });
+  const viewerResolver = dependencies.viewerResolver ?? createSessionViewerResolver(sessionStore);
+
+  // The only place the mock exchange can enter the system, and the only gate on it. `identityPort`
+  // is otherwise the real port, which refuses every code until the HTTP exchange lands.
+  if (config.testLoginEnabled) {
+    app.log.warn(
+      'MOCK LOGIN IS ENABLED: /v1/auth/login accepts mock:<userId> codes and issues real sessions. This must never be a production deployment.',
+    );
+  }
+  const identityPort =
+    dependencies.identityPort ??
+    (config.testLoginEnabled ? createMockIdentityPort() : createTiktokIdentityPort(credentials));
 
   await app.register(healthRoutes);
 
@@ -136,10 +158,7 @@ export async function buildApp(
     now,
   });
 
-  await app.register(identityRoutes, {
-    identityPort: dependencies.identityPort ?? createTiktokIdentityPort(credentials),
-    sessionIssuer: dependencies.sessionIssuer ?? createSessionIssuer(),
-  });
+  await app.register(identityRoutes, { identityPort, sessionStore });
 
   await app.register(platformTiktokRoutes, {
     signatureVerifier,
