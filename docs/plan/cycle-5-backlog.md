@@ -4,12 +4,13 @@
 > **Date:** 2026-08-27.
 > **Branch:** `cursor/w16-plan-cycle-5-7348`, cut from `origin/main` at **`5ab02d1`**
 > ("Merge cursor/w14-work-g23-72c4: L2 G2.3 Playwright smoke, and a missing binary is red").
+> Merged forward onto **`7ecca77`** (HOME continue rail UI landed while this slot wrote).
 > **Inputs:** `docs/verify/cycle-4-report.md` at **`8fc8163`** (W15 independent verify; not passed;
 > snapshot SHA `3cb724c`, postscript trunk `546dfe6`), `docs/plan/cycle-4-backlog.md` (the
 > predecessor this continues), `docs/plan/wave-protocol.md` §4.3 / §5.1 / §7, `docs/gates/open-questions.md`,
-> and `main` itself — every claim below was re-derived against `5ab02d1` rather than copied from a
-> handoff. G2.3 landed on `main` **after** the C4 report (`5ab02d1`); that close is recorded here,
-> not back-written into the report.
+> and `main` itself — every claim below was re-derived against `7ecca77` rather than copied from a
+> handoff. G2.3 landed on `main` **after** the C4 report (`5ab02d1`); the HOME continue **UI** rail
+> landed at `7ecca77`. Those closes are recorded here, not back-written into the report.
 > **Predecessor:** `docs/plan/cycle-4-backlog.md`. Unfinished tasks keep their original IDs and
 > acceptance criteria (`docs/plan/wave-protocol.md` §7).
 > **This slot implemented nothing.** No source file, no test, no gate, no contract was touched. The
@@ -40,11 +41,11 @@ plan wave. **Not adjudicated here.** P3 owns §2. Registered again in §6.
 | Rank | Item | What a work slot may do |
 |---|---|---|
 | **1** | **D-17** GitHub Actions billing | **Nothing in code.** Account / ops. Cannot be closed from a branch |
-| **2** | **Protocol-C4 播放体验 0/3** | Do not open as an implement epic. Named remainder only (§1.2, §3) |
+| **2** | **Protocol-C4 播放体验 0/3** | Do not open as an implement epic. Named remainder only (§1.2). Two W16 siblings already started playback UX — leave their files |
 | **—** | **G2.3** smoke E2E | **Not remaining.** Job `smoke` is on `main` at `5ab02d1`. Do not retake |
 | **3** | **C4-03** T14 / T16 / T15 | Still open. Do not fake. May defer with IDs kept |
 | **4** | **C4-07** SCR-11 / D8 | Still blocked. No subscription contract. Do not invent `/v1/subscriptions` |
-| **5** | **HOME continue UI** | **In flight.** `bc-fb69d154` / `origin/cursor/w14-work-continue-ui-72c4`. Do not take those files |
+| **—** | **HOME continue UI** | **Not remaining.** Landed at `7ecca77` (`bc-fb69d154`). Was in flight at first draft |
 
 Partner answers are **unknown**. None is invented. The questions stay in
 `docs/gates/open-questions.md`.
@@ -53,7 +54,9 @@ Partner answers are **unknown**. None is invented. The questions stay in
 
 | Who | State at write time | Rule |
 |---|---|---|
-| `bc-fb69d154` (W14 work HOME continue rail UI) | **RUNNING.** Branch `origin/cursor/w14-work-continue-ui-72c4` (`6c6cdcd`): HomePage rail from the server mix. Not an ancestor of `5ab02d1` | Do not add a second HOME continue UI. Leave `HomePage.tsx` / `home-feed.ts` |
+| `bc-fb69d154` (W14 work HOME continue rail UI) | **Idle. Landed.** `7ecca77` / `cursor/w14-work-continue-ui-72c4`. Home splits the feed mix onto `data-testid="continue-rail"` | Do not add a second HOME continue UI |
+| `bc-2fd6c885` (W16 work protocol playback UX) | **RUNNING.** No `cursor/*` branch visible on origin yet | Do not guess its files. Re-derive `origin/main` before picking a player-interaction remainder |
+| `bc-3c74c2c9` (W16 work second playback exit) | **RUNNING.** No `cursor/*` branch visible on origin yet | Same rule. Likely the protocol-C4 second exit (cross-end). Do not start a twin |
 | `origin/cursor/w13-work-c3-remain-72c4` | **Not an ancestor of `main`.** Adds `GET /v1/wallet/transactions` (fail-closed empty ledger). **D-18** | Integrator merges or it stays outstanding. Do not implement a second transactions route |
 | `origin/cursor/w14-work-c4-subseq-72c4` | Leftover duplicate C4-08 ads. A sibling already landed | Do not retake |
 
@@ -61,7 +64,7 @@ Partner answers are **unknown**. None is invented. The questions stay in
 
 ## 1. What the C4 report said, and what `main` is now
 
-Verified at `5ab02d1`. The report at `8fc8163` is an ancestor of this SHA. Where they disagree, the
+Verified at `7ecca77`. The report at `8fc8163` is an ancestor of this SHA. Where they disagree, the
 tree wins and the report is not edited.
 
 ### 1.1 Protocol-C4 exits — still 0/3
@@ -69,19 +72,19 @@ tree wins and the report is not edited.
 Re-derived. Same three rows as `docs/verify/cycle-4-report.md` §0; the continue-watching postscript
 at `8fc8163` is included.
 
-| Protocol C4 exit (`wave-protocol.md` §5.1) | Status at `5ab02d1` | Why |
+| Protocol C4 exit (`wave-protocol.md` §5.1) | Status at `7ecca77` | Why |
 |---|---|---|
 | 交互验收单全过 (`01-product-scope` §4.3) | **Not met** | No `playbackRate`, swipe, or double-tap in `app/src/player`. PNL-05 has no product caller. 连播 / 切集 exist as **session gates** (`gateAdvance`), not as the interaction sheet. Autoplay-on-ended is not the product 连播 sheet |
-| 跨端进度冲突用例通过 | **Not met** | Heartbeats, session `resumePositionSec` → VePlayer `startTime`, and the HOME **server** rail are on `main`. LWW merge unit tests exist (`progress.test.ts`: older report ignored). That is not the protocol exit. HOME **UI** rail is in flight, not on `main`. No named two-device conflict case |
+| 跨端进度冲突用例通过 | **Not met** | Heartbeats, session `resumePositionSec` → VePlayer `startTime`, HOME **server** rail, and HOME **UI** rail (`continue-rail` from the feed mix) are on `main`. LWW merge unit tests exist (`progress.test.ts`: older report ignored). That is not the protocol exit. No named two-device conflict case |
 | a11y 门禁上线且核心屏零 critical/serious | **Not met** | Not scheduled in C4. No axe-core job. `QA-011` / `QA-010` still `[ ]` |
 
 Zero of three. Unchanged by G2.3 landing.
 
 ### 1.2 C4 backlog scorecard, re-scored on this tree
 
-W15 scored this table at `3cb724c`. G2.3 is the only row that moved.
+W15 scored this table at `3cb724c`. G2.3 and the HOME continue UI are the rows that moved.
 
-| ID | C4 report (`3cb724c` / `8fc8163`) | This tree (`5ab02d1`) |
+| ID | C4 report (`3cb724c` / `8fc8163`) | This tree (`7ecca77`) |
 |---|---|---|
 | **C4-01** G1.5 + L1 `workflow_dispatch:` + D-07/D-11 table | Closed | **Closed** |
 | **C4-02** L2 remainder | Split. 7 of 8 jobs. G2.3 not on `main` | **Closed as YAML.** 8 of 8 jobs, including `smoke` (G2.3). Zero GitHub-executed reverse-verification (**D-17**) |
@@ -94,7 +97,7 @@ W15 scored this table at `3cb724c`. G2.3 is the only row that moved.
 
 ### 1.3 Defects the C4 report left, re-tested here
 
-| ID | Sev | State at `5ab02d1` |
+| ID | Sev | State at `7ecca77` |
 |---|:---:|---|
 | **D-17** | P1 | **Open, unchanged.** CI run [33125399122](https://github.com/Dawan2/minidrama/actions/runs/33125399122) on `5ab02d1` (2026-08-27T23:11:54Z): 5s, `steps: []`, annotation "recent account payments have failed or your spending limit needs to be increased." Last successful CI on `main` is still [33112204165](https://github.com/Dawan2/minidrama/actions/runs/33112204165) at PNL-01, 2026-08-27T20:12:42Z |
 | **D-18** | P2 | **Open.** `GET /v1/wallet/transactions` is still absent from OpenAPI (23 paths / 26 operations) and from `server/src/modules/wallet/routes.ts`. Client still names `WALLET_TRANSACTIONS_PATH`. Unmerged remain branch has the route |
@@ -159,11 +162,14 @@ LWW merge is tested (`IGNORED_STALE` when the older device arrives second). Hear
 product case that a verifier can run as the §5.1 row. Do not mark `PRG-001` `[x]` on the unit
 merge alone.
 
-#### PRG-002 remainder — HOME continue UI (in flight — rank 5)
+#### PRG-002 remainder — HOME continue UI (landed; not the protocol exit)
 
-Server rail on `main` (`createProgressContinueWatchingSource`, `546dfe6`). `FeedCardView` already
-routes `CONTINUE_WATCHING` to the episode. The dedicated HOME rail UI is `bc-fb69d154`, not this
-backlog. Kill-process / offline resume ≤ 5 s is not an E2E on `main`.
+Server rail on `main` (`createProgressContinueWatchingSource`, `546dfe6`). Client rail on `main`
+(`splitHomeFeed` → `data-testid="continue-rail"`, `7ecca77`). `FeedCardView` still routes
+`CONTINUE_WATCHING` to the episode. Anonymous / empty-progress stays the catalogue mix; a missing
+`continueEpisode` is not a rail item; watch-history is not a second source. Kill-process / offline
+resume ≤ 5 s is not an E2E. Drama-detail `viewer.lastWatched` is still unused. Do not retake
+`HomePage.tsx` / `home-feed.ts`.
 
 #### QA-011 / QA-010 — a11y adjudication, then the gate
 
@@ -215,15 +221,13 @@ defer the screen. No partner answer is recorded here.
 
 ---
 
-### Rank 5 — HOME continue UI, in flight
+### HOME continue UI — not remaining
 
-`bc-fb69d154-dbf4-583a-bbaf-5cacb2e9ce35`, name "W14 work HOME continue rail UI", **RUNNING** at
-write time. Branch `origin/cursor/w14-work-continue-ui-72c4` (`6c6cdcd` / `6c5f8b7`): `HomePage.tsx`,
-`home-feed.ts`, i18n, CSS. Server mix is already on `main`.
-
-C5 implement slots **must not** pick HOME continue-watching presentation. If the sibling lands,
-this rank closes without a C5 task. If it dies, a later plan wave re-derives; do not guess the
-files now.
+Landed at `7ecca77` while the first draft of this file still listed `bc-fb69d154` as RUNNING.
+`HomePage` projects `CONTINUE_WATCHING` cards that carry `continueEpisode` onto
+`data-testid="continue-rail"` and leaves the rest of the mix on `data-testid="feed"`. That is a
+HOME presentation of the C4 server rail. It is **not** protocol-C4 exit 2 (跨端进度冲突). Do not
+retake. Drama-detail continue CTA stays open and is not this rank.
 
 ---
 
@@ -286,7 +290,7 @@ a 404. Lockstep wants the route and the document together.
 | **Owner** | **P3** |
 | **Existing ID** | **D-19** |
 
-§6.2 still describes a tree that is not `5ab02d1` ("no database, 27 episodes, no CI L2"). This plan
+§6.2 still describes a tree that is not `7ecca77` ("no database, 27 episodes, no CI L2"). This plan
 slot does not edit P3's file (§3.4). Registered in §6. Status columns in §5.1 (C3 `[~]`, protocol-C4
 `[ ]`) are also stale relative to the running-count reports; same owner; X-21 stays unadjudicated.
 
@@ -326,11 +330,11 @@ already has a defect ID and it currently falsifies R6.
 
 ## 2. Evidence
 
-Re-derived at `5ab02d1`. Commands to re-run, not to believe.
+Re-derived at `7ecca77`. Commands to re-run, not to believe.
 
 ```
 $ git rev-parse --short HEAD
-5ab02d1
+7ecca77
 
 $ rg -n '^  [a-z].*:$' .github/workflows/l2.yml
   licenses:     # G2.8
@@ -355,12 +359,15 @@ $ rg -n 'vip:' app/src/routes/routes.ts
 $ rg -c '^  /' contracts/openapi.yaml
 23
 
+$ rg -n 'continue-rail' app/src/routes/HomePage.tsx
+# section data-testid="continue-rail" from splitHomeFeed
+
 $ git merge-base --is-ancestor origin/cursor/w14-work-continue-ui-72c4 origin/main; echo $?
-1
+0
 ```
 
-G2.3 handoff recorded 3,261 tests after merging `546dfe6`. This plan slot did not re-run
-`pnpm verify` to produce a new product number; verify of **these two docs** is the slot's own gate.
+Continue-UI handoff recorded 3,270 tests after merging `5ab02d1`. This plan slot's own `pnpm verify`
+is the gate for **these two docs**, not a third product count.
 
 ---
 
@@ -374,13 +381,15 @@ Rank 2 — protocol-C4 播放体验 0/3. Split, not opened (§4.3).
   PRG-001 remainder (product cross-end case; LWW unit tests exist)
   QA-011 then QA-010 (a11y)
   PLY-012 token re-issue
-  PRG-002 remainder = HOME continue UI → in flight (rank 5). Do not pick.
+  PRG-002 remainder = HOME continue UI → landed (`7ecca77`). Do not retake.
+  In flight: `bc-2fd6c885` protocol playback UX; `bc-3c74c2c9` second playback exit. Leave them.
 
 Rank 3 — C4-03 T14/T16/T15. Do not fake; may defer with IDs kept.
 
 Rank 4 — C4-07. A contract, then GATE-2 + GATE-4.
 
 G2.3 — closed as YAML. Do not retake.
+HOME continue UI — closed as client rail. Do not retake.
 
 Tier A remediations (first implement picks)
   C5-01 = D-20 G1.10 first, then G1.7/G1.9
@@ -393,17 +402,18 @@ Tier B — last steps unchanged
 Tier C — Q-G-1…Q-G-10 unknown. GATE-0…GATE-8 no movement.
 ```
 
-**First C5 implement picks.** `C5-01` (G1.10). Re-derive `origin/main` first: the HOME continue-UI
-sibling is running. Do not pick G2.3, HOME continue presentation, leftover ads, `#/vip`, or
-player gestures.
+**First C5 implement picks.** `C5-01` (G1.10). Re-derive `origin/main` first: two W16 playback
+siblings are running. Do not pick G2.3, HOME continue presentation, leftover ads, `#/vip`, or a
+second 播放体验 slice those siblings already own.
 
 ---
 
 ## 4. What is deliberately not in this backlog as an implement assignment
 
-- **Opening protocol-C4 播放体验.** Ranked, split, not scheduled. Gestures, PNL-05, a11y gate.
+- **Opening protocol-C4 播放体验.** Ranked, split, not scheduled by this slot. Two W16 siblings
+  already started playback UX (`bc-2fd6c885`, `bc-3c74c2c9`) — do not start a third.
 - **A G2.3 retake.** On `main` as of `5ab02d1`.
-- **HOME continue rail UI.** In flight (`bc-fb69d154`).
+- **A HOME continue rail UI retake.** On `main` as of `7ecca77`.
 - **A second wallet-transactions route.** D-18 is merge-or-drop.
 - **Leftover `c4-subseq` ads.** Duplicate of landed C4-08.
 - **Enabling recharge** with a guessed Beans rate.
@@ -428,7 +438,7 @@ Against `docs/11-official-onboarding-checklist.md` E4 (all six mandatory capabil
 | D9 | Nav bar + capsule | n/a | **wired** | **device** to flip the checklist |
 
 Screens: **11 of 13.** Missing numbered: SCR-10 `#/recharge`, SCR-11 `#/vip`. SCR-01 is an overlay.
-Continue-watching is a server rail plus a generic feed card; dedicated HOME UI is in flight.
+Continue-watching is a server rail plus a HOME `continue-rail` projected from the same mix.
 
 Panels: **2 of 5** (PNL-01, PNL-02). PNL-03 blocked. PNL-04 off. PNL-05 is protocol-C4.
 
@@ -455,4 +465,4 @@ Per `docs/plan/wave-protocol.md` §3.4 — found, not fixed.
 
 | Date | Wave · slot | Change |
 |---|---|---|
-| 2026-08-27 | W16 · plan | First version. Absorbed `docs/verify/cycle-4-report.md` at `8fc8163` (not passed; protocol-C4 0/3; D-17 first). Re-derived against `origin/main` `5ab02d1`. G2.3 **landed after the report** — not remaining. Ranked: D-17 (cannot be code-fixed), protocol-C4 播放体验 0/3 (split, not opened), C4-03 still open (do not fake), C4-07 still blocked, HOME continue UI in flight (`bc-fb69d154`). First implement pick: D-20 / G1.10. Did not invent AM answers, Beans, EIS, BytePlus, or a CI-restoration date. Did not implement product code |
+| 2026-08-27 | W16 · plan | First version. Absorbed `docs/verify/cycle-4-report.md` at `8fc8163` (not passed; protocol-C4 0/3; D-17 first). Cut from `5ab02d1`; merged forward onto `7ecca77`. G2.3 **landed after the report**. HOME continue UI **landed while this slot wrote** (`bc-fb69d154` / `7ecca77`) — not remaining. Ranked: D-17 (cannot be code-fixed), protocol-C4 播放体验 0/3 (split, not opened; two W16 playback siblings already running), C4-03 still open (do not fake), C4-07 still blocked. First implement pick: D-20 / G1.10. Did not invent AM answers, Beans, EIS, BytePlus, or a CI-restoration date. Did not implement product code |
