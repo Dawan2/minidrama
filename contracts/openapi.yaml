@@ -436,6 +436,88 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/wallet/transactions:
+    get:
+      operationId: listWalletTransactions
+      summary: This viewer's coin ledger
+      description: |
+        Returns a page of `WalletTransaction` rows. Authentication is required: an anonymous
+        `200` with `items: []` would look like "this viewer has never moved coins" to a client
+        that then has to guess whether to sign in.
+
+        The page is fail-closed. There is no coin ledger on this server — unlocks do not debit
+        one (`docs/handoff/w9-work-unlock-grant.md` S73) — and the platform has not given us a
+        movement list. The default deployment therefore answers `200` with an **empty page**,
+        never a guessed `CONSUME`. An empty page is "we have no platform rows to quote". A
+        `CONSUME` appears only when the platform posted one.
+
+        Beans and fiat are not in this response. The platform charges Beans; what a coin is
+        worth in Beans is a pricing decision that does not exist (`C3-09`).
+
+        `private, no-store`: the answer is per viewer and is money
+        (`docs/design/api-contracts.md` CA-3).
+      tags: [wallet]
+      security:
+        - bearerSession: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: |
+            Opaque; echoed back from `pageInfo.nextCursor` verbatim. Omit it for the first page.
+            A cursor this server cannot read is a `400` rather than a silent first page.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          description: |
+            Refused rather than clamped when out of range: a short page is the obvious
+            end-of-list signal, so a silently reduced limit would stop a client paging.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: type
+          in: query
+          required: false
+          description: |
+            Restrict the page to one movement type. An unknown value is a `400`, not an empty
+            page that looks like "this viewer has no CONSUMEs".
+          schema:
+            $ref: '#/components/schemas/WalletTransactionType'
+      responses:
+        '200':
+          description: |
+            A page of this viewer's coin movements. No platform ledger is a successful empty
+            page, not a 404 and not a guessed spend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletTransactionPage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: |
+            `AUTH_REQUIRED`. No credential, or one that could not be read or resolved. There is
+            no anonymous reading of a ledger.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            `COMMON_SERVICE_UNAVAILABLE`. Either the session could not be resolved, or the
+            ledger could not be read. Distinct from a `200` with `items: []`: that one is
+            "we asked, there are no rows"; this one is "we could not complete the check".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/progress/episodes/{episodeId}:
     parameters:
       - name: episodeId
@@ -1589,6 +1671,58 @@ components:
           description: |
             Only `true` when the platform said a credit is still settling. Absent is not a
             pending credit; the banner SCR-09 reserves for that stays down.
+
+    WalletTransactionType:
+      type: string
+      enum: [RECHARGE, CONSUME, REWARD, REFUND]
+      description: |
+        `docs/12-domain-model.md` §5.2. `CONSUME` is a platform debit, not an unlock receipt.
+        Unlocks do not write this type (S73).
+
+    WalletTransactionRefType:
+      type: string
+      enum: [UNLOCK, RECHARGE_ORDER, CAMPAIGN, AD_REWARD, MANUAL]
+
+    WalletTransaction:
+      type: object
+      required: [id, type]
+      description: |
+        One row of `GET /v1/wallet/transactions`. Deltas are present only when the platform
+        named them. A missing `coinDelta` is not `0`: a recharge rendered as `+0` because we
+        guessed is a wrong ledger line.
+
+        Beans, fiat and a coin→Beans rate are not properties of this schema (`C3-09`).
+      properties:
+        id:
+          type: string
+          minLength: 1
+        type:
+          $ref: '#/components/schemas/WalletTransactionType'
+        coinDelta:
+          type: integer
+          description: Paid-coin movement. Signed. Present only when the platform named it.
+        bonusDelta:
+          type: integer
+          description: Bonus-coin movement. Same rule.
+        refType:
+          $ref: '#/components/schemas/WalletTransactionRefType'
+        refId:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+
+    WalletTransactionPage:
+      type: object
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WalletTransaction'
+        pageInfo:
+          $ref: '#/components/schemas/PageInfo'
 
     DramaSearchHit:
       type: object

@@ -24,7 +24,8 @@ import type { TranslationKey } from '../core/i18n';
  * figure only when the platform supplied one; a missing coin balance is `UNAVAILABLE` rather than
  * `0` — a viewer who has recharged and sees an invented zero will not believe the next number
  * (`docs/plan/cycle-3-backlog.md` C3-04). The empty ledger is a required state, not an edge case
- * (`docs/02-screen-inventory.md` SCR-09).
+ * (`docs/02-screen-inventory.md` SCR-09). `GET /v1/wallet/transactions` answers that state as a
+ * 200 empty page when the platform has posted no rows; unlocks never fill it (S73).
  *
  * Two reads, two independent sections. A failed ledger leaves the balance card where it is, and a
  * missing balance still shows the ledger: the alternative is throwing away a successfully loaded

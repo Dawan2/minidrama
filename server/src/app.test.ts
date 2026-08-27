@@ -260,6 +260,38 @@ describe('GET /v1/wallet', () => {
   });
 });
 
+describe('GET /v1/wallet/transactions', () => {
+  it('refuses a request that carries no session', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/wallet/transactions' });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+  });
+
+  it('answers 200 with an empty page, not a guessed CONSUME, to a session that has no platform ledger', async () => {
+    const sessionStore = createInMemorySessionStore();
+    const sessionApp = await buildApp({ ...loadConfig({}), logLevel: 'silent' }, { sessionStore });
+    await sessionApp.ready();
+
+    try {
+      const response = await sessionApp.inject({
+        method: 'GET',
+        url: '/v1/wallet/transactions',
+        headers: { authorization: `Bearer ${sessionStore.issue('open_abc').accessToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        items: [],
+        pageInfo: { nextCursor: null, hasMore: false },
+      });
+      expect(JSON.stringify(response.json())).not.toMatch(/CONSUME|RECHARGE/);
+    } finally {
+      await sessionApp.close();
+    }
+  });
+});
+
 describe('POST /v1/unlock/coin-orders', () => {
   it('rejects a request without an episodeId', async () => {
     const response = await app.inject({

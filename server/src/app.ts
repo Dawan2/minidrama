@@ -27,6 +27,7 @@ import { createUnavailableEntitlementFactsPort } from './modules/entitlement/fac
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
 import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import { createUnavailableWalletBalancePort } from './modules/wallet/balance-port.js';
+import { createUnavailableWalletLedgerPort } from './modules/wallet/ledger-port.js';
 import { createUnavailableWatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { createCorsPolicy } from './core/origin-policy.js';
@@ -66,6 +67,7 @@ import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { UnlockStore } from './modules/unlock/unlock-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WalletBalancePort } from './modules/wallet/balance-port.js';
+import type { WalletLedgerPort } from './modules/wallet/ledger-port.js';
 import type { WatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import type { WatchProgressStore } from './modules/progress/store.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
@@ -141,6 +143,12 @@ export interface AppDependencies {
    * has recharged will not believe (`C3-04`). Beans and fiat are not on this port (`C3-09`).
    */
   readonly walletBalancePort?: WalletBalancePort;
+  /**
+   * Coin ledger. The default reports `UNAVAILABLE`, which the route answers as a 200 empty page:
+   * there is no platform movement list, unlocks do not debit one (S73), and a guessed `CONSUME`
+   * would be a spend we would have to unpick. Beans and fiat are not on this port (`C3-09`).
+   */
+  readonly walletLedgerPort?: WalletLedgerPort;
   /**
    * Watch progress. The store defaults to the in-memory skeleton, because a position that is lost on
    * restart is a viewer resuming a few seconds early rather than a wrong answer. The catalogue port
@@ -330,10 +338,12 @@ export async function buildApp(
 
   // The same viewer resolver as unlock and progress: two things resolving sessions is how one
   // endpoint accepts the credential another rejects, and a wallet quoted for the wrong viewer is
-  // a cross-user leak. The default port omits the figure rather than inventing zero.
+  // a cross-user leak. The default ports omit the figure and the ledger rows rather than inventing
+  // zero or a CONSUME from unlock receipts.
   await app.register(walletRoutes, {
     viewerResolver,
     balancePort: dependencies.walletBalancePort ?? createUnavailableWalletBalancePort(),
+    ledgerPort: dependencies.walletLedgerPort ?? createUnavailableWalletLedgerPort(),
   });
 
   // One progress store for both registrations: the per-episode endpoints write the rows the history
