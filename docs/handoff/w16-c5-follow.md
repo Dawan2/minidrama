@@ -118,7 +118,16 @@ Recharge stays disabled. `adUnlock` stays false.
 
 ## 5. Verify
 
-`pnpm verify` pending on this branch; counts land in a follow-up commit.
+`pnpm verify` exited 0 on this branch at `175bccb` (cut `0cb0504`).
+
+| Gate | Result |
+|---|---|
+| Format / lint / types | pass |
+| Tests + coverage | **3,325 passing** — shared 63, quality 282, config 45, server 1,785, app 1,150. Coverage: global lines 94.11%, branches 91.26%, core 95.70%, **diff lines 97.16% (205/211)** |
+| Build | pass — `index-B-Efb-vk.js` 356.59 kB / 109.02 kB gzip (client comments only; same artifact as PLY-010) |
+| Guardrails | `platform guardrails passed (artifact: /workspace/app/dist)` |
+
+OpenAPI path count is 24. `GET /v1/wallet/transactions` is documented and routed. Native `<video>` remains absent.
 
 ---
 
