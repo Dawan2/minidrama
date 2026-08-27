@@ -6,9 +6,9 @@ import type { PlatformIdentityPort } from '../platform-tiktok/identity-port.js';
  * The mock login path, and the gate that keeps it out of production.
  *
  * Everything downstream of a session — progress, favorites, unlocks, the wallet — needs a viewer,
- * and the real code exchange against `open.tiktokapis.com` does not exist yet
- * (`createTiktokIdentityPort` refuses every code, deliberately: S17). Without some way to obtain a
- * session, none of those endpoints can be tested against anything but a hand-built resolver.
+ * and the real code exchange against `open.tiktokapis.com` needs a client secret plus a platform
+ * that will answer (`createTiktokIdentityPort`). Without some way to obtain a session in tests,
+ * none of those endpoints can be exercised against anything but a hand-built resolver.
  *
  * The dangerous way to fix that is a stub inside the real identity port. Then the authentication
  * bypass ships, and the only thing standing between it and production is that nobody set the wrong

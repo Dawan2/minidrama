@@ -10,18 +10,29 @@ import { createPlatformCredentials } from '../platform-tiktok/credentials.js';
 import { createTiktokIdentityPort } from '../platform-tiktok/identity-port.js';
 import { loadConfig } from '../../config.js';
 import type { AppDependencies } from '../../app.js';
-import type { PlatformIdentityPort } from '../platform-tiktok/identity-port.js';
+import type {
+  IdentityHttpClient,
+  PlatformIdentityPort,
+} from '../platform-tiktok/identity-port.js';
 
 /**
  * Silent login: the contract, the validation, the deny path — and, since W3 slot L, what the issued
  * token is bound to.
  *
- * The real exchange is still not implemented, and the first test below is still the one that
- * matters: an unimplemented credential exchange must refuse, because a stub that synthesised an
- * `open_id` would be an authentication bypass with a green test suite above it. What the slot adds is
- * a session that can be resolved back to a user, and one gated non-production path that can produce
- * one — neither of which weakens that refusal, as the last block asserts.
+ * The real `POST /v2/oauth/token/` exchange lives in `platform-tiktok`. These tests still assert
+ * the fail-closed cases: no secret, an unreachable OpenAPI, a 200 with no `open_id`. A stub that
+ * synthesised an `open_id` from the authorization code would be an authentication bypass with a
+ * green suite above it. The mock port is a separate, gated path, not that stub.
  */
+
+const unreachableIdentityHttp: IdentityHttpClient = async () => {
+  throw new Error('the identity route suite must not call the live OpenAPI');
+};
+
+const rejectedCodeIdentityHttp: IdentityHttpClient = async () => ({
+  status: 400,
+  bodyText: JSON.stringify({ error: 'invalid_grant' }),
+});
 
 let app: FastifyInstance;
 
@@ -52,8 +63,11 @@ describe('POST /v1/auth/login — with no working platform exchange', () => {
     expect(response.body).not.toContain('accessToken');
   });
 
-  it('still refuses when credentials exist but the exchange is not built', async () => {
-    await startApp({ platformCredentials: createPlatformCredentials('awtest', 'secret') });
+  it('still refuses when credentials exist but the OpenAPI is unreachable', async () => {
+    await startApp({
+      platformCredentials: createPlatformCredentials('awtest', 'secret'),
+      identityHttp: unreachableIdentityHttp,
+    });
 
     const response = await login({ provider: 'TIKTOK', authCode: 'code_abc' });
 
@@ -417,7 +431,11 @@ describe('POST /v1/auth/login — the mock path', () => {
   ])('refuses a mock code with %s, and issues nothing', async (_label, env) => {
     const sessionStore = createInMemorySessionStore();
     await startApp(
-      { sessionStore, platformCredentials: createPlatformCredentials('awtest', 'secret') },
+      {
+        sessionStore,
+        platformCredentials: createPlatformCredentials('awtest', 'secret'),
+        identityHttp: rejectedCodeIdentityHttp,
+      },
       env,
     );
 
@@ -426,16 +444,20 @@ describe('POST /v1/auth/login — the mock path', () => {
       authCode: mockAuthCode('usr_fx_vip_active'),
     });
 
-    expect(response.statusCode).toBe(502);
-    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_PROVIDER_ERROR');
+    // Mock codes are not special-cased on the real port. The platform refuses them, the route
+    // answers 401, and nothing is issued — which is the property this gate is here to protect.
+    expect(response.statusCode).toBe(401);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
     expect(sessionStore.liveSessions).toBe(0);
   });
 });
 
 describe('createTiktokIdentityPort', () => {
-  it('distinguishes a deployment with no credentials from an unbuilt exchange', async () => {
+  it('distinguishes a deployment with no credentials from an unreachable OpenAPI', async () => {
     const withoutSecret = createTiktokIdentityPort(createPlatformCredentials('awtest', ''));
-    const withSecret = createTiktokIdentityPort(createPlatformCredentials('awtest', 'secret'));
+    const withSecret = createTiktokIdentityPort(createPlatformCredentials('awtest', 'secret'), {
+      http: unreachableIdentityHttp,
+    });
 
     expect(await withoutSecret.exchangeAuthCode('code')).toEqual({
       ok: false,
@@ -448,10 +470,55 @@ describe('createTiktokIdentityPort', () => {
   });
 
   it('refuses every code, including an empty one, rather than inventing an open_id', async () => {
-    const port = createTiktokIdentityPort(createPlatformCredentials('awtest', 'secret'));
+    const port = createTiktokIdentityPort(createPlatformCredentials('awtest', 'secret'), {
+      http: async () => ({
+        status: 200,
+        bodyText: JSON.stringify({ access_token: 'act.not_an_open_id' }),
+      }),
+    });
 
     for (const code of ['', 'code_abc', 'x'.repeat(500)]) {
       expect((await port.exchangeAuthCode(code)).ok).toBe(false);
     }
+  });
+
+  it('does not put a platform access_token on the login response', async () => {
+    const port = createTiktokIdentityPort(createPlatformCredentials('awtest', 'secret'), {
+      http: async () => ({
+        status: 200,
+        bodyText: JSON.stringify({
+          open_id: 'open_abc',
+          access_token: 'act.platform_secret_token',
+          refresh_token: 'rft.platform_refresh',
+        }),
+      }),
+    });
+    await startApp({ identityPort: port });
+
+    const response = await login({ provider: 'TIKTOK', authCode: 'code_abc' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).not.toContain('act.platform_secret_token');
+    expect(response.body).not.toContain('rft.platform_refresh');
+    expect(response.json<{ openId: string }>().openId).toBe('open_abc');
+  });
+
+  it('does not put the client secret on a login response, success or failure', async () => {
+    const secret = 'sk-do-not-log-this-value';
+    const port = createTiktokIdentityPort(createPlatformCredentials('awtest', secret), {
+      http: async (request) => {
+        expect(new URLSearchParams(request.body).get('client_secret')).toBe(secret);
+        return {
+          status: 200,
+          bodyText: JSON.stringify({ open_id: 'open_abc', access_token: 'act.x' }),
+        };
+      },
+    });
+    await startApp({ identityPort: port });
+
+    const response = await login({ provider: 'TIKTOK', authCode: 'code_abc' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).not.toContain(secret);
   });
 });

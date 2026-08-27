@@ -64,7 +64,10 @@ import type { DramaDirectory } from './modules/search/dramas.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { FavoritesStore } from './modules/search/favorites.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
-import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
+import type {
+  IdentityHttpClient,
+  PlatformIdentityPort,
+} from './modules/platform-tiktok/identity-port.js';
 import type { PlatformTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import type { PlaybackMediaPort } from './modules/playback/media-port.js';
 import type { ServerConfig } from './config.js';
@@ -108,6 +111,12 @@ export interface AppDependencies {
    */
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
+  /**
+   * The HTTP seam behind `createTiktokIdentityPort`. Tests inject a stub so login never calls
+   * `open.tiktokapis.com`. Uninjected, the port uses `fetch`. Ignored when `identityPort` is set
+   * or when mock login is enabled.
+   */
+  readonly identityHttp?: IdentityHttpClient;
   /**
    * Sessions. Injected by tests that need to mint one for a known user without going through a
    * platform exchange — which is the supported way to log in during a test, and needs no flag,
@@ -312,7 +321,8 @@ export async function buildApp(
   const viewerResolver = dependencies.viewerResolver ?? createSessionViewerResolver(sessionStore);
 
   // The only place the mock exchange can enter the system, and the only gate on it. `identityPort`
-  // is otherwise the real port, which refuses every code until the HTTP exchange lands.
+  // is otherwise the real `POST /v2/oauth/token/` adapter: no secret is still a refuse, and a
+  // missing `open_id` on a 200 is still a refuse — never a synthesised user.
   if (config.testLoginEnabled) {
     app.log.warn(
       'MOCK LOGIN IS ENABLED: /v1/auth/login accepts mock:<userId> codes and issues real sessions. This must never be a production deployment.',
@@ -320,7 +330,12 @@ export async function buildApp(
   }
   const identityPort =
     dependencies.identityPort ??
-    (config.testLoginEnabled ? createMockIdentityPort() : createTiktokIdentityPort(credentials));
+    (config.testLoginEnabled
+      ? createMockIdentityPort()
+      : createTiktokIdentityPort(
+          credentials,
+          dependencies.identityHttp === undefined ? {} : { http: dependencies.identityHttp },
+        ));
 
   await app.register(healthRoutes);
 
