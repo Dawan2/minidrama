@@ -28,6 +28,7 @@
     "check:sast": "pnpm --filter @minidrama/quality run check:sast",
     "check:codeql": "pnpm --filter @minidrama/quality run check:codeql",
     "check:sca": "pnpm --filter @minidrama/quality run check:sca",
+    "check:smoke": "pnpm --filter @minidrama/quality run check:smoke",
     "check:secrets": "pnpm --filter @minidrama/quality run check:secrets",
     "check:contract": "pnpm --filter @minidrama/quality run check:contract",
     "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
