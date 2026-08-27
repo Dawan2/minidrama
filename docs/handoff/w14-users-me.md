@@ -115,15 +115,36 @@ A client would then have to guess whether to sign in.
 
 | Who | Overlap |
 | --- | --- |
-| `bc-0b570e4b` (`cursor/w14-work-c4-next-72c4`) | None. Their files are L2 sqlite integration. This slot does not touch `l2.yml` |
-| `bc-7119e197` (PLY-002) | None. Player probe |
-| C4-05 (`652cc69`) | Already on main. Identity port untouched |
+| `bc-0b570e4b` (`cursor/w14-work-c4-next-72c4`) | Landed on `main` as G2.6 (`a8e1023` / `fe5405a`) while this slot ran. L2 artifact files. This slot does not touch `l2.yml` or `check:artifact` |
+| `bc-7119e197` (PLY-002) | Landed on `main` as `eec7c71`. Player probe. Merged in; no overlap with me routes |
+| C4-05 (`652cc69`) | Already on main at the cut. Identity port untouched |
 
 ---
 
 ## 5. Verification
 
-`pnpm verify` — recorded after the run on this branch.
+`pnpm verify` green on this branch after merging `origin/main` (`a8e1023`: G2.6 + PLY-002).
+L1 sequence unchanged: format → lint → typecheck → test:coverage → check:coverage → build →
+guardrails.
+
+| Package | Tests |
+| --- | ---: |
+| `packages/shared` | 58 |
+| `packages/config` | 45 |
+| `packages/quality` | 67 |
+| `server` | 1,673 |
+| `app` | 1,050 |
+| **Total** | **2,893** |
+
+Zero skipped. Coverage gate:
+
+```
+coverage global lines 94.07% (12701/13501), branches 92.15%, core lines 98.13%, diff lines 91.12% (154/169)
+coverage gate passed
+```
+
+Guardrails passed against `app/dist` (`index-DdfT1FNc.js` 342.98 kB / 104.21 kB gzip). Native
+`<video>` remains absent. G2.6 `check:artifact` is L2, not folded into `pnpm verify`.
 
 ---
 
