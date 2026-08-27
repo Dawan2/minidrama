@@ -13,12 +13,13 @@ import type { UnlockOrder, UnlockOrderTransition, UnlockOrderTransitionFailure }
  * lists another user's orders, and there is no update method other than `apply`, which routes every
  * write through the transition table in `orders.ts`.
  *
- * This in-memory implementation is a Wave 2 skeleton. It gives the routes real semantics to be
- * tested against and it forgets everything on restart, which is survivable only because no order
- * here has been fulfilled: a forgotten `PAID` order is a payment we have to reconcile, not an
- * unlock we have to revoke. The durable version needs three unique indexes — `id`,
- * `(userId, idempotencyKey)` and `tradeOrderId` — and the last one is what makes callback
- * correlation single-valued.
+ * The in-memory implementation is bounded and is the default; it forgets everything on restart.
+ * A forgotten `PAID` order is a payment we have to reconcile, and a forgotten `PENDING` order is
+ * a callback that can match nothing. `DATABASE_URL=sqlite:<path>` puts a SQLite table behind this
+ * same interface (the same file as unlock receipts, sessions, and webhook events); a postgres URL
+ * is refused rather than rewritten to a file. Three unique indexes — `id`, `(userId,
+ * idempotencyKey)` and `tradeOrderId` — are what the Maps below simulate, and the last one is
+ * what makes callback correlation single-valued.
  */
 
 /**
@@ -49,13 +50,13 @@ export interface UnlockOrderStore {
   list(): Promise<readonly UnlockOrder[]>;
 }
 
-export interface InMemoryUnlockOrderStoreOptions {
-  /** Oldest records are dropped past this bound so a flood cannot exhaust the heap. */
+export interface UnlockOrderStoreOptions {
+  /** Oldest records are dropped past this bound so a flood cannot exhaust the heap (or the file). */
   readonly capacity?: number;
 }
 
 export function createInMemoryUnlockOrderStore(
-  options: InMemoryUnlockOrderStoreOptions = {},
+  options: UnlockOrderStoreOptions = {},
 ): UnlockOrderStore {
   const capacity = options.capacity ?? 1000;
   const orders = new Map<string, UnlockOrder>();
