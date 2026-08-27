@@ -66,6 +66,16 @@ describe('createPlayerFacade', () => {
     expect(MockVePlayer.instances[0]?.config.lang).toBe('en');
   });
 
+  it('starts at 0 when the session resume is 0, not at a guessed duration', async () => {
+    const bridge = await readyBridge();
+    await createPlayerFacade(bridge, {
+      container,
+      descriptor: { ...descriptor, resumePositionSec: 0 },
+    });
+
+    expect(MockVePlayer.instances[0]?.config.startTime).toBe(0);
+  });
+
   it('omits playAuthToken entirely when the descriptor has none', async () => {
     const bridge = await readyBridge();
     await createPlayerFacade(bridge, { container, descriptor });

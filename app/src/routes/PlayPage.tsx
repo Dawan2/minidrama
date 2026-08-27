@@ -34,7 +34,9 @@ import type { AdPlacement } from '../data/unlock-api';
  *
  * The descriptor comes only from `POST /v1/playback/sessions`. There is no client-built playlist:
  * a demo album would play a catalogue id the server had refused. Fail-closed: a session that does
- * not issue a descriptor does not start VePlayer.
+ * not issue a descriptor does not start VePlayer. `resumePositionSec` becomes VePlayer `startTime`;
+ * omitted or `0` starts at the beginning. Catalog `durationSec` is never a seek target. A 403 is
+ * not a descriptor, so it never seeks.
  *
  * Watch progress is a heartbeat on that same instance (`PUT /v1/progress/episodes/{episodeId}`),
  * throttled to `GET /v1/config`'s `progressHeartbeatSec`, flushed on pause / hide / unmount, and

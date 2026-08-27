@@ -106,6 +106,8 @@ export async function createPlayerFacade(
       // Preload needs MP4 + MSE. Turning this off silently costs first-frame time (§5.3).
       enableMp4MSE: true,
       autoplay: options.autoplay ?? true,
+      // Session resume only. Catalog duration is a heartbeat observation, not a start time,
+      // and a 403 never reaches this constructor — PlayPage does not mint a player for a lock.
       startTime: descriptor.resumePositionSec,
       lang: options.lang ?? 'en',
       autoSubtitle: true,
