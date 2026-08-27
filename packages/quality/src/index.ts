@@ -74,3 +74,19 @@ export {
   runSecretsCheck,
 } from './secrets.js';
 export type { SecretFinding, SecretsCheckArgs } from './secrets.js';
+
+export {
+  BASELINE_RELATIVE,
+  ERR_LEVEL,
+  REVISION_RELATIVE,
+  THINNING_FILE_NAMES as CONTRACT_THINNING_FILE_NAMES,
+  USAGE as CONTRACT_USAGE,
+  buildOasdiffArgv,
+  defaultBase,
+  defaultRevision,
+  formatChange as formatBreakingChange,
+  parseContractArgs,
+  parseOasdiffReport,
+  runContractCheck,
+} from './contract.js';
+export type { BreakingChange, ContractCheckArgs } from './contract.js';
