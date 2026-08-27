@@ -3,11 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 
 import './styles/app.css';
+import { anonymousSession } from './auth/session';
 import { App } from './App';
 import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
+import { createHistoryApi } from './data/history-api';
 import { createHttpClient } from './data/http';
+import { HistoryApiProvider } from './data/history-api-context';
+import { SessionProvider } from './auth/session-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
 
 /**
@@ -44,23 +48,44 @@ async function boot(): Promise<void> {
    * because an environment variable is absent is a white screen, and the retryable error state is
    * a screen with a button on it.
    */
-  const api = createCatalogApi(
-    createHttpClient({
-      baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
-      fetch: (url, init) => fetch(url, init),
-    }),
-  );
+  const http = createHttpClient({
+    baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
+    fetch: (url, init) => fetch(url, init),
+  });
+  const api = createCatalogApi(http);
+
+  /**
+   * One transport, two read clients. The history read is session-scoped and the catalogue reads are
+   * not, so they are separate interfaces — but they share the timeout, the single automatic retry
+   * and the envelope handling, which is the whole reason `http.ts` exists.
+   *
+   * The `Authorization` header belongs in this client when the identity slot lands: one place that
+   * attaches it and one place that refreshes it. Until then the history read is anonymous, and the
+   * `401` it earns is what SCR-07 renders as a sign-in prompt.
+   */
+  const historyApi = createHistoryApi(http);
+
+  /**
+   * The session the app boots with. Silent login is the remaining continuation above, so today this
+   * is anonymous and `signIn` cannot succeed. Replacing this one value with a stateful session is
+   * the whole of the client-side wiring the identity slot needs.
+   */
+  const session = anonymousSession();
 
   document.documentElement.lang = DEFAULT_LOCALE;
   document.documentElement.dir = isRtl(DEFAULT_LOCALE) ? 'rtl' : 'ltr';
 
   createRoot(container).render(
     <StrictMode>
-      <CatalogApiProvider api={api}>
-        <HashRouter>
-          <App bridge={bridge} />
-        </HashRouter>
-      </CatalogApiProvider>
+      <SessionProvider session={session}>
+        <CatalogApiProvider api={api}>
+          <HistoryApiProvider api={historyApi}>
+            <HashRouter>
+              <App bridge={bridge} />
+            </HashRouter>
+          </HistoryApiProvider>
+        </CatalogApiProvider>
+      </SessionProvider>
     </StrictMode>,
   );
 }

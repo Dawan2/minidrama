@@ -25,6 +25,20 @@ describe('routes', () => {
     expect(ROUTES.play).toBe('/play/:episodeId');
   });
 
+  it('declares the personal screens at the paths the IA publishes', () => {
+    expect(ROUTES.me).toBe('/me');
+    expect(ROUTES.history).toBe('/history');
+  });
+
+  /**
+   * SCR-08 has no screen behind it. A declared path with no route registered resolves to the
+   * fallback, so declaring it here is how the profile's favourites entry would become "this page
+   * does not exist" the first time someone linked to the constant.
+   */
+  it('declares no path for a screen that does not exist', () => {
+    expect(Object.values(ROUTES)).not.toContain('/favorites');
+  });
+
   it('builds a drama path from a drama id', () => {
     expect(dramaPath('drm_1')).toBe('/drama/drm_1');
   });

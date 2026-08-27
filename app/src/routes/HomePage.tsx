@@ -1,7 +1,9 @@
+import { Link } from 'react-router';
 import type { FeedCard } from '@minidrama/shared';
 
 import { EmptyState, RetryableError, Skeleton, TerminalError } from '../components/states';
 import { FeedCardView } from '../catalog/FeedCardView';
+import { ROUTES } from './routes';
 import { translate } from '../core/i18n';
 import { useCatalogApi } from '../data/catalog-api-context';
 import { usePagedResource } from '../data/use-paged-resource';
@@ -40,6 +42,17 @@ export function HomePage(): React.JSX.Element {
 
   return (
     <main className="page page--home" data-testid="home-page">
+      {/*
+        The only way to the personal screens. There is no tab bar yet (IA §2 gives SCR-02, SCR-03
+        and SCR-06 a Tab root each), and a tab bar is a chrome decision that belongs with the
+        navigation work rather than being invented here — but a profile screen nobody can reach is
+        not a delivered screen. One link, and the feed below it is untouched.
+      */}
+      <p className="page__nav">
+        <Link className="page__nav-link" data-testid="profile-link" to={ROUTES.me}>
+          {translate('nav.profile')}
+        </Link>
+      </p>
       <h1 className="page__heading">{translate('home.heading')}</h1>
       {renderFeed(feed)}
     </main>

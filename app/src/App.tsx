@@ -2,8 +2,10 @@ import { Navigate, Route, Routes } from 'react-router';
 
 import { DramaPage } from './routes/DramaPage';
 import { FallbackPage } from './routes/FallbackPage';
+import { HistoryPage } from './routes/HistoryPage';
 import { HomePage } from './routes/HomePage';
 import { PlayPage } from './routes/PlayPage';
+import { ProfilePage } from './routes/ProfilePage';
 import { ROUTES, fallbackPath } from './routes/routes';
 import type { PlatformBridge } from './platform/types';
 
@@ -18,6 +20,8 @@ export function App({ bridge }: AppProps): React.JSX.Element {
       <Route path={ROUTES.home} element={<HomePage />} />
       <Route path={ROUTES.drama} element={<DramaPage bridge={bridge} />} />
       <Route path={ROUTES.play} element={<PlayPage bridge={bridge} />} />
+      <Route path={ROUTES.me} element={<ProfilePage />} />
+      <Route path={ROUTES.history} element={<HistoryPage />} />
       <Route path={ROUTES.fallback} element={<FallbackPage />} />
       {/*
         A static ZIP has no server to answer 404, so an unmatched path is resolved here and given

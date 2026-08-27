@@ -14,6 +14,13 @@ export const ROUTES = {
   home: '/home',
   drama: '/drama/:dramaId',
   play: '/play/:episodeId',
+  /**
+   * SCR-06 and SCR-07. `#/favorites` (SCR-08) is deliberately absent: the screen does not exist,
+   * and a declared path with no route registered behind it resolves to the fallback screen, which
+   * would turn the profile's favourites entry into "this page does not exist".
+   */
+  me: '/me',
+  history: '/history',
   fallback: '/fallback',
 } as const;
 
