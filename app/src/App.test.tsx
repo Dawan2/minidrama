@@ -5,7 +5,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App';
 import { MockBridge } from './platform/mock-bridge';
 import { MockVePlayer } from './player/mock-veplayer';
-import { dramaDetail, episodeItem, page, stubCatalogApi } from './testing/catalog-fixtures';
+import {
+  dramaDetail,
+  episodeItem,
+  feedCard,
+  page,
+  stubCatalogApi,
+} from './testing/catalog-fixtures';
+import { favoritesHttpFailure, stubFavoritesApi } from './testing/favorites-fixtures';
 import { historyHttpFailure, stubHistoryApi, watchHistoryEntry } from './testing/history-fixtures';
 import { renderSurface } from './testing/render';
 import type { StubHistoryApi } from './testing/history-fixtures';
@@ -79,12 +86,24 @@ describe('App routing', () => {
     expect(fallback.getAttribute('data-reason')).toBe('NOT_FOUND');
   });
 
-  /**
-   * SCR-08 is not built, so `#/favorites` is an unknown path. It must land on the fallback with a
-   * way home rather than on a blank screen — which is also why the profile does not link to it.
-   */
-  it('sends the unbuilt favourites path to the fallback rather than nowhere', async () => {
+  it('renders the favourites route', async () => {
     renderAt('/favorites');
-    expect(await screen.findByTestId('fallback-page')).toBeDefined();
+    expect(await screen.findByTestId('favorites-page')).toBeDefined();
+    expect(screen.queryByTestId('fallback-page')).toBeNull();
+  });
+
+  // The same rule as the history screen: there is no login screen to leave to, so a 401 is resolved
+  // where the viewer already is.
+  it('keeps an unauthorised favourites read on its own screen', async () => {
+    const favoritesApi = stubFavoritesApi({ read: () => err(favoritesHttpFailure(401)) });
+    const bridge = new MockBridge();
+    renderSurface(<App bridge={bridge} />, {
+      api: stubCatalogApi({ feed: () => ok(page([feedCard()])) }),
+      favoritesApi,
+      path: '/favorites',
+    });
+
+    expect(await screen.findByTestId('favorites-sign-in')).toBeDefined();
+    expect(screen.queryByTestId('fallback-page')).toBeNull();
   });
 });

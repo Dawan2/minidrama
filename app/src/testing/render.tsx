@@ -3,11 +3,14 @@ import { render } from '@testing-library/react';
 import type { RenderResult } from '@testing-library/react';
 
 import { CatalogApiProvider } from '../data/catalog-api-context';
+import { FavoritesApiProvider } from '../data/favorites-api-context';
 import { HistoryApiProvider } from '../data/history-api-context';
 import { SessionProvider } from '../auth/session-context';
 import { stubCatalogApi } from './catalog-fixtures';
+import { stubFavoritesApi } from './favorites-fixtures';
 import { stubHistoryApi, stubSession } from './history-fixtures';
 import type { CatalogApi } from '../data/catalog-api';
+import type { FavoritesApi } from '../data/favorites-api';
 import type { HistoryApi } from '../data/history-api';
 import type { Session } from '../auth/session';
 
@@ -31,6 +34,7 @@ import type { Session } from '../auth/session';
 export interface RenderSurfaceOptions {
   readonly api?: CatalogApi;
   readonly historyApi?: HistoryApi;
+  readonly favoritesApi?: FavoritesApi;
   readonly session?: Session;
   readonly path?: string;
 }
@@ -43,7 +47,9 @@ export function renderSurface(
     <SessionProvider session={options.session ?? stubSession()}>
       <CatalogApiProvider api={options.api ?? stubCatalogApi()}>
         <HistoryApiProvider api={options.historyApi ?? stubHistoryApi()}>
-          <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+          <FavoritesApiProvider api={options.favoritesApi ?? stubFavoritesApi()}>
+            <MemoryRouter initialEntries={[options.path ?? '/']}>{element}</MemoryRouter>
+          </FavoritesApiProvider>
         </HistoryApiProvider>
       </CatalogApiProvider>
     </SessionProvider>,

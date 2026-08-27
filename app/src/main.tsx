@@ -8,8 +8,10 @@ import { App } from './App';
 import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
+import { createFavoritesApi } from './data/favorites-api';
 import { createHistoryApi } from './data/history-api';
 import { createHttpClient } from './data/http';
+import { FavoritesApiProvider } from './data/favorites-api-context';
 import { HistoryApiProvider } from './data/history-api-context';
 import { SessionProvider } from './auth/session-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
@@ -55,15 +57,16 @@ async function boot(): Promise<void> {
   const api = createCatalogApi(http);
 
   /**
-   * One transport, two read clients. The history read is session-scoped and the catalogue reads are
-   * not, so they are separate interfaces — but they share the timeout, the single automatic retry
-   * and the envelope handling, which is the whole reason `http.ts` exists.
+   * One transport, three clients. The history read and the favourite verbs are session-scoped and
+   * the catalogue reads are not, so they are separate interfaces — but they share the timeout, the
+   * single automatic retry and the envelope handling, which is the whole reason `http.ts` exists.
    *
    * The `Authorization` header belongs in this client when the identity slot lands: one place that
-   * attaches it and one place that refreshes it. Until then the history read is anonymous, and the
-   * `401` it earns is what SCR-07 renders as a sign-in prompt.
+   * attaches it and one place that refreshes it. Until then these reads are anonymous, and the `401`
+   * they earn is what SCR-07 and SCR-08 render as a sign-in prompt.
    */
   const historyApi = createHistoryApi(http);
+  const favoritesApi = createFavoritesApi(http);
 
   /**
    * The session the app boots with. Silent login is the remaining continuation above, so today this
@@ -80,9 +83,11 @@ async function boot(): Promise<void> {
       <SessionProvider session={session}>
         <CatalogApiProvider api={api}>
           <HistoryApiProvider api={historyApi}>
-            <HashRouter>
-              <App bridge={bridge} />
-            </HashRouter>
+            <FavoritesApiProvider api={favoritesApi}>
+              <HashRouter>
+                <App bridge={bridge} />
+              </HashRouter>
+            </FavoritesApiProvider>
           </HistoryApiProvider>
         </CatalogApiProvider>
       </SessionProvider>

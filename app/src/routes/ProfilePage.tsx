@@ -67,21 +67,15 @@ export function ProfilePage(): React.JSX.Element {
         </Link>
 
         {/*
-          Favourites (SCR-08) has no screen and no endpoint: `GET /users/me/favorites` is not on the
-          server and `DramaDetail.viewer` is null, so the list would be empty for everyone. The entry
-          is present and visibly unavailable rather than hidden or linked. Hidden, and nobody can
-          tell whether favouriting does anything; linked, and it lands on "this page does not exist",
-          which reads as a broken app rather than an unfinished one.
+          Favourites (SCR-08) is a screen now, so the entry is a link. It was a disabled button for
+          as long as there was nowhere to go: `GET /users/me/favorites` still does not exist, but the
+          screen is built on the per-drama favourite reads instead (`routes/FavoritesPage.tsx`), and
+          an entry that leads to a screen which explains its own limits is a better answer than one
+          that leads nowhere.
         */}
-        <button
-          className="profile-entry profile-entry--pending"
-          data-testid="favorites-entry"
-          type="button"
-          disabled
-        >
-          <span>{translate('profile.favorites')}</span>
-          <span className="profile-entry__hint">{translate('profile.notYetAvailable')}</span>
-        </button>
+        <Link className="profile-entry" data-testid="favorites-entry" to={ROUTES.favorites}>
+          {translate('profile.favorites')}
+        </Link>
       </nav>
     </main>
   );

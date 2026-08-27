@@ -82,27 +82,22 @@ describe('the profile entries', () => {
   });
 
   /**
-   * Favourites (SCR-08) has no screen and no endpoint. Hidden, and nobody can tell whether
-   * favouriting does anything; linked, and it lands on "this page does not exist", which reads as a
-   * broken app rather than an unfinished one.
+   * The entry was a disabled button for as long as SCR-08 had nowhere to go. The screen exists now,
+   * built on the per-drama favourite reads, so the entry leads to it — an entry that arrives at a
+   * screen which explains its own limits beats one that arrives at "this page does not exist".
    */
-  it('shows the favourites entry as present and unavailable, never as a dead link', () => {
+  it('leads to the favourites screen', () => {
     renderSurface(<ProfilePage />);
 
     const favorites = screen.getByTestId('favorites-entry');
     expect(favorites.textContent).toContain('Favourites');
-    expect(favorites.textContent).toContain('Not available yet');
-    expect(favorites.getAttribute('disabled')).not.toBeNull();
-    expect(favorites.tagName).toBe('BUTTON');
-    expect(screen.getAllByRole('link').map((link) => link.getAttribute('href'))).not.toContain(
-      '/favorites',
-    );
+    expect(favorites.getAttribute('href')).toBe('/favorites');
   });
 
   it('offers only the entries that lead somewhere', () => {
     renderSurface(<ProfilePage />);
 
     const links = screen.getByTestId('profile-entries').querySelectorAll('a');
-    expect([...links].map((link) => link.getAttribute('href'))).toEqual(['/history']);
+    expect([...links].map((link) => link.getAttribute('href'))).toEqual(['/history', '/favorites']);
   });
 });
