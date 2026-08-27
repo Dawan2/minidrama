@@ -50,7 +50,7 @@ describe('MockBridge behaviour', () => {
     const bridge = new MockBridge();
     await bridge.init();
     const result = await bridge.login();
-    expect(result.ok && result.value).toEqual({ authCode: 'mock-auth-code' });
+    expect(result.ok && result.value).toEqual({ authCode: 'mock:usr_browser_local' });
   });
 
   it('models a capability missing on an older client', async () => {

@@ -62,11 +62,11 @@ minidrama/
 ├── packages/
 │   ├── shared/                 # Result, error codes, playback descriptor — client and server
 │   ├── config/                 # trusted-domain registry + minis.config.json generator
-│   └── quality/                # G2.8 licenses, G1.5 coverage, G2.4 Semgrep + CodeQL, G2.5 Trivy; not bundled
+│   └── quality/                # G2.8 licenses, G1.5 coverage, G2.4 Semgrep + CodeQL, G2.5 Trivy, G2.3 Playwright; not bundled
 ├── contracts/openapi.yaml      # OpenAPI 3.1 — the HTTP surface's source of truth
 ├── docs/                       # architecture, design, plan, engineering (this file)
 ├── .github/workflows/ci.yml    # L1: format, lint, types, tests+coverage, build, guardrails
-└── .github/workflows/l2.yml    # L2: G2.8 + G2.7 + G2.2 + G2.6 + G2.4 Semgrep + CodeQL + G2.5 Trivy; does not skip L1
+└── .github/workflows/l2.yml    # L2: G2.8 + G2.7 + G2.2 + G2.6 + G2.4 Semgrep + CodeQL + G2.5 Trivy + G2.3 Playwright; does not skip L1
 ```
 
 This matches the Wave 2 target layout in `docs/architecture/tech-stack.md` §7, with the module
@@ -215,11 +215,12 @@ pnpm check:artifact       # G2.6; ZIP / first-screen JS; empty files, maps, back
 pnpm check:sast           # G2.4; Semgrep custom rules; a missing binary or high finding fails
 pnpm check:codeql         # G2.4; CodeQL security-extended; a missing binary or high finding fails
 pnpm check:sca            # G2.5; Trivy lockfile SCA; a missing binary or CRITICAL finding fails
+pnpm check:smoke          # G2.3; Playwright P0 smoke; a missing binary, dist, or failed spec fails
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
 `pnpm verify` is exactly what L1 CI runs, in the same order. L2 (`check:licenses`, `check:migrate`,
-`check:integration`, `check:artifact`, `check:sast`, `check:codeql`, `check:sca`) is a second
+`check:integration`, `check:artifact`, `check:sast`, `check:codeql`, `check:sca`, `check:smoke`) is a second
 workflow and is not folded into `verify`, so adding it cannot become a reason to skip a verify step.
 
 ---

@@ -62,3 +62,18 @@ export {
   runScaCheck,
 } from './sca.js';
 export type { ScaCheckArgs, ScaVulnerability } from './sca.js';
+
+export {
+  REQUIRED_SMOKE_SPEC_STEMS,
+  USAGE as SMOKE_USAGE,
+  buildPlaywrightArgv,
+  defaultConfigPath as defaultSmokeConfigPath,
+  defaultDistDir,
+  defaultSpecsDir,
+  listSmokeSpecs,
+  missingRequiredSpecStems,
+  parseSmokeArgs,
+  preflightSmoke,
+  runSmokeCheck,
+} from './smoke.js';
+export type { SmokeCheckArgs } from './smoke.js';
