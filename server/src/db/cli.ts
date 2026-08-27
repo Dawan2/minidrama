@@ -7,8 +7,9 @@ import { openSqlite } from './sqlite.js';
 /**
  * `pnpm --filter @minidrama/server migrate` and `migrate:down`.
  *
- * Tests call `migrateUp` / `migrateDown` directly so CI exercises both directions without this
- * wrapper. The CLI exists so an operator can do the same against a file.
+ * Tests call `migrateUp` / `migrateDown` directly. The L2 G2.7 job is `check:migrate`, which
+ * asserts the tables are gone after down. This CLI exists so an operator can do the same against
+ * a file; it does not replace the L2 check.
  */
 
 const direction = process.argv[2] ?? 'up';
