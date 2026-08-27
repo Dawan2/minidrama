@@ -111,12 +111,10 @@ what makes W8-b a test rather than a comment.
 
 ## 5. Overlap with in-flight
 
-| Branch / agent | Paths | Overlap |
-| --- | --- | --- |
-| `cursor/w12-work-silent-login-97cf` | `http.ts`, `transports.ts`, `main.tsx`, `session-recovery.ts`, `silent-login.ts` | none |
-| W13 VePlayer `bc-f269a2f6` | bundle-scan / source-rules (SR-5) | none |
-
-Safe to merge onto `main` without a pull request if those paths are still disjoint at merge time.
+At pick time those two were live. Both landed on `main` as `a6c04d3` while this slot ran. Their
+paths still do not overlap this branch. Gate writeback (`d27b969`, docs only:
+`wave-protocol.md`, `docs/gates/open-questions.md`, `docs/handoff/w13-gate-writeback.md`) also
+does not overlap. This branch has taken both onto its tip (`8df9591`).
 
 ---
 
