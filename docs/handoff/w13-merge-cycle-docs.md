@@ -65,6 +65,24 @@ error-outcomes branch.
 
 ## 4. Verification
 
-Run on `main` after the two merges and this document. Format, lint, types, tests, build, and
-guardrails — `pnpm verify`. Retry once if a known paging flake appears; those tests no longer have
-a deadline in them, so a failure is a regression, not D-10.
+`pnpm verify` on `2026f78`, first try, exit 0. No retry.
+
+| Gate | Result |
+| --- | --- |
+| `pnpm format:check` | pass |
+| `pnpm lint` | pass, 0 errors, 0 warnings |
+| `pnpm typecheck` | pass, 4 packages |
+| `pnpm test` | pass — **2,163 tests, 115 files, 0 skipped, 0 failing** |
+| `pnpm build` | pass — `dist/assets/index-DmVWrZ3O.js` 307.42 kB (gzip 95.75 kB) |
+| `pnpm check:guardrails` | pass, against `app/dist` |
+
+| Package | Test files | Tests |
+| ---: | ---: | ---: |
+| `server` | 53 | 1,314 |
+| `app` | 55 | 753 |
+| `packages/shared` | 4 | 51 |
+| `packages/config` | 3 | 45 |
+
+Same counts as CoverImage-plus-flakes on `78505ad`. The three documentation files did not move a
+test. FavoritesPage paging, including the 401-append case that failed CoverImage's first verify,
+passed in this run.
