@@ -1,0 +1,12 @@
+{
+  "app.title": "ميني دراما",
+  "nav.home": "الرئيسية",
+  "nav.player": "المشغل",
+  "home.heading": "ميني دراما",
+  "home.skeletonNotice": "هيكل المرحلة الأولى. سيصل الكتالوج في المرحلة الثانية.",
+  "home.openPlayer": "افتح واجهة المشغل",
+  "player.heading": "المشغل",
+  "player.unavailable": "التشغيل غير متاح حاليًا. يرجى المحاولة مرة أخرى.",
+  "fallback.heading": "حدث خطأ ما",
+  "fallback.backHome": "العودة إلى الرئيسية"
+}

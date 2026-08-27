@@ -1,0 +1,40 @@
+/**
+ * Minimal structural types for the platform-supplied VePlayer.
+ *
+ * VePlayer is not an npm dependency: it arrives on `window.TTMinis` at runtime and we cannot
+ * install its typings. These declarations describe only the surface the facade actually uses,
+ * reconstructed from `docs/architecture/system-overview.md` §5 and the public player docs. They
+ * are deliberately narrow — a wider guess would be a wider lie.
+ */
+
+export type VePlayerEventName =
+  'ready' | 'play' | 'pause' | 'ended' | 'error' | 'timeupdate' | 'preloadInfo';
+
+export interface VePlayerConfig {
+  /** The element the player takes ownership of. React must not render into it afterwards. */
+  readonly el: HTMLElement;
+  readonly albumId: string;
+  readonly episodeId: string;
+  readonly vid: string;
+  /** Only sent for TikTok clients below 44.5.0. Absent means "the client can play without it". */
+  readonly playAuthToken?: string;
+  /** Required for the preload module: preload needs MP4 + MSE (§5.3). */
+  readonly enableMp4MSE: boolean;
+  readonly autoplay: boolean;
+  readonly startTime: number;
+  /** Documented values: 'en' | 'zh-cn' | 'jp'. English is the fallback. */
+  readonly lang: string;
+  readonly autoSubtitle: boolean;
+}
+
+export interface VePlayerInstance {
+  play(): void;
+  pause(): void;
+  /** Episode switching reuses one instance; a new instance per episode defeats preload (§4.3). */
+  playNext(): void;
+  destroy(): void;
+  on(event: VePlayerEventName, handler: (payload?: unknown) => void): void;
+  off(event: VePlayerEventName, handler: (payload?: unknown) => void): void;
+}
+
+export type VePlayerConstructor = new (config: VePlayerConfig) => VePlayerInstance;

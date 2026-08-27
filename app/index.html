@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Minidrama</title>
+    <!--
+      The TikTok Minis SDK is the only external script permitted in this document. Everything else
+      must be a self-hosted, bundled asset (`docs/architecture/system-overview.md` §3.2).
+      `tools/html-integrity.ts` asserts this and the check runs in CI.
+    -->
+    <script src="https://connect.tiktok-minis.com/drama/sdk.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

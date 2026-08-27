@@ -1,0 +1,12 @@
+{
+  "app.title": "Minidrama",
+  "nav.home": "Home",
+  "nav.player": "Player",
+  "home.heading": "Minidrama",
+  "home.skeletonNotice": "Wave 1 skeleton. Catalogue and feed arrive in Wave 2.",
+  "home.openPlayer": "Open the player surface",
+  "player.heading": "Player",
+  "player.unavailable": "Playback is unavailable right now. Please try again.",
+  "fallback.heading": "Something went wrong",
+  "fallback.backHome": "Back to home"
+}
