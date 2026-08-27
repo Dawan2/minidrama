@@ -212,9 +212,10 @@ paths:
         gets `NEED_UNLOCK`, and `unlockGranted` is `false` on the response.
 
         An order leaves `PENDING` only when the signed TikTok callback
-        (`POST /v1/payments/callbacks/tiktok`) confirms the payment. There is no endpoint, header or
-        flag that advances an order, and a callback whose signature does not verify leaves every
-        order exactly where it was.
+        (`POST /v1/payments/callbacks/tiktok`) confirms the payment, and that callback is also what
+        writes the unlock record the entitlement decision reads. There is no endpoint, header or flag
+        that advances an order or grants an episode, and a callback whose signature does not verify
+        leaves every order exactly where it was.
 
         The price is the server's. The request body carries an episode id and nothing else, and the
         amount frozen onto the order is the one the entitlement decision quoted for this viewer at
@@ -281,8 +282,10 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: |
-            `UNLOCK_ALREADY_UNLOCKED` when the viewer already owns the episode;
-            `COMMON_IDEMPOTENCY_CONFLICT` when the key was used for a different episode.
+            `UNLOCK_ALREADY_UNLOCKED` when the viewer already owns the episode — including one they
+            paid for a moment ago, which is what stops a client that regenerated its
+            `Idempotency-Key` from being charged twice; `COMMON_IDEMPOTENCY_CONFLICT` when the key
+            was used for a different episode.
           content:
             application/json:
               schema:
@@ -318,11 +321,14 @@ paths:
       summary: Read the state of a coin unlock order
       description: |
         Polled after `TTMinis.pay` returns. `status` moves `PENDING → PAID` when the signed callback
-        confirms the payment, and `PAID → FULFILLED` when the unlock is recorded.
+        confirms the payment, and `PAID → FULFILLED` when the unlock record is written. One verified
+        callback does both, so a successful purchase is normally observed as `FULFILLED`.
 
         `unlockGranted` is the field a client acts on, not `status`. `PAID` means the viewer was
         charged; it does not mean the episode is playable, and treating it as if it did would show a
-        locked episode as unlocked. Playability comes from
+        locked episode as unlocked. An order that stays `PAID` is a payment whose unlock record has
+        not been written — recoverable, since the callback is redelivered and the raw event is
+        stored, and visible to nobody but an operator. Playability comes from
         `POST /v1/entitlement/episode-access` as it always has.
 
         An order belonging to another viewer is reported as absent, not as forbidden.
@@ -594,7 +600,7 @@ components:
           enum: [PENDING, PAID, FULFILLED]
           description: |
             `PENDING` until a verified callback confirms the payment, `PAID` once it has, and
-            `FULFILLED` once the unlock record exists. Only the callback produces `PAID`.
+            `FULFILLED` once the unlock record exists. Only the callback produces either.
         episodeId:
           type: string
         priceCoins:
