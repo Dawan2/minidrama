@@ -43,7 +43,7 @@ function tables(connection: SqliteDatabase): string[] {
 }
 
 describe('migrateUp / migrateDown', () => {
-  it('creates the unlocks, sessions, webhook event, unlock order, and watch-progress tables on the way up', () => {
+  it('creates the unlocks, sessions, webhook event, unlock order, watch-progress, and catalogue tables on the way up', () => {
     const connection = memory();
 
     expect(migrateUp(connection)).toEqual({
@@ -53,9 +53,13 @@ describe('migrateUp / migrateDown', () => {
         '0003_webhook_events',
         '0004_unlock_orders',
         '0005_watch_progress',
+        '0007_catalog',
       ],
     });
     expect(tables(connection)).toEqual([
+      'dramas',
+      'episodes',
+      'seasons',
       'sessions',
       'unlock_orders',
       'unlocks',
@@ -72,12 +76,13 @@ describe('migrateUp / migrateDown', () => {
     expect(migrateUp(connection)).toEqual({ applied: [] });
   });
 
-  it('drops the watch-progress, unlock order, webhook, sessions, and unlocks tables on the way down', () => {
+  it('drops the catalogue, watch-progress, unlock order, webhook, sessions, and unlocks tables on the way down', () => {
     const connection = memory();
     migrateUp(connection);
 
     expect(migrateDown(connection)).toEqual({
       applied: [
+        '0007_catalog',
         '0005_watch_progress',
         '0004_unlock_orders',
         '0003_webhook_events',
@@ -151,6 +156,20 @@ describe('migrateUp / migrateDown', () => {
         )
         .run(),
     ).toThrow(/no such table: watch_progress/i);
+    expect(() =>
+      connection
+        .prepare(
+          `INSERT INTO dramas (
+            id, title, description, cover_url, horizontal_cover_url, category, tags, status,
+            total_seasons, total_episodes, free_episodes, is_completed, release_at,
+            play_count, favorite_count, score
+          ) VALUES (
+            'drm_1', 'T', '', 'https://cdn.example.invalid/x.jpg', NULL, 'OTHER', '[]',
+            'PUBLISHED', 0, 0, 0, 0, '2026-08-27T00:00:00.000Z', 0, 0, 0
+          )`,
+        )
+        .run(),
+    ).toThrow(/no such table: dramas/i);
 
     migrateUp(connection);
     expect(insert().changes).toBe(1);
@@ -196,6 +215,38 @@ describe('migrateUp / migrateDown', () => {
         )
         .run().changes,
     ).toBe(1);
+    expect(
+      connection
+        .prepare(
+          `INSERT INTO dramas (
+            id, title, description, cover_url, horizontal_cover_url, category, tags, status,
+            total_seasons, total_episodes, free_episodes, is_completed, release_at,
+            play_count, favorite_count, score
+          ) VALUES (
+            'drm_1', 'T', '', 'https://cdn.example.invalid/x.jpg', NULL, 'OTHER', '[]',
+            'PUBLISHED', 0, 0, 0, 0, '2026-08-27T00:00:00.000Z', 0, 0, 0
+          )`,
+        )
+        .run().changes,
+    ).toBe(1);
+    expect(
+      connection
+        .prepare(
+          `INSERT INTO seasons (id, drama_id, season_number, title, status)
+           VALUES ('ssn_1', 'drm_1', 1, NULL, 'PUBLISHED')`,
+        )
+        .run().changes,
+    ).toBe(1);
+    expect(
+      connection
+        .prepare(
+          `INSERT INTO episodes (
+            id, drama_id, season_id, episode_number, title, duration_sec, unlock_policy,
+            price_coins, status
+          ) VALUES ('ep_1', 'drm_1', 'ssn_1', 1, NULL, 96, 'FREE', NULL, 'PUBLISHED')`,
+        )
+        .run().changes,
+    ).toBe(1);
   });
 
   it('refuses an up file that has no matching down file', () => {
@@ -217,6 +268,9 @@ describe('migrateUp / migrateDown', () => {
     const second = openSqlite(path);
     db = second;
     expect(tables(second)).toEqual([
+      'dramas',
+      'episodes',
+      'seasons',
       'sessions',
       'unlock_orders',
       'unlocks',
