@@ -84,8 +84,8 @@ describe('GET /v1/config — the body is flags, not legal URLs, ads units or Bea
     const body = response.json<ConfigView>();
 
     expect(keys.every((key) => (CONFIG_VIEW_KEYS as readonly string[]).includes(key))).toBe(true);
-    expect(keys.sort()).toEqual(['features', 'playback']);
-    expect(Object.keys(body.features).sort()).toEqual(['adUnlock', 'comments']);
+    expect([...keys].sort()).toEqual(['features', 'playback']);
+    expect([...Object.keys(body.features)].sort()).toEqual(['adUnlock', 'comments']);
     expect(Object.keys(body.playback)).toEqual(['progressHeartbeatSec']);
     expect(JSON.stringify(body)).not.toMatch(
       /vip|beans|termsUrl|privacyUrl|legalUrls|adUnitId|coinName|"wallet"/i,
