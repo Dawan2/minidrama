@@ -2,7 +2,8 @@
 
 > **Slot:** W16, work slot (`bc-fed59ba3`). One backlog item, no pull request.
 > **Branch:** `cursor/w16-work-c5-next-72c4`, cut from `origin/main` at **`8e5c803`**
-> (PRG-001 remainder / 204 older clock already on main).
+> (PRG-001 remainder / 204 older clock already on main). Merged forward onto **`e6b9b86`**
+> (C5-02 wallet ledger and playback-ux slices landed while this slot ran).
 > **Item:** `C5-01` / **D-20** — G1.10 skip / empty-test detection as a required L1 step
 > inside `pnpm verify` and `.github/workflows/ci.yml`. G1.7 dated as G2.5 Trivy. G1.9 left
 > open (prose subjects).
