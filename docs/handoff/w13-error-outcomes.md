@@ -118,19 +118,21 @@ ternary that consumes the set, not a new helper and not an HTTP trip through a c
 
 ## 6. In-flight work, left alone
 
-At the fetch before this document:
+`origin/main` moved while this slot was running: the W13 flakes branch landed as `78505ad`
+(`docs/handoff/w13-test-flakes.md`). That is six files under `app/src/routes/`, `app/src/testing/`,
+and `docs/handoff/` — none of them this slot's two new paths. Merged into this branch with no
+conflicts.
+
+At the fetch immediately before merging onto `main`:
 
 | Branch | Paths | Overlap with this slot |
 | --- | --- | --- |
-| `cursor/w13-work-test-flakes-a44c` | `DramaPage` / `FavoritesPage` / `HistoryPage` / `HomePage` tests, `app/src/testing/render.tsx` | none |
+| `cursor/w13-work-test-flakes-a44c` | already an ancestor of `main` | none (never shared a path) |
 | `cursor/w11-plan-cycle-3-93ab` | `docs/plan/cycle-3-backlog.md`, `docs/handoff/w11-plan.md` | none |
 | `cursor/w10-verify-cycle-2-7b17` | `docs/verify/cycle-2-report.md` | none |
 
-W12 silent re-login still has no branch on origin. CoverImage is already on `main` (`8e3c2aa`) and
-was not opened.
-
-This slot's two paths are both new. They do not collide with any in-flight file, so this slot
-fast-forwards onto `origin/main` without a pull request.
+W12 silent re-login still has no branch on origin. CoverImage was already on `main` (`8e3c2aa`) and
+was not opened. This slot's two paths are both new. No pull request.
 
 ---
 
@@ -141,9 +143,7 @@ outcome to `PaidTradeOrderOutcome` without classifying it in the new file fails 
 
 Still open, and not this slot's:
 
-- **W13 flakes** (`cursor/w13-work-test-flakes-a44c`). Five test/helper files. The FavoritesPage
-  paging flake CoverImage recorded in its first verify did not reproduce here, and was left for
-  that branch.
 - **`cursor/w11-plan-cycle-3-93ab`** and **`cursor/w10-verify-cycle-2-7b17`**, still not ancestors
   of `main`. Documents only.
 - **Silent re-login**, still unpublished. Untouched.
+- **W13 flakes** is closed on `main` as of `78505ad`. Untouched here.
