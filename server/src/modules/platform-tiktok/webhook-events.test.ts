@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   KNOWN_WEBHOOK_EVENTS,
+  REDEEM_SUCCESS_EVENT,
   parseEventContent,
   parseWebhookEnvelope,
+  readTradeOrderId,
   webhookIdempotencyKey,
 } from './webhook-events.js';
 
@@ -93,6 +95,24 @@ describe('parseEventContent', () => {
   });
 });
 
+describe('readTradeOrderId', () => {
+  it('reads the identifier a payment is correlated on', () => {
+    expect(readTradeOrderId('{"trade_order_id":"to_1","is_sandbox":false}')).toBe('to_1');
+  });
+
+  // Correlating on a coerced key is worse than not correlating: `""` would match every order that
+  // failed to get a real identifier, and the first thing it would do is pay the wrong one.
+  it.each([
+    ['content that is not JSON', 'not json'],
+    ['content with no trade_order_id', '{"refund_amount":100}'],
+    ['an empty trade_order_id', '{"trade_order_id":""}'],
+    ['a trade_order_id that is not a string', '{"trade_order_id":42}'],
+    ['a null trade_order_id', '{"trade_order_id":null}'],
+  ])('reports %s as no identifier at all', (_case, content) => {
+    expect(readTradeOrderId(content)).toBeNull();
+  });
+});
+
 describe('webhookIdempotencyKey', () => {
   it('keys on trade_order_id when the content carries one', () => {
     const body = envelope();
@@ -139,5 +159,12 @@ describe('KNOWN_WEBHOOK_EVENTS', () => {
     for (const event of KNOWN_WEBHOOK_EVENTS) {
       expect(event).toMatch(/^minis\.trade_order\./);
     }
+  });
+
+  // The one event that means a viewer was charged. The refunds are stored and acted on by nobody:
+  // reversing an order is a different decision from making one.
+  it('names the redeem success separately, because only it moves an order', () => {
+    expect(REDEEM_SUCCESS_EVENT).toBe('minis.trade_order.redeem.success');
+    expect(KNOWN_WEBHOOK_EVENTS).toContain(REDEEM_SUCCESS_EVENT);
   });
 });
