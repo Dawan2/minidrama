@@ -115,6 +115,9 @@ importers:
 
   server:
     dependencies:
+      '@minidrama/config':
+        specifier: workspace:*
+        version: link:../packages/config
       '@minidrama/shared':
         specifier: workspace:*
         version: link:../packages/shared

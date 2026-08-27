@@ -12,6 +12,7 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@minidrama/config": "workspace:*",
     "@minidrama/shared": "workspace:*",
     "fastify": "^5.6.1"
   },
