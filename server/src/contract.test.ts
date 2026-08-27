@@ -78,6 +78,8 @@ describe('contracts/openapi.yaml', () => {
         { method: 'post', path: '/v1/playback/sessions' },
         { method: 'post', path: '/v1/auth/login' },
         { method: 'post', path: '/v1/payments/callbacks/tiktok' },
+        { method: 'post', path: '/v1/unlock/coin-orders' },
+        { method: 'get', path: '/v1/unlock/coin-orders/{orderId}' },
       ]),
     );
   });

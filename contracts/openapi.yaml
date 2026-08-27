@@ -201,6 +201,172 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/unlock/coin-orders:
+    post:
+      operationId: createCoinUnlockOrder
+      summary: Open a coin unlock order for an episode
+      description: |
+        Records the *intent* to buy an episode and returns the platform trade order the client hands
+        to `TTMinis.pay`. It does not unlock anything: the same viewer asking
+        `POST /v1/entitlement/episode-access` about the same episode immediately afterwards still
+        gets `NEED_UNLOCK`, and `unlockGranted` is `false` on the response.
+
+        An order leaves `PENDING` only when the signed TikTok callback
+        (`POST /v1/payments/callbacks/tiktok`) confirms the payment. There is no endpoint, header or
+        flag that advances an order, and a callback whose signature does not verify leaves every
+        order exactly where it was.
+
+        The price is the server's. The request body carries an episode id and nothing else, and the
+        amount frozen onto the order is the one the entitlement decision quoted for this viewer at
+        this moment. An episode that is free, already unlocked, covered by the viewer's subscription
+        or purchasable only with a subscription is refused rather than sold.
+
+        `Idempotency-Key` is required (`docs/12-api-contracts.md` §2.4). A repeat of the same key by
+        the same viewer for the same episode returns the first order rather than opening a second
+        payment; the same key for a different episode is a conflict.
+      tags: [unlock]
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: '`Bearer <accessToken>`. An order has to belong to an account.'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Reused verbatim when retrying, so a retry cannot open a second payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCoinUnlockOrderRequest'
+      responses:
+        '201':
+          description: |
+            A `PENDING` order. Pay it with `TTMinis.pay`, then poll the order until it reports
+            `unlockGranted: true`. Also returned for a replayed `Idempotency-Key`, which yields the
+            original order unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoinUnlockOrder'
+        '400':
+          description: |
+            `COMMON_VALIDATION_FAILED` when `episodeId` is missing;
+            `COMMON_IDEMPOTENCY_KEY_REQUIRED` when the header is absent, blank, over-long or sent
+            more than once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: |
+            `AUTH_REQUIRED`. No credential, or one that could not be read or resolved. An order is
+            attributed to an account, so this is refused before a price is quoted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: '`CONTENT_NOT_FOUND`. The episode does not exist or is not published.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            `UNLOCK_ALREADY_UNLOCKED` when the viewer already owns the episode;
+            `COMMON_IDEMPOTENCY_CONFLICT` when the key was used for a different episode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: '`CONTENT_OFFLINE`. The episode, its season or its drama has been withdrawn.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            `UNLOCK_POLICY_NOT_ALLOWED`. There is nothing to sell: the episode is free, the viewer's
+            subscription already covers it, or it is VIP-only and no quantity of coins opens it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            `PAYMENT_CHANNEL_UNAVAILABLE` when no platform trade order could be created — including
+            a deployment with no payment integration wired, which refuses rather than inventing an
+            identifier no callback will carry. `COMMON_SERVICE_UNAVAILABLE` when entitlement state
+            could not be established, so the price could not be quoted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/unlock/coin-orders/{orderId}:
+    get:
+      operationId: getCoinUnlockOrder
+      summary: Read the state of a coin unlock order
+      description: |
+        Polled after `TTMinis.pay` returns. `status` moves `PENDING → PAID` when the signed callback
+        confirms the payment, and `PAID → FULFILLED` when the unlock is recorded.
+
+        `unlockGranted` is the field a client acts on, not `status`. `PAID` means the viewer was
+        charged; it does not mean the episode is playable, and treating it as if it did would show a
+        locked episode as unlocked. Playability comes from
+        `POST /v1/entitlement/episode-access` as it always has.
+
+        An order belonging to another viewer is reported as absent, not as forbidden.
+      tags: [unlock]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: '`Bearer <accessToken>`. Orders are readable only by the viewer who owns them.'
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoinUnlockOrder'
+        '401':
+          description: '`AUTH_REQUIRED`. No credential, or one that could not be read or resolved.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            `PAYMENT_ORDER_NOT_FOUND`. No such order, or it belongs to somebody else — the two are
+            deliberately indistinguishable, so order ids cannot be enumerated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: '`COMMON_SERVICE_UNAVAILABLE`. The session could not be resolved.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/auth/login:
     post:
       operationId: login
@@ -266,6 +432,12 @@ paths:
         Delivery is at-least-once with 72 hours of retries, so a redelivery is normal traffic:
         it is deduplicated on `trade_order_id` and answered `200`. A non-200 is treated as failed
         delivery and brings the event back.
+
+        This is the only path that can move a coin unlock order out of `PENDING`. A verified
+        `minis.trade_order.redeem.success` is correlated to an order on `trade_order_id`, checked
+        against the payer's open id, and recorded as paid. Recording a payment is not granting an
+        episode — the unlock record is written by the wallet slot, and until it exists a paid order
+        stays paid and locked.
 
         The raw body is stored before it is parsed and before it is verified. The envelope field set
         is documented-but-not-exhaustive (gap G-R4), so the stored bytes are what makes a historical
@@ -398,6 +570,65 @@ components:
           description: |
             How access was granted. `VIP` means the live subscription grants it and access ends with
             the subscription; `COIN`, `AD` and `GRANT` are durable receipts for this episode.
+
+    CreateCoinUnlockOrderRequest:
+      type: object
+      required: [episodeId]
+      description: |
+        No price field, and no coin amount. The server quotes the price from the same entitlement
+        decision that reports it to the client, so a request cannot propose what it pays.
+      properties:
+        episodeId:
+          type: string
+          minLength: 1
+
+    CoinUnlockOrder:
+      type: object
+      required: [orderId, status, episodeId, priceCoins, unlockGranted, createdAt, paidAt, payment]
+      properties:
+        orderId:
+          type: string
+          description: '`uord_`-prefixed. Distinct from the `ord_` space of recharge orders.'
+        status:
+          type: string
+          enum: [PENDING, PAID, FULFILLED]
+          description: |
+            `PENDING` until a verified callback confirms the payment, `PAID` once it has, and
+            `FULFILLED` once the unlock record exists. Only the callback produces `PAID`.
+        episodeId:
+          type: string
+        priceCoins:
+          type: integer
+          minimum: 1
+          description: Quoted by the server when the order was opened, and frozen from then on.
+        unlockGranted:
+          type: boolean
+          description: |
+            Whether this order has actually bought access. The field a client acts on: `status`
+            describes the payment, and a paid order whose unlock has not been recorded grants
+            nothing. Playability is still decided by `POST /v1/entitlement/episode-access`.
+        createdAt:
+          type: string
+          format: date-time
+        paidAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the verified callback was received. `null` while the order is `PENDING`.
+        payment:
+          type: object
+          required: [provider, tradeOrderId]
+          description: |
+            What the client hands to `TTMinis.pay`. The charge is the platform's; no amount, card or
+            wallet reference passes through this API.
+          properties:
+            provider:
+              type: string
+              const: TIKTOK
+            tradeOrderId:
+              type: string
+              description: |
+                The platform's identifier for the payment, and the only field the callback is
+                correlated on.
 
     LoginRequest:
       type: object
