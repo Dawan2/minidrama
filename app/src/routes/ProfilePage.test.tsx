@@ -106,7 +106,7 @@ describe('the signed-in identity', () => {
       expect(identity.getAttribute('data-me')).toBe('ready');
     });
     expect(identity.getAttribute('data-user-id')).toBe('open_1');
-    expect(identity.textContent).toContain('You');
+    expect(screen.getByTestId('profile-identity-name').textContent).toBe('You');
     expect(identity.textContent).not.toContain('open_1');
   });
 
@@ -118,8 +118,7 @@ describe('the signed-in identity', () => {
     await waitFor(() => {
       expect(identity.getAttribute('data-me')).toBe('ready');
     });
-    expect(identity.textContent).toContain('Ada');
-    expect(identity.textContent).not.toContain('You');
+    expect(screen.getByTestId('profile-identity-name').textContent).toBe('Ada');
 
     const vip = screen.getByTestId('profile-vip');
     expect(vip.getAttribute('data-status')).toBe('unavailable');
@@ -134,7 +133,7 @@ describe('the signed-in identity', () => {
     await waitFor(() => {
       expect(identity.getAttribute('data-me')).toBe('failed');
     });
-    expect(identity.textContent).toContain('You');
+    expect(screen.getByTestId('profile-identity-name').textContent).toBe('You');
     expect(identity.getAttribute('data-user-id')).toBeNull();
     expect(screen.getByTestId('history-entry')).toBeDefined();
     expect(screen.getByTestId('profile-vip')).toBeDefined();
@@ -147,7 +146,7 @@ describe('the signed-in identity', () => {
     await waitFor(() => {
       expect(screen.getByTestId('profile-identity').getAttribute('data-me')).toBe('failed');
     });
-    expect(screen.getByTestId('profile-identity').textContent).toContain('You');
+    expect(screen.getByTestId('profile-identity-name').textContent).toBe('You');
     expect(screen.getByTestId('profile-identity').textContent).not.toContain('open_1');
   });
 });

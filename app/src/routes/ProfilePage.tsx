@@ -91,7 +91,9 @@ function GuestIdentity(): React.JSX.Element {
     <section className="profile-identity" data-testid="profile-identity" data-me="guest">
       <div className="profile-identity__avatar" aria-hidden="true" />
       <div>
-        <p className="profile-identity__name">{translate('profile.guestName')}</p>
+        <p className="profile-identity__name" data-testid="profile-identity-name">
+          {translate('profile.guestName')}
+        </p>
         <p className="profile-identity__hint">{translate('profile.guestHint')}</p>
       </div>
     </section>
@@ -120,7 +122,9 @@ function SignedInIdentity(): React.JSX.Element {
     >
       <div className="profile-identity__avatar" aria-hidden="true" />
       <div>
-        <p className="profile-identity__name">{name}</p>
+        <p className="profile-identity__name" data-testid="profile-identity-name">
+          {name}
+        </p>
         <p className="profile-identity__hint">{translate('profile.signedIn')}</p>
       </div>
     </section>
