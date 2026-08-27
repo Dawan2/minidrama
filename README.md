@@ -68,6 +68,7 @@ pnpm check:licenses      # G2.8 license whitelist; requires the install — a mi
 pnpm check:coverage      # G1.5 coverage floors; requires test:coverage — a missing report fails
 pnpm check:migrate       # G2.7 migrate up → down → up; a no-op down or up-only file fails
 pnpm check:integration   # G2.2 HTTP + sqlite file; :memory: or postgres URL fails
+pnpm check:artifact      # G2.6 client ZIP / first-screen JS; empty files, maps, backdoors fail
 pnpm check:sast          # G2.4 Semgrep 14-security §2.1 rules; a missing binary fails
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
@@ -75,6 +76,6 @@ pnpm gen:minis-config    # regenerate app/minis.config.json from the domain regi
 L1 CI (`.github/workflows/ci.yml`) runs the verify sequence on every pull request, every push to
 `main` or a `cursor/**` branch, and on `workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`)
 runs the G2.8 license whitelist, the G2.7 migrate check, the G2.2 sqlite integration check,
-and the G2.4 Semgrep SAST check on the same events; it does not skip, filter, or
-`continue-on-error` the L1 suite. `check:migrate`, `check:integration`, and `check:sast` are
-not folded into `verify`.
+the G2.6 artifact budget, and the G2.4 Semgrep SAST check on the same events; it does not skip,
+filter, or `continue-on-error` the L1 suite. `check:migrate`, `check:integration`,
+`check:artifact`, and `check:sast` are not folded into `verify`.

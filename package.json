@@ -24,6 +24,7 @@
     "check:coverage": "pnpm --filter @minidrama/quality run check:coverage",
     "check:migrate": "pnpm --filter @minidrama/server run check:migrate",
     "check:integration": "pnpm --filter @minidrama/server run check:integration",
+    "check:artifact": "pnpm --filter @minidrama/app run check:artifact",
     "check:sast": "pnpm --filter @minidrama/quality run check:sast",
     "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
   },

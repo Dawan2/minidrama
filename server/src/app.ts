@@ -43,6 +43,7 @@ import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { identityRoutes } from './modules/identity/routes.js';
+import { meRoutes } from './modules/identity/me-routes.js';
 import { loadConfig } from './config.js';
 import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
@@ -436,6 +437,11 @@ export async function buildApp(
   });
 
   await app.register(identityRoutes, { identityPort, sessionStore });
+
+  // The same viewer resolver as wallet, progress and favourites: two things resolving sessions
+  // is how one endpoint accepts the credential another rejects, and a me quoted for the wrong
+  // viewer is a cross-user leak. The body is the session's user id, not an invented VIP card.
+  await app.register(meRoutes, { viewerResolver });
 
   // Search and favourites. `searchRoutes` was `discoveryRoutes` on its own branch and collided by
   // name with the feed above; both are registered here, which is the whole of A2's resolution.

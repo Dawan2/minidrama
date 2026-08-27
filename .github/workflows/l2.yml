@@ -5,8 +5,9 @@ name: L2
 # filter, or continue-on-error the L1 verify suite in ci.yml.
 #
 # G2.1 is the L1 re-run, which ci.yml already does on main. This workflow is G2.8 (licenses),
-# G2.7 (migrate up → down → up on sqlite), G2.2 (HTTP + file-backed sqlite), and G2.4
-# (Semgrep with the 14-security §2.1 custom rules). G2.3, G2.5, and G2.6 are still absent.
+# G2.7 (migrate up → down → up on sqlite), G2.2 (HTTP + file-backed sqlite), G2.6 (client ZIP /
+# first-screen JS / empty files / debug symbols / test backdoors), and G2.4 (Semgrep with the
+# 14-security §2.1 custom rules). G2.3 and G2.5 are still absent.
 
 on:
   push:
@@ -90,6 +91,33 @@ jobs:
       # continue-on-error: an in-memory bounce is a red merge-level gate, not a warning.
       - name: HTTP service against a sqlite file
         run: pnpm run check:integration
+
+  artifact:
+    name: G2.6 artifact budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build client
+        run: pnpm --filter @minidrama/app build
+
+      # An over-budget ZIP, a first-screen JS gzip over 300 KB, an empty file, a shipped
+      # `.map`, or a debug/test backdoor exits 1. There is no continue-on-error: a comment
+      # that the bundle "looks small" is a red merge-level gate, not a warning.
+      - name: Client ZIP and first-screen JS budget
+        run: pnpm run check:artifact
 
   sast:
     name: G2.4 SAST
