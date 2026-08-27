@@ -379,3 +379,35 @@ describe('no coin-to-Beans rate is invented on the client', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * D-16. The player used to ship a six-item `ep_demo_*` / `vid_demo_*` album and never call
+ * `POST /v1/playback/sessions`. Restoring that fixture in production source is the defect.
+ * Tests and PlayerSurface's own fixture playlist may still name descriptors; product code may not.
+ */
+describe('the player does not ship a demo album', () => {
+  it('names no demoPlaylist, ep_demo_, vid_demo_ or album_demo_ in product source', () => {
+    const offenders: string[] = [];
+    const demo =
+      /demoPlaylist|demoEpisodeId|DEMO_ALBUM_ID|DEMO_EPISODE_COUNT|ep_demo_|vid_demo_|album_demo_/;
+
+    for (const file of sourceFiles()) {
+      const path = relativeToApp(file);
+      if (isTestFile(path) || path.startsWith(`${TESTING_DIR}${sep}`)) {
+        continue;
+      }
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, index) => {
+          if (isCommentLine(line)) {
+            return;
+          }
+          if (demo.test(line)) {
+            offenders.push(`${path}:${String(index + 1)} ${line.trim()}`);
+          }
+        });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});
