@@ -227,9 +227,7 @@ function Attempt({
   }
 
   if (session.status === 'ready') {
-    return (
-      <PlayerSurface bridge={bridge} playlist={playlist} episodeId={session.data.episodeId} />
-    );
+    return <PlayerSurface bridge={bridge} playlist={playlist} episodeId={session.data.episodeId} />;
   }
 
   if (locked) {
