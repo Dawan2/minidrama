@@ -15,7 +15,14 @@ function unreadableResponse(status: number): HttpResponseLike {
   };
 }
 
-function client(fetchImpl: FetchLike, overrides: { readonly timeoutMs?: number } = {}) {
+function client(
+  fetchImpl: FetchLike,
+  overrides: {
+    readonly timeoutMs?: number;
+    readonly authToken?: () => string | null;
+    readonly onCredentialRefused?: () => void;
+  } = {},
+) {
   return createHttpClient({
     baseUrl: 'https://api.example.invalid',
     fetch: fetchImpl,
@@ -277,5 +284,186 @@ describe('the http client posting', () => {
     await expect(
       client(() => Promise.reject(new Error('boom'))).postJson('/v1/x', {}),
     ).resolves.toMatchObject({ ok: false });
+  });
+});
+
+/**
+ * Rule 5. The header is attached in one place, and the tests below are mostly about the cases where
+ * it must *not* be: an absent session has to reach the server as an absent session, because the
+ * server is the only thing that can decide what an anonymous caller may have.
+ */
+describe('the http client attaching a session', () => {
+  function headersOf(fetchImpl: ReturnType<typeof vi.fn<FetchLike>>, call = 0) {
+    return fetchImpl.mock.calls[call]![1].headers;
+  }
+
+  it('sends the token as a bearer credential on a read', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(200, {})));
+    await client(fetchImpl, { authToken: () => 'tok_abc' }).getJson('/v1/dramas/drm_1');
+
+    expect(headersOf(fetchImpl)['Authorization']).toBe('Bearer tok_abc');
+  });
+
+  // The coin order is the request that needs it: an order belongs to an account, and slot K answers
+  // an anonymous creation with `401 AUTH_REQUIRED`.
+  it('sends it on a write, alongside the idempotency key', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(201, {})));
+    await client(fetchImpl, { authToken: () => 'tok_abc' }).postJson(
+      '/v1/unlock/coin-orders',
+      { episodeId: 'e1' },
+      { headers: { 'Idempotency-Key': 'unl_abc' } },
+    );
+
+    expect(headersOf(fetchImpl)).toMatchObject({
+      Authorization: 'Bearer tok_abc',
+      'Idempotency-Key': 'unl_abc',
+    });
+  });
+
+  it('omits the header entirely when there is no session', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(200, {})));
+    await client(fetchImpl, { authToken: () => null }).getJson('/v1/dramas/drm_1');
+
+    expect(headersOf(fetchImpl)).not.toHaveProperty('Authorization');
+  });
+
+  it('omits it when no token source was supplied at all', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(200, {})));
+    await client(fetchImpl).getJson('/v1/dramas/drm_1');
+
+    expect(headersOf(fetchImpl)).not.toHaveProperty('Authorization');
+  });
+
+  /**
+   * `Bearer ` with nothing after it is a credential the server can only refuse, and it refuses it
+   * with the same `401` an anonymous request gets — after a great deal more confusion. An empty
+   * token is a missing token.
+   */
+  it('treats an empty or blank token as no session', async () => {
+    for (const token of ['', '   ']) {
+      const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(200, {})));
+      await client(fetchImpl, { authToken: () => token }).getJson('/v1/dramas/drm_1');
+      expect(headersOf(fetchImpl)).not.toHaveProperty('Authorization');
+    }
+  });
+
+  it('asks for the token once per attempt, so a retry carries the current one', async () => {
+    const tokens = ['tok_first', 'tok_second'];
+    const authToken = vi.fn<() => string | null>(() => tokens.shift() ?? null);
+    const fetchImpl = vi
+      .fn<FetchLike>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(jsonResponse(200, {}));
+
+    await client(fetchImpl, { authToken }).getJson('/v1/dramas/drm_1');
+
+    expect(authToken).toHaveBeenCalledTimes(2);
+    expect(headersOf(fetchImpl, 0)['Authorization']).toBe('Bearer tok_first');
+    expect(headersOf(fetchImpl, 1)['Authorization']).toBe('Bearer tok_second');
+  });
+
+  /**
+   * A second way to authenticate, reachable from any call site, is a second thing to audit. The
+   * realistic offender is not a malicious caller but a header hard-coded during debugging that
+   * ships — so a caller's `Authorization` is dropped, in any casing, whether or not a session
+   * exists to replace it.
+   */
+  it('refuses a caller-supplied Authorization header', async () => {
+    for (const name of ['Authorization', 'authorization']) {
+      const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(201, {})));
+      await client(fetchImpl).postJson(
+        '/v1/unlock/coin-orders',
+        {},
+        { headers: { [name]: 'Bearer smuggled' } },
+      );
+
+      expect(JSON.stringify(headersOf(fetchImpl))).not.toContain('smuggled');
+    }
+  });
+
+  it('lets the transport token win over a caller that tried to set one', async () => {
+    const fetchImpl = vi.fn<FetchLike>(() => Promise.resolve(jsonResponse(201, {})));
+    await client(fetchImpl, { authToken: () => 'tok_real' }).postJson(
+      '/v1/unlock/coin-orders',
+      {},
+      { headers: { authorization: 'Bearer smuggled' } },
+    );
+
+    expect(headersOf(fetchImpl)['Authorization']).toBe('Bearer tok_real');
+    expect(JSON.stringify(headersOf(fetchImpl))).not.toContain('smuggled');
+  });
+});
+
+/**
+ * A token the server has refused is dead, and resending it turns one expiry into a purchase button
+ * that never works again. This is the drop, not a refresh-and-replay interceptor: replaying the one
+ * `POST` this client makes is a second thing the viewer can be charged for (rule 4).
+ */
+describe('the http client noticing a refused credential', () => {
+  it('reports a 401 on a request that carried a token', async () => {
+    const onCredentialRefused = vi.fn();
+    await client(() => Promise.resolve(jsonResponse(401, {})), {
+      authToken: () => 'tok_expired',
+      onCredentialRefused,
+    }).getJson('/v1/unlock/coin-orders/ord_1');
+
+    expect(onCredentialRefused).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports it on a refused write too', async () => {
+    const onCredentialRefused = vi.fn();
+    await client(() => Promise.resolve(jsonResponse(401, {})), {
+      authToken: () => 'tok_expired',
+      onCredentialRefused,
+    }).postJson('/v1/unlock/coin-orders', {});
+
+    expect(onCredentialRefused).toHaveBeenCalledTimes(1);
+  });
+
+  // Even a gateway's bodyless 401: a refused credential is refused whether or not anyone sent an
+  // envelope, and the invalidation happens before the body is parsed for exactly that reason.
+  it('reports it when the 401 body is unreadable', async () => {
+    const onCredentialRefused = vi.fn();
+    await client(() => Promise.resolve(unreadableResponse(401)), {
+      authToken: () => 'tok_expired',
+      onCredentialRefused,
+    }).getJson('/v1/x');
+
+    expect(onCredentialRefused).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The catalogue reads are anonymous-capable, and a `401` on one of them is the server declining a
+   * stranger. Signing the viewer out because a proxy said `401` to an anonymous read is a
+   * self-inflicted logout.
+   */
+  it('stays quiet about a 401 on a request that carried no token', async () => {
+    const onCredentialRefused = vi.fn();
+    await client(() => Promise.resolve(jsonResponse(401, {})), {
+      authToken: () => null,
+      onCredentialRefused,
+    }).getJson('/v1/dramas/drm_1');
+
+    expect(onCredentialRefused).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet about every other refusal', async () => {
+    for (const status of [400, 403, 404, 410, 422, 429, 500]) {
+      const onCredentialRefused = vi.fn();
+      await client(() => Promise.resolve(jsonResponse(status, {})), {
+        authToken: () => 'tok_live',
+        onCredentialRefused,
+      }).getJson('/v1/x');
+
+      expect(onCredentialRefused, `status ${String(status)}`).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not need a handler to survive a 401', async () => {
+    const result = await client(() => Promise.resolve(jsonResponse(401, {})), {
+      authToken: () => 'tok_expired',
+    }).getJson('/v1/x');
+
+    expect(result.ok ? null : result.error).toMatchObject({ kind: 'HTTP', status: 401 });
   });
 });
