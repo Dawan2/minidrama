@@ -1,3 +1,5 @@
+import { REQUEST_ID_HEADER } from './logging.js';
+
 /**
  * Which browser origins may talk to this API, and what a request from one of them may carry.
  *
@@ -156,9 +158,11 @@ export const ALLOWED_METHODS: readonly string[] = ['GET', 'POST', 'OPTIONS'];
 
 /**
  * `authorization` is the session, `content-type` is every JSON body, and `idempotency-key` is
- * required on unlock writes (`docs/12-api-contracts.md` §2.4). The rest are the CORS-safelisted
- * names: a browser may send those cross-origin with no preflight at all, so listing them concedes
- * nothing and stops a client that sets `Accept` explicitly from being refused by a technicality.
+ * required on unlock writes (`docs/12-api-contracts.md` §2.4). `x-request-id` is the id the client
+ * may send so a user report and the server log name the same request. The rest are the
+ * CORS-safelisted names: a browser may send those cross-origin with no preflight at all, so listing
+ * them concedes nothing and stops a client that sets `Accept` explicitly from being refused by a
+ * technicality.
  */
 export const ALLOWED_REQUEST_HEADERS: readonly string[] = [
   'accept',
@@ -167,6 +171,7 @@ export const ALLOWED_REQUEST_HEADERS: readonly string[] = [
   'content-language',
   'content-type',
   'idempotency-key',
+  REQUEST_ID_HEADER,
 ];
 
 /** Ten minutes. Long enough that a session is not one preflight per request, short enough that a
@@ -268,7 +273,7 @@ export function decideCors(policy: CorsPolicy, request: CorsRequest): CorsVerdic
   }
 
   if (!preflight) {
-    return { kind: 'ALLOWED', origin, headers: { 'access-control-allow-origin': origin } };
+    return { kind: 'ALLOWED', origin, headers: corsHeaders(origin) };
   }
 
   const method = (headerValue(request.requestMethod) ?? '').trim().toUpperCase();
@@ -288,10 +293,21 @@ export function decideCors(policy: CorsPolicy, request: CorsRequest): CorsVerdic
     kind: 'PREFLIGHT_ALLOWED',
     origin,
     headers: {
-      'access-control-allow-origin': origin,
+      ...corsHeaders(origin),
       'access-control-allow-methods': policy.allowedMethods.join(', '),
       'access-control-allow-headers': policy.allowedHeaders.join(', '),
       'access-control-max-age': String(policy.maxAgeSec),
     },
+  };
+}
+
+/**
+ * The origin is named so the browser will hand the response to the page; the request id is
+ * exposed so a 2xx — which has no error envelope — is still correlatable from client code.
+ */
+function corsHeaders(origin: string): CorsHeaders {
+  return {
+    'access-control-allow-origin': origin,
+    'access-control-expose-headers': REQUEST_ID_HEADER,
   };
 }

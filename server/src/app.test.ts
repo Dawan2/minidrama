@@ -83,6 +83,7 @@ describe('unknown routes', () => {
     const body = response.json<{ error: { code: string; traceId: string } }>();
     expect(body.error.code).toBe('COMMON_RESOURCE_NOT_FOUND');
     expect(body.error.traceId).toMatch(/^req_/);
+    expect(response.headers['x-request-id']).toBe(body.error.traceId);
   });
 });
 
