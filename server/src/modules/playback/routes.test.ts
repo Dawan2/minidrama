@@ -428,6 +428,9 @@ describe('POST /v1/playback/sessions — the default deployment', () => {
     expect(response.json<ErrorEnvelope>().error.code).toBe('COMMON_SERVICE_UNAVAILABLE');
   });
 
+  // Since W3 slot L the default app has a session store, so a token nothing issued is a rejected
+  // credential (401) rather than one we cannot resolve (503). The property under test is unchanged:
+  // a presented token is never read as an anonymous viewer.
   it('refuses a presented session rather than downgrading it to anonymous', async () => {
     const response = await defaultApp.inject({
       method: 'POST',
@@ -436,8 +439,8 @@ describe('POST /v1/playback/sessions — the default deployment', () => {
       payload: { episodeId: 'ep_fx_s1e01' },
     });
 
-    expect(response.statusCode).toBe(503);
-    expect(response.json<ErrorEnvelope>().error.code).toBe('COMMON_SERVICE_UNAVAILABLE');
+    expect(response.statusCode).toBe(401);
+    expect(response.json<ErrorEnvelope>().error.code).toBe('AUTH_REQUIRED');
   });
 
   it('still validates the request first, so a bad request is still a 400', async () => {

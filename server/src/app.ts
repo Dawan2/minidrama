@@ -1,17 +1,19 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
+import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
-import { createSessionIssuer } from './modules/identity/session.js';
+import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
 import { createSignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import { createUnavailableEntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
 import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-port.js';
+import { createUnavailableWatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { createCorsPolicy } from './core/origin-policy.js';
-import { createUnresolvedViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import { entitlementRoutes } from './modules/entitlement/routes.js';
 import { errorBody } from './core/errors.js';
 import { healthRoutes } from './modules/health/routes.js';
@@ -20,18 +22,22 @@ import { loadConfig } from './config.js';
 import { loadPlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import { platformTiktokRoutes } from './modules/platform-tiktok/routes.js';
 import { playbackRoutes } from './modules/playback/routes.js';
+import { progressRoutes } from './modules/progress/routes.js';
 import { registerCors } from './core/cors.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
+import { watchHistoryRoutes } from './modules/progress/history-routes.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
 import type { PlatformTradeOrderPort } from './modules/unlock/trade-order-port.js';
 import type { PlaybackMediaPort } from './modules/playback/media-port.js';
 import type { ServerConfig } from './config.js';
-import type { SessionIssuer } from './modules/identity/session.js';
+import type { SessionStore } from './modules/identity/session-store.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
+import type { WatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
+import type { WatchProgressStore } from './modules/progress/store.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
 
 /**
@@ -54,10 +60,15 @@ export interface AppDependencies {
   readonly signatureVerifier?: SignatureVerifier;
   readonly webhookEventStore?: WebhookEventStore;
   readonly identityPort?: PlatformIdentityPort;
-  readonly sessionIssuer?: SessionIssuer;
   /**
-   * Entitlement reads content and viewer state. Both defaults refuse until the data layer and
-   * session storage exist, so a deployment cannot serve invented entitlements by omission.
+   * Sessions. Injected by tests that need to mint one for a known user without going through a
+   * platform exchange.
+   */
+  readonly sessionStore?: SessionStore;
+  /**
+   * Entitlement reads content and viewer state. The facts port defaults to refusing until the data
+   * layer exists, so a deployment cannot serve invented entitlements by omission. The viewer
+   * resolver defaults to the session store above.
    */
   readonly entitlementFactsPort?: EntitlementFactsPort;
   readonly viewerResolver?: ViewerResolver;
@@ -73,6 +84,14 @@ export interface AppDependencies {
    */
   readonly unlockOrderStore?: UnlockOrderStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
+  /**
+   * Watch progress. The store defaults to the in-memory skeleton, because a position that is lost on
+   * restart is a viewer resuming a few seconds early rather than a wrong answer. The catalogue port
+   * defaults to refusing: a history row needs a drama the `catalog` module owns, and inventing one
+   * would tell a viewer they had watched something they had not.
+   */
+  readonly watchProgressStore?: WatchProgressStore;
+  readonly watchHistoryCatalogPort?: WatchHistoryCatalogPort;
   readonly now?: () => number;
 }
 
@@ -140,12 +159,18 @@ export async function buildApp(
     return reply.status(500).send(errorBody('COMMON_INTERNAL_ERROR', 'Internal error', request.id));
   });
 
-  // One facts port and one viewer resolver for both modules. Playback enforces the decision that
+  // One facts port and one viewer resolver for every module. Playback enforces the decision that
   // entitlement reports, so giving them separate sources of facts is how the browse view and the
-  // play attempt start disagreeing about what a viewer owns.
+  // play attempt start disagreeing about what a viewer owns — and two things resolving sessions is
+  // how one endpoint accepts the credential another rejects.
   const entitlementFactsPort =
     dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort();
-  const viewerResolver = dependencies.viewerResolver ?? createUnresolvedViewerResolver();
+
+  // One store issues sessions and resolves them. Separating those was the state this server was in:
+  // the login route minted opaque tokens and forgot them, so every per-viewer endpoint refused a
+  // session it had just issued.
+  const sessionStore = dependencies.sessionStore ?? createInMemorySessionStore({ now });
+  const viewerResolver = dependencies.viewerResolver ?? createSessionViewerResolver(sessionStore);
 
   await app.register(healthRoutes);
 
@@ -175,9 +200,26 @@ export async function buildApp(
     now,
   });
 
+  // One progress store for both registrations: the per-episode endpoints write the rows the history
+  // list reads. Separate stores would leave the history screen permanently empty for a viewer whose
+  // player had been reporting positions all along.
+  const watchProgressStore = dependencies.watchProgressStore ?? createInMemoryWatchProgressStore();
+
+  await app.register(progressRoutes, {
+    store: watchProgressStore,
+    viewerResolver,
+    now,
+  });
+
+  await app.register(watchHistoryRoutes, {
+    store: watchProgressStore,
+    viewerResolver,
+    catalogPort: dependencies.watchHistoryCatalogPort ?? createUnavailableWatchHistoryCatalogPort(),
+  });
+
   await app.register(identityRoutes, {
     identityPort: dependencies.identityPort ?? createTiktokIdentityPort(credentials),
-    sessionIssuer: dependencies.sessionIssuer ?? createSessionIssuer(),
+    sessionStore,
   });
 
   await app.register(platformTiktokRoutes, {
