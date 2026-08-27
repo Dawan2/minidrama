@@ -120,7 +120,28 @@ expected []
 
 ## 5. Verification
 
-`pnpm verify` pending on this branch.
+`pnpm verify` green on this branch. L1 sequence unchanged: format → lint →
+typecheck → test:coverage → check:coverage → build → guardrails. G1.8
+`check:secrets` stays in `ci.yml`, not in `pnpm verify`.
+
+| Package | Tests |
+| --- | ---: |
+| shared | 61 |
+| quality | 220 |
+| config | 45 |
+| server | 1,752 |
+| app | 1,121 |
+| **Total** | **3,199** |
+
+Zero skipped. Coverage gate:
+
+```
+coverage global lines 94.01% (15066/16026), branches 91.63%, core lines 95.50%, diff lines 100.00% (33/33)
+coverage gate passed
+```
+
+Guardrails passed against `app/dist` (`index-DMmaAoAe.js` 353.43 kB / 108.04 kB gzip —
+the resume-seek merge's artifact, not this slot's). Native `<video>` remains absent.
 
 ---
 
