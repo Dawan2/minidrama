@@ -27,6 +27,7 @@ import { createTiktokIdentityPort } from './modules/platform-tiktok/identity-por
 import { createUnavailableEntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import { createUnavailablePlaybackMediaPort } from './modules/playback/media-port.js';
 import { createUnavailableTradeOrderPort } from './modules/unlock/trade-order-port.js';
+import { createUnavailableWalletBalancePort } from './modules/wallet/balance-port.js';
 import { createUnavailableWatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import { createUnlockOrderPaymentSink } from './modules/unlock/payment-sink.js';
 import { createCorsPolicy } from './core/origin-policy.js';
@@ -44,6 +45,7 @@ import { progressRoutes } from './modules/progress/routes.js';
 import { registerCors } from './core/cors.js';
 import { searchRoutes } from './modules/search/routes.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
+import { walletRoutes } from './modules/wallet/routes.js';
 import { watchHistoryRoutes } from './modules/progress/history-routes.js';
 import type { CatalogStore } from './modules/catalog/store.js';
 // Aliased because the entitlement module publishes an interface of the same name that answers a
@@ -65,6 +67,7 @@ import type { SignatureVerifier } from './modules/platform-tiktok/signature-veri
 import type { UnlockOrderStore } from './modules/unlock/order-store.js';
 import type { UnlockStore } from './modules/unlock/unlock-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
+import type { WalletBalancePort } from './modules/wallet/balance-port.js';
 import type { WatchHistoryCatalogPort } from './modules/progress/catalog-port.js';
 import type { WatchProgressStore } from './modules/progress/store.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
@@ -137,6 +140,12 @@ export interface AppDependencies {
    */
   readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
+  /**
+   * Coin balance. The default reports `UNAVAILABLE` rather than `0`: there is no platform coin
+   * figure and no ledger this process owns, and an invented zero is a wrong balance a viewer who
+   * has recharged will not believe (`C3-04`). Beans and fiat are not on this port (`C3-09`).
+   */
+  readonly walletBalancePort?: WalletBalancePort;
   /**
    * Watch progress. The store defaults to the in-memory skeleton, because a position that is lost on
    * restart is a viewer resuming a few seconds early rather than a wrong answer. The catalogue port
@@ -332,6 +341,14 @@ export async function buildApp(
     orderStore: unlockOrderStore,
     tradeOrderPort: dependencies.tradeOrderPort ?? createUnavailableTradeOrderPort(),
     now,
+  });
+
+  // The same viewer resolver as unlock and progress: two things resolving sessions is how one
+  // endpoint accepts the credential another rejects, and a wallet quoted for the wrong viewer is
+  // a cross-user leak. The default port omits the figure rather than inventing zero.
+  await app.register(walletRoutes, {
+    viewerResolver,
+    balancePort: dependencies.walletBalancePort ?? createUnavailableWalletBalancePort(),
   });
 
   // One progress store for both registrations: the per-episode endpoints write the rows the history
