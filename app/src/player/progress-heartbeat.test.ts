@@ -3,10 +3,7 @@ import { ok } from '@minidrama/shared';
 import type { WatchProgressReport } from '@minidrama/shared';
 
 import { apiFailure } from '../data/failure';
-import {
-  createProgressHeartbeat,
-  observationFromPayload,
-} from './progress-heartbeat';
+import { createProgressHeartbeat, observationFromPayload } from './progress-heartbeat';
 
 function payload(position: number, duration: number): { currentTime: number; duration: number } {
   return { currentTime: position, duration };

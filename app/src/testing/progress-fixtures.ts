@@ -1,5 +1,10 @@
 import { ok } from '@minidrama/shared';
-import type { DramaProgressItem, DramaProgressView, Result, WatchProgressReport } from '@minidrama/shared';
+import type {
+  DramaProgressItem,
+  DramaProgressView,
+  Result,
+  WatchProgressReport,
+} from '@minidrama/shared';
 
 import type { ApiFailure } from '../data/failure';
 import type { ProgressApi } from '../data/progress-api';
@@ -37,10 +42,7 @@ export interface StubProgressApiScript {
     dramaId: string,
     callIndex: number,
   ) => Result<DramaProgressView, ApiFailure>;
-  readonly report?: (
-    episodeId: string,
-    report: WatchProgressReport,
-  ) => Result<void, ApiFailure>;
+  readonly report?: (episodeId: string, report: WatchProgressReport) => Result<void, ApiFailure>;
 }
 
 export interface StubProgressApi extends ProgressApi {
