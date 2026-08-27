@@ -11,6 +11,22 @@ export interface ServerConfig {
   readonly logLevel: string;
   /** A presence flag only. The values themselves never leave the platform adapter. */
   readonly hasPlatformCredentials: boolean;
+  /**
+   * Accepted clock skew for a webhook timestamp, in seconds. The TikTok IAP page suggests five
+   * minutes (`docs/research/tiktok-minis-official.md` §6.3). It is not a secret and it is not a
+   * switch: no value disables verification, and a non-positive or unparseable value falls back to
+   * the default rather than widening the window.
+   */
+  readonly webhookToleranceSec: number;
+}
+
+const DEFAULT_WEBHOOK_TOLERANCE_SEC = 300;
+
+function parseToleranceSec(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_WEBHOOK_TOLERANCE_SEC;
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_WEBHOOK_TOLERANCE_SEC;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -19,5 +35,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     port: Number.parseInt(env['PORT'] ?? '8080', 10),
     logLevel: env['LOG_LEVEL'] ?? 'info',
     hasPlatformCredentials: Boolean(env['TIKTOK_CLIENT_KEY'] && env['TIKTOK_CLIENT_SECRET']),
+    webhookToleranceSec: parseToleranceSec(env['TIKTOK_WEBHOOK_TOLERANCE_SEC']),
   };
 }

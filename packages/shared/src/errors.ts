@@ -15,11 +15,16 @@ export const API_ERROR_CODES = [
   'COMMON_SERVICE_UNAVAILABLE',
   'AUTH_REQUIRED',
   'AUTH_TOKEN_EXPIRED',
+  'AUTH_PROVIDER_ERROR',
   'CONTENT_NOT_FOUND',
   'CONTENT_OFFLINE',
   'EPISODE_LOCKED',
   'EPISODE_VIP_REQUIRED',
   'EPISODE_ASSET_UNAVAILABLE',
+  // Server-to-server only. It answers TikTok's webhook sender, never a client, and it is
+  // deliberately the *only* code the callback returns on a verification failure so the response
+  // cannot be used as an oracle for which check failed.
+  'PAYMENT_CALLBACK_INVALID_SIGN',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

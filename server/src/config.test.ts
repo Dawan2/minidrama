@@ -22,4 +22,21 @@ describe('loadConfig', () => {
     expect(withCredentials.hasPlatformCredentials).toBe(true);
     expect(JSON.stringify(withCredentials)).not.toContain('secret');
   });
+
+  it('defaults the webhook timestamp window to the five minutes TikTok suggests', () => {
+    expect(loadConfig({}).webhookToleranceSec).toBe(300);
+  });
+
+  it('reads a narrower window from the environment', () => {
+    expect(loadConfig({ TIKTOK_WEBHOOK_TOLERANCE_SEC: '60' }).webhookToleranceSec).toBe(60);
+  });
+
+  // The window is not a switch. A value that would disable or invert the replay check falls back to
+  // the default instead of widening it, so a typo cannot quietly turn verification into a formality.
+  it.each(['0', '-1', 'forever', ''])(
+    'falls back to the default for the unusable value %o',
+    (raw) => {
+      expect(loadConfig({ TIKTOK_WEBHOOK_TOLERANCE_SEC: raw }).webhookToleranceSec).toBe(300);
+    },
+  );
 });

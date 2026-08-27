@@ -1,0 +1,111 @@
+import type { FastifyInstance } from 'fastify';
+import type { ApiErrorCode } from '@minidrama/shared';
+
+import { errorBody } from '../../core/errors.js';
+import type {
+  IdentityExchangeFailure,
+  PlatformIdentityPort,
+} from '../platform-tiktok/identity-port.js';
+import type { SessionIssuer } from './session.js';
+
+/**
+ * Silent login.
+ *
+ * `TTMinis.login()` yields a short-lived code on the client; the exchange happens here because a
+ * browser cannot call the OpenAPI directly (CORS) and because the client secret may never leave the
+ * server (U-03). The code is single-use and is treated as a credential: it is not logged, not echoed
+ * and not stored.
+ *
+ * This slot ships the contract, the validation and the deny path. The exchange itself is refused by
+ * `platform-tiktok`'s identity port until the real HTTP call lands, so no session can be issued
+ * without a genuine platform response — see `createUnavailableIdentityPort`.
+ */
+
+/** Minis launches with TikTok only. The other providers in the contract are reserved for later. */
+const SUPPORTED_PROVIDERS = ['TIKTOK'] as const;
+
+interface LoginBody {
+  readonly provider?: unknown;
+  readonly authCode?: unknown;
+}
+
+export interface IdentityRouteOptions {
+  readonly identityPort: PlatformIdentityPort;
+  readonly sessionIssuer: SessionIssuer;
+}
+
+/**
+ * A configuration fault and a rejected code are both "no session", but only one of them is ours.
+ * `AUTH_PROVIDER_ERROR` is a 502 so it is paged; `AUTH_REQUIRED` is a 401 the client answers by
+ * running silent login again.
+ */
+const FAILURE_RESPONSES: Record<
+  IdentityExchangeFailure,
+  { readonly status: number; readonly code: ApiErrorCode; readonly message: string }
+> = {
+  PROVIDER_UNCONFIGURED: {
+    status: 502,
+    code: 'AUTH_PROVIDER_ERROR',
+    message: 'Identity provider is not available',
+  },
+  PROVIDER_UNAVAILABLE: {
+    status: 502,
+    code: 'AUTH_PROVIDER_ERROR',
+    message: 'Identity provider is not available',
+  },
+  AUTH_CODE_REJECTED: {
+    status: 401,
+    code: 'AUTH_REQUIRED',
+    message: 'The authorization code was rejected',
+  },
+};
+
+export async function identityRoutes(
+  app: FastifyInstance,
+  options: IdentityRouteOptions,
+): Promise<void> {
+  app.post('/v1/auth/login', async (request, reply) => {
+    const body = request.body as LoginBody | undefined;
+    const provider = body?.provider;
+    const authCode = body?.authCode;
+
+    if (
+      typeof provider !== 'string' ||
+      !(SUPPORTED_PROVIDERS as readonly string[]).includes(provider)
+    ) {
+      return reply.status(400).send(
+        errorBody('COMMON_VALIDATION_FAILED', 'provider must be TIKTOK', request.id, {
+          fields: [{ field: 'provider', reason: 'unsupported' }],
+        }),
+      );
+    }
+
+    if (typeof authCode !== 'string' || authCode.length === 0) {
+      return reply.status(400).send(
+        errorBody('COMMON_VALIDATION_FAILED', 'authCode is required', request.id, {
+          fields: [{ field: 'authCode', reason: 'required' }],
+        }),
+      );
+    }
+
+    const exchanged = await options.identityPort.exchangeAuthCode(authCode);
+
+    if (!exchanged.ok) {
+      const response = FAILURE_RESPONSES[exchanged.error];
+      // The reason is logged, never returned: which of "no credentials" and "bad code" applies is
+      // operator information, and the difference is useful to an attacker probing the endpoint.
+      request.log.warn({ reason: exchanged.error }, 'identity exchange failed');
+      return reply
+        .status(response.status)
+        .send(errorBody(response.code, response.message, request.id));
+    }
+
+    const session = options.sessionIssuer.issue(exchanged.value.openId);
+
+    return reply.status(200).send({
+      accessToken: session.accessToken,
+      expiresInSec: session.expiresInSec,
+      openId: exchanged.value.openId,
+    });
+  });
+}
