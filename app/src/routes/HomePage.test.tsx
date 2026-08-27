@@ -38,6 +38,14 @@ describe('the feed', () => {
     expect(entry.getAttribute('href')).toBe('/search');
   });
 
+  it('offers the only way into the theatre tab', async () => {
+    const api = stubCatalogApi({ feed: () => ok(page([feedCard()])) });
+    renderSurface(<HomePage />, { api });
+
+    const entry = await screen.findByTestId('browse-link');
+    expect(entry.getAttribute('href')).toBe('/browse');
+  });
+
   it('shows a skeleton while the first page is in flight', () => {
     const api = stubCatalogApi({ feed: () => ok(page([])) });
     renderSurface(<HomePage />, { api });

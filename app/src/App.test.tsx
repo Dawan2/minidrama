@@ -58,6 +58,12 @@ describe('App routing', () => {
     expect(screen.getByTestId('search-input').getAttribute('value')).toBe('heiress');
   });
 
+  it('renders the theatre tab', async () => {
+    renderAt('/browse');
+    expect(await screen.findByTestId('browse-page')).toBeDefined();
+    expect(screen.queryByTestId('fallback-page')).toBeNull();
+  });
+
   it('renders the profile route', async () => {
     renderAt('/me');
     expect(await screen.findByTestId('profile-page')).toBeDefined();
@@ -74,6 +80,11 @@ describe('App routing', () => {
   it('offers a way from the feed to the profile', async () => {
     renderAt('/home');
     expect((await screen.findByTestId('profile-link')).getAttribute('href')).toBe('/me');
+  });
+
+  it('offers a way from the feed to the theatre tab', async () => {
+    renderAt('/home');
+    expect((await screen.findByTestId('browse-link')).getAttribute('href')).toBe('/browse');
   });
 
   // A 401 must never be resolved by leaving the screen: there is no login screen to leave to, and

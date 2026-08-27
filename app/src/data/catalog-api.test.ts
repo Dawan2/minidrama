@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ok } from '@minidrama/shared';
 
-import { FEED_PATH, createCatalogApi, dramaEndpoint, episodeEndpoint, episodesEndpoint } from './catalog-api';
+import { FEED_PATH, DRAMAS_PATH, createCatalogApi, dramaEndpoint, episodeEndpoint, episodesEndpoint } from './catalog-api';
 import { apiFailure } from './failure';
 import {
   dramaDetail,
+  dramaSummary,
   episodeItem,
   feedCard,
   page,
@@ -19,6 +20,7 @@ function httpStub(body: unknown): HttpReader {
 describe('catalogue endpoints', () => {
   it('publishes the paths the server registered', () => {
     expect(FEED_PATH).toBe('/v1/recommendations/feed');
+    expect(DRAMAS_PATH).toBe('/v1/dramas');
     expect(dramaEndpoint('drm_1')).toBe('/v1/dramas/drm_1');
     expect(episodesEndpoint('drm_1')).toBe('/v1/dramas/drm_1/episodes');
     expect(episodeEndpoint('ep_1')).toBe('/v1/episodes/ep_1');
@@ -41,6 +43,24 @@ describe('the catalogue client', () => {
       scene: 'HOME',
       cursor: 'cur_2',
       limit: 10,
+    });
+  });
+
+  it('requests the published catalogue with the filters the browse route carries', async () => {
+    const getJson = vi.fn<HttpReader['getJson']>(() => Promise.resolve(ok(page([]))));
+    await createCatalogApi({ getJson }).fetchDramas({
+      category: 'REVENGE',
+      tag: 'ceo',
+      sort: 'NEW',
+      cursor: 'cur_3',
+    });
+
+    expect(getJson).toHaveBeenCalledWith(DRAMAS_PATH, {
+      category: 'REVENGE',
+      tag: 'ceo',
+      sort: 'NEW',
+      cursor: 'cur_3',
+      limit: undefined,
     });
   });
 
@@ -97,6 +117,10 @@ describe('the catalogue client', () => {
     const one = createCatalogApi(httpStub(episodeItem({ title: 'The return' })));
     const lookedUp = await one.fetchEpisode('ep_test_0001');
     expect(lookedUp.ok ? lookedUp.value.title : null).toBe('The return');
+
+    const listedDramas = createCatalogApi(httpStub(page([dramaSummary()])));
+    const browse = await listedDramas.fetchDramas({ sort: 'HOT' });
+    expect(browse.ok ? browse.value.items[0]?.id : null).toBe('drm_test_0001');
   });
 });
 
@@ -192,6 +216,15 @@ describe('response narrowing', () => {
     ).fetchEpisodes({ dramaId: 'drm_1' });
 
     expect(result.ok).toBe(false);
+  });
+
+  it('rejects a browse page whose summary is missing the fields a card needs', async () => {
+    const { title: _title, ...withoutTitle } = dramaSummary();
+    const result = await createCatalogApi(httpStub(page([withoutTitle]))).fetchDramas({
+      sort: 'HOT',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.error.kind).toBe('MALFORMED');
   });
 
   it('keeps every access reason the contract publishes', async () => {
