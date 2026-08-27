@@ -15,6 +15,10 @@ export const API_ERROR_CODES = [
   'COMMON_SERVICE_UNAVAILABLE',
   'COMMON_IDEMPOTENCY_KEY_REQUIRED',
   'COMMON_IDEMPOTENCY_CONFLICT',
+  // 403. The request came from a browser origin that is not on the server's allowlist, and it was
+  // refused before routing. A client never recovers from this by retrying or by signing in — the
+  // origin has to be registered — so it is not an `AUTH_*` code.
+  'COMMON_ORIGIN_NOT_ALLOWED',
   'AUTH_REQUIRED',
   'AUTH_TOKEN_EXPIRED',
   'AUTH_PROVIDER_ERROR',
