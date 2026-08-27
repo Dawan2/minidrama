@@ -41,6 +41,19 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Install Gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tgz
+          tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # A missing binary, an empty tree, a thinning .gitleaks.toml, or a finding exits 1.
+      # There is no continue-on-error: grepping AKIA instead of running Gitleaks is not G1.8.
+      - name: G1.8 secrets
+        run: pnpm run check:secrets
+
       - name: Format
         run: pnpm run format:check
 

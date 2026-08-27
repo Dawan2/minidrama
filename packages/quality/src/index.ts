@@ -62,3 +62,15 @@ export {
   runScaCheck,
 } from './sca.js';
 export type { ScaCheckArgs, ScaVulnerability } from './sca.js';
+
+export {
+  THINNING_FILE_NAMES,
+  USAGE as SECRETS_USAGE,
+  buildGitleaksArgv,
+  defaultSource,
+  formatFinding as formatSecretFinding,
+  parseGitleaksReport,
+  parseSecretsArgs,
+  runSecretsCheck,
+} from './secrets.js';
+export type { SecretFinding, SecretsCheckArgs } from './secrets.js';
