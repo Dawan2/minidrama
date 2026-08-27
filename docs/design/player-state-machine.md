@@ -523,7 +523,7 @@ This is the correction that `COR-1` made to the meaning of the MSE question, and
 machine because the Wave 1 design had the opposite conclusion. Under `<video>` + `hls.js`, no MSE meant **no
 playback** on Android. Under VePlayer, MSE availability decides only whether **preloaded bytes can be used**: an
 incompatible video or a device without MSE degrades the player to native video and loses preload, and playback
-proceeds (`docs/research/gaps.md` §4, `U-16`).
+proceeds (`docs/research/tiktok-minis-official.md` §9, `U-16`).
 
 Therefore: a device without MSE has no state of its own, no message, and no degraded UI — only a lower preload-hit
 rate (`INV-P14`, `AC-PF-3`). The hit rate is reported **segmented by OS version**, so the no-MSE cohort is a

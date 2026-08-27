@@ -131,7 +131,7 @@ merely deleted; every row names the replacement.
 | `quality` request field and response field | Quality/definition selection is a VePlayer concern (`COR-1`). A per-request quality parameter implied one signed URL per rendition, which no longer exists | `defaultDefinition`, one server-configured value delivered by `GET /config` (§8) — a player construction hint, not an entitlement decision |
 | `expiresAt` | Nothing in the response expires on modern clients. On legacy clients the `playAuthToken` has its own short validity, and the response is not cached or refreshed — it is re-requested (§4) | §4's re-request rule, and the `TokenRegion` reduction in `docs/design/player-state-machine.md` §5.1 |
 | Quality ladder `1080p → 720p → 480p` | It described our own transcoding output (`COR-2`) | `VideoAsset.quality` becomes **platform-owned** metadata, if it survives at all (slot B, `CTR-009` + `CTR-013`) |
-| HLS AES-128 key endpoint | We do not encrypt what we do not transcode. EME is moot for platform-hosted content, where play control is enforced by the platform (`docs/research/gaps.md` §4, U-16) | Platform play control. Our anti-abuse surface is rate-limiting **issuance** (§7.3) |
+| HLS AES-128 key endpoint | We do not encrypt what we do not transcode. EME is moot for platform-hosted content, where play control is enforced by the platform (`docs/research/tiktok-minis-official.md` §9, `U-16`) | Platform play control. Our anti-abuse surface is rate-limiting **issuance** (§7.3) |
 | `definition` in the `system-overview.md` §5.2 response sketch | It is not a per-viewer or per-episode decision, and putting it in the descriptor would make it look like one | `GET /config` (§8). Registered for P3 as a one-line correction to that diagram |
 
 ---
