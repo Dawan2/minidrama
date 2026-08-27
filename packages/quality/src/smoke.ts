@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join } from 'node:path';
 
@@ -62,7 +62,7 @@ export type PlaywrightRunner = (options: {
   readonly argv: readonly string[];
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
-}) => PlaywrightRunResult;
+}) => PlaywrightRunResult | Promise<PlaywrightRunResult>;
 
 export function defaultDistDir(root: string): string {
   return join(root, 'app', 'dist');
@@ -142,19 +142,36 @@ export function defaultPlaywrightRunner(options: {
   readonly argv: readonly string[];
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
-}): PlaywrightRunResult {
-  const result = spawnSync(options.bin, [...options.argv], {
-    cwd: options.cwd,
-    encoding: 'utf8',
-    env: options.env,
-    maxBuffer: 16 * 1024 * 1024,
+}): Promise<PlaywrightRunResult> {
+  return new Promise((resolve) => {
+    // spawn, not spawnSync: the smoke gateway is this same process. A blocked event loop
+    // cannot accept Playwright's HTTP, which is how goto hung until ERR_ABORTED.
+    let settled = false;
+    const finish = (result: PlaywrightRunResult): void => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    const child = spawn(options.bin, [...options.argv], {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+    child.once('error', (error) => {
+      finish({ status: null, stdout, stderr, error });
+    });
+    child.once('close', (status) => {
+      finish({ status, stdout, stderr, error: undefined });
+    });
   });
-  return {
-    status: result.status,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    error: result.error,
-  };
 }
 
 export async function runSmokeCheck(
@@ -170,15 +187,17 @@ export async function runSmokeCheck(
   let stack: SmokeStack | undefined;
   try {
     stack = await startStack({ root: args.root, distDir: args.distDir });
-    const run = runner({
-      bin: args.playwrightBin,
-      argv: buildPlaywrightArgv({ configPath: args.configPath }),
-      cwd: args.root,
-      env: {
-        ...process.env,
-        [SMOKE_ORIGIN_ENV]: stack.origin,
-      },
-    });
+    const run = await Promise.resolve(
+      runner({
+        bin: args.playwrightBin,
+        argv: buildPlaywrightArgv({ configPath: args.configPath }),
+        cwd: args.root,
+        env: {
+          ...process.env,
+          [SMOKE_ORIGIN_ENV]: stack.origin,
+        },
+      }),
+    );
 
     if (
       run.error !== undefined &&
@@ -188,7 +207,8 @@ export async function runSmokeCheck(
     }
 
     if (run.status !== 0) {
-      const detail = (run.stderr || run.stdout).trim() || 'no output';
+      const detail =
+        [run.stderr, run.stdout].filter((chunk) => chunk.trim() !== '').join('\n') || 'no output';
       return fail(`smoke failed (${String(run.status)}):\n${detail}`);
     }
 

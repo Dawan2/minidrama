@@ -11,7 +11,9 @@ import { extname, join, relative, resolve, sep } from 'node:path';
  *
  * Same-origin is the reason this exists. The CI client build leaves `VITE_API_BASE_URL` unset, so
  * the bundle fetches relative `/v1/...` URLs. Splitting static files and the API across origins
- * would need a baked URL or a CORS guess. Neither is G2.3.
+ * would need a baked URL or a CORS guess. Neither is G2.3. The API still sees the browser's
+ * `Origin` on POSTs (Chromium sends it same-origin), so `CORS_ALLOWED_ORIGINS` names this
+ * gateway — an empty allowlist 403s login while the anonymous feed still loads.
  *
  * Postgres is T14 and is not started. Redis is T15 and is not started. Test-login is on because
  * this process is `NODE_ENV=test` and unreachable from the internet; D4 stays `[ ]`.
@@ -79,6 +81,7 @@ export async function startSmokeStack(options: SmokeStackStartOptions): Promise<
     root: options.root,
     port: apiPort,
     sqlitePath,
+    browserOrigin: origin,
   });
 
   try {
@@ -227,16 +230,20 @@ async function proxyToApi(
   response.end(payload);
 }
 
-function startApiProcess(options: {
+export function startApiProcess(options: {
   readonly root: string;
   readonly port: number;
   readonly sqlitePath: string;
+  /**
+   * The gateway origin Playwright loads. The browser sends `Origin` on same-origin POSTs; the
+   * gateway forwards it; the API's `selfOrigin` is the API port, so an empty allowlist 403s
+   * login while GETs without `Origin` still succeed. This is the allowlist, not a `*` or a
+   * reflected Origin — a different origin is still 403.
+   */
+  readonly browserOrigin: string;
 }): ChildProcess {
   const tsxBin = resolveTsx(options.root);
   const serverEntry = join(options.root, 'server', 'src', 'server.ts');
-  if (!existsSync(tsxBin)) {
-    throw new Error(`tsx is required to start the smoke API: ${tsxBin} is absent`);
-  }
   if (!existsSync(serverEntry)) {
     throw new Error(
       `smoke API entry is required: ${relative(options.root, serverEntry)} is absent`,
@@ -252,6 +259,7 @@ function startApiProcess(options: {
       LOG_LEVEL: 'silent',
       NODE_ENV: 'test',
       MINIDRAMA_TEST_LOGIN: SMOKE_TEST_LOGIN_VALUE,
+      CORS_ALLOWED_ORIGINS: options.browserOrigin,
       DATABASE_URL: `sqlite:${options.sqlitePath}`,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -273,7 +281,7 @@ function resolveTsx(root: string): string {
   return found;
 }
 
-async function waitForHealth(apiOrigin: string, timeoutMs = 20_000): Promise<void> {
+export async function waitForHealth(apiOrigin: string, timeoutMs = 20_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'no attempt';
   while (Date.now() < deadline) {
@@ -294,7 +302,7 @@ async function waitForHealth(apiOrigin: string, timeoutMs = 20_000): Promise<voi
   throw new Error(`smoke API did not become healthy: ${lastError}`);
 }
 
-async function allocatePort(): Promise<number> {
+export async function allocatePort(): Promise<number> {
   return await new Promise((resolvePort, reject) => {
     const server = createNetServer();
     server.once('error', reject);

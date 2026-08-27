@@ -28,5 +28,9 @@ export default defineConfig({
     trace: 'off',
     video: 'off',
     screenshot: 'off',
+    // Cloud/CI containers often refuse the SUID sandbox. This is still Chromium, not a skip.
+    launchOptions: {
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    },
   },
 });

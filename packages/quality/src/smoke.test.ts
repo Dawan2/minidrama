@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { REQUIRED_SMOKE_SPEC_STEMS as INDEX_STEMS } from './index.js';
 import { repoRoot } from './paths.js';
 import {
   REQUIRED_SMOKE_SPEC_STEMS,
@@ -298,8 +299,8 @@ describe('runSmokeCheck', () => {
 });
 
 describe('defaultPlaywrightRunner', () => {
-  it('the default runner reports ENOENT for a missing binary', () => {
-    const run = defaultPlaywrightRunner({
+  it('the default runner reports ENOENT for a missing binary', async () => {
+    const run = await defaultPlaywrightRunner({
       bin: join(tempDir('smoke-default-'), 'no-such-playwright'),
       argv: ['test'],
       cwd: repoRoot,
@@ -314,5 +315,6 @@ describe('live P0 specs on this tree', () => {
   it('the committed specs directory still has the required stems', () => {
     const files = listSmokeSpecs(defaultSpecsDir(repoRoot));
     expect(missingRequiredSpecStems(files)).toEqual([]);
+    expect(INDEX_STEMS).toEqual(REQUIRED_SMOKE_SPEC_STEMS);
   });
 });
