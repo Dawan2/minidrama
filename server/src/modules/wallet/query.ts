@@ -20,11 +20,7 @@ export const WALLET_TRANSACTIONS_LIMIT = { fallback: 20, max: 100 } as const;
 export type WalletTransactionsQueryField = 'cursor' | 'limit' | 'type';
 
 export type WalletTransactionsQueryReason =
-  | 'repeated'
-  | 'not_an_integer'
-  | 'out_of_range'
-  | 'unknown'
-  | 'malformed';
+  'repeated' | 'not_an_integer' | 'out_of_range' | 'unknown' | 'malformed';
 
 export interface WalletTransactionsQueryFailure {
   readonly field: WalletTransactionsQueryField;

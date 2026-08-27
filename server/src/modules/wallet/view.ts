@@ -1,7 +1,4 @@
-import {
-  isWalletTransactionRefType,
-  isWalletTransactionType,
-} from '@minidrama/shared';
+import { isWalletTransactionRefType, isWalletTransactionType } from '@minidrama/shared';
 import type { Page, WalletTransaction, WalletView } from '@minidrama/shared';
 
 import type { WalletBalance } from './balance-port.js';

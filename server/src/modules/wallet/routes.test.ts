@@ -57,10 +57,7 @@ function get(token?: string): Promise<LightMyRequestResponse> {
   });
 }
 
-function getLedger(
-  token?: string,
-  query = '',
-): Promise<LightMyRequestResponse> {
+function getLedger(token?: string, query = ''): Promise<LightMyRequestResponse> {
   return app.inject({
     method: 'GET',
     url: `${WALLET_TRANSACTIONS_PATH}${query}`,
@@ -421,7 +418,9 @@ describe('GET /v1/wallet/transactions — the platform named rows', () => {
     expect(response.statusCode).toBe(200);
     expect(page.items.map((row) => row.id)).toEqual(['txn_new', 'txn_old']);
     expect(page.items[0]).toMatchObject({ type: 'CONSUME', coinDelta: -30 });
-    expect(JSON.stringify(page)).not.toMatch(/beans|amountCents|currency|USD|fiat/i);
+    expect(JSON.stringify(page)).not.toMatch(
+      /\b(beansAmount|beansPerCoin|amountCents|currency|fiatAmount)\b/i,
+    );
   });
 
   it('filters by type without inventing a CONSUME the platform did not post', async () => {

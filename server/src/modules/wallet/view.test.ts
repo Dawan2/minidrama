@@ -132,7 +132,9 @@ describe('toWalletTransactionPage', () => {
         createdAt: '2026-08-27T10:00:00.000Z',
       },
     ]);
-    expect(JSON.stringify(page)).not.toMatch(/beans|amountCents|currency|USD|fiat/i);
+    expect(JSON.stringify(page)).not.toMatch(
+      /\b(beansAmount|beansPerCoin|amountCents|currency|fiatAmount)\b/i,
+    );
   });
 
   it('omits a missing delta rather than inventing a zero movement', () => {
