@@ -99,7 +99,10 @@ Reverted before commit. `git diff` against `paid-trade-orders.ts` is empty.
 
 `pnpm verify` exits 0 on this branch, first try, **2,167 tests across 116 files, none skipped**.
 That is four more tests and one more file than `fb2b967` carried (2,163 / 115). Server tests went
-1,314 → **1,318**. FavoritesPage did not flake; it was not retried, and it was not touched.
+1,314 → **1,318**. FavoritesPage did not flake; it was not retried, and this slot did not touch it.
+
+The same verify was re-run after merging `78505ad` (the paging-flake tests that landed on `main`
+mid-slot): same count, first try, none skipped.
 
 ---
 
