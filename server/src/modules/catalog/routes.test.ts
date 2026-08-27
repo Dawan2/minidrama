@@ -382,6 +382,27 @@ describe('GET /v1/dramas/:dramaId/episodes', () => {
     expect(second.pageInfo).toEqual({ hasMore: false, nextCursor: null });
   });
 
+  // The 27-episode seed never produced a second page at the episode list's default of 50.
+  // `drm_sweet_0003` is the volume run; the first five remain inside its free window.
+  it('pages a volume drama past the default episode limit', async () => {
+    const first = await episodesOf('drm_sweet_0003');
+    expect(first.items).toHaveLength(50);
+    expect(first.items[0]?.id).toBe('ep_sweet_e01');
+    expect(first.items[4]?.viewerAccess.reason).toBe('FREE');
+    expect(first.items[5]?.viewerAccess.reason).toBe('NEED_UNLOCK');
+    expect(first.pageInfo.hasMore).toBe(true);
+    expect(first.pageInfo.nextCursor).not.toBeNull();
+
+    const second = await episodesOf(
+      'drm_sweet_0003',
+      `?cursor=${encodeURIComponent(first.pageInfo.nextCursor ?? '')}`,
+    );
+    expect(second.items).toHaveLength(30);
+    expect(second.items[0]?.id).toBe('ep_sweet_e51');
+    expect(second.items[29]?.id).toBe('ep_sweet_e80');
+    expect(second.pageInfo).toEqual({ hasMore: false, nextCursor: null });
+  });
+
   it.each([
     ['a season number that is not a positive integer', '?seasonNumber=0'],
     ['a season number that is not a number at all', '?seasonNumber=two'],
