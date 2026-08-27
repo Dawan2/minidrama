@@ -20,8 +20,8 @@
     "check:smoke": "tsx src/cli/check-smoke.ts",
     "check:secrets": "tsx src/cli/check-secrets.ts",
     "check:contract": "tsx src/cli/check-contract.ts",
-    "check:skips": "tsx src/cli/check-skips.ts",
-    "check:commits": "tsx src/cli/check-commits.ts"
+    "check:commits": "tsx src/cli/check-commits.ts",
+    "check:skips": "tsx src/cli/check-skips.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

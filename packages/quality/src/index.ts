@@ -107,6 +107,20 @@ export {
 export type { BreakingChange, ContractCheckArgs } from './contract.js';
 
 export {
+  CONVENTIONAL_SUBJECT,
+  CONVENTIONAL_TYPES,
+  DEFAULT_BASE,
+  USAGE as COMMITS_USAGE,
+  buildLogArgv,
+  buildMergeBaseArgv,
+  isConventionalSubject,
+  parseCommitsArgs,
+  parseGitSubjects,
+  runCommitsCheck,
+} from './commits.js';
+export type { CommitSubject, CommitsCheckArgs } from './commits.js';
+
+export {
   IT_TODO,
   ONLY_CALL,
   SKIP_CALL,

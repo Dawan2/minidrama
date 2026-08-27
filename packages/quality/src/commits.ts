@@ -2,25 +2,20 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 
 /**
- * G1.9 (`docs/14-quality-gates.md` §2): Conventional Commits, and a requirement/defect id.
- * A prose subject on `origin/main..HEAD` fails. A Conventional header with no tracker id
- * fails. A missing git binary or a missing base ref fails — the same fail-open G2.8 closed
- * for an absent pnpm store.
+ * G1.9 (`docs/14-quality-gates.md` §2): Conventional Commits on the commits that would
+ * land. A prose subject fails. Merge commits are skipped so absorbing `origin/main` is not
+ * a rewrite. History already on `main` is not rewritten — the range is merge-base with
+ * `origin/main` (or `--base`) through `HEAD`.
  *
- * This module is the gate. A comment that says "we use Conventional Commits" is not G1.9.
- * History already on `main` is not rewritten: the range is new commits only. An empty
- * range is 0 new commits, not a skip. Merge commits (two parents) are how `main` is
- * absorbed onto a work branch; their subjects stay prose and are not a hit.
+ * This module invokes git. A TypeScript comment that names Conventional Commits is not G1.9.
  *
- * Folded into `pnpm verify` on purpose: git is already required to have a checkout. L1 CI
- * also runs it as a named step so a missing check cannot hide behind the verify script.
+ * Folded into `pnpm verify`: git is already on the path, the same way G1.10 has no extra
+ * binary. G1.8 / G1.6 stay out because they install one.
  */
 
-export const USAGE =
-  'usage: check-commits [--root <repo-root>] [--from <ref>] [--to <ref>] [--git <binary>]';
+export const USAGE = 'usage: check-commits [--root <repo-root>] [--base <ref>] [--git <binary>]';
 
-export const DEFAULT_FROM = 'origin/main';
-export const DEFAULT_TO = 'HEAD';
+export const DEFAULT_BASE = 'origin/main';
 
 export const CONVENTIONAL_TYPES = [
   'feat',
@@ -36,34 +31,24 @@ export const CONVENTIONAL_TYPES = [
   'revert',
 ] as const;
 
-export type ConventionalType = (typeof CONVENTIONAL_TYPES)[number];
+const TYPE_ALTERNATION = CONVENTIONAL_TYPES.join('|');
 
-/** `%H %P %s %b` with NUL field separators and RS record separators. */
-export const LOG_FORMAT = '%H%x00%P%x00%s%x00%b%x1e';
-
-/**
- * Requirement / defect ids this repository actually uses, plus a GitHub `#n`.
- * `G1.9` in a scope and `D-20` in a footer both count. `v1.0` does not.
- */
-export const TRACKER_RE =
-  /\b(?:D-\d+|C\d+-\d+|G\d+\.\d+|INF-\d+|QA-\d+|PLY-\d+|PRG-\d+|SCR-\d+|APP-\d+|SRV-\d+|DAT-\d+|OBS-\d+|I18N-\d+|CTR-\d+|CNT-\d+|GOV-\d+|VER-\d+|PNL-\d+|T\d+(?:-\d+)?|X-\d+|GATE-\d+|Q-G-\d+)\b|#\d+\b/gi;
-
-const HEADER_RE = new RegExp(
-  `^(${CONVENTIONAL_TYPES.join('|')})(?:\\(([A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z0-9]|[A-Za-z0-9])\\))?(!)?: (.+)$`,
+/** `type(scope)!: description` — type is lowercase; a space after the colon is required. */
+export const CONVENTIONAL_SUBJECT = new RegExp(
+  `^(${TYPE_ALTERNATION})(\\([a-zA-Z0-9._/-]+\\))?(!)?: .+`,
 );
 
-export interface CommitCheckArgs {
+export interface CommitsCheckArgs {
   readonly root: string;
-  readonly from: string;
-  readonly to: string;
+  readonly base: string;
   readonly gitBin: string;
 }
 
-export type ParseCommitArgsResult =
-  | { readonly ok: true; readonly args: CommitCheckArgs }
+export type ParseCommitsArgsResult =
+  | { readonly ok: true; readonly args: CommitsCheckArgs }
   | { readonly ok: false; readonly message: string };
 
-export interface CommitCheckOutput {
+export interface CommitsCheckOutput {
   readonly ok: boolean;
   readonly exitCode: number;
   readonly stdout: string;
@@ -83,45 +68,21 @@ export type GitRunner = (options: {
   readonly cwd: string;
 }) => GitRunResult;
 
-export interface GitCommit {
-  readonly hash: string;
-  readonly parents: readonly string[];
-  readonly subject: string;
-  readonly body: string;
-}
-
-export type CommitHitKind = 'prose' | 'missing-id' | 'empty';
-
-export interface CommitHit {
-  readonly hash: string;
-  readonly kind: CommitHitKind;
+export interface CommitSubject {
   readonly subject: string;
 }
 
-export interface ConventionalHeader {
-  readonly type: ConventionalType;
-  readonly scope?: string;
-  readonly breaking: boolean;
-  readonly description: string;
-}
-
-export type CommitVerdict =
-  | { readonly ok: true; readonly kind: 'conventional' | 'merge' }
-  | { readonly ok: false; readonly kind: CommitHitKind };
-
-export function parseCommitArgs(
+export function parseCommitsArgs(
   argv: readonly string[],
   defaultRoot: string,
-): ParseCommitArgsResult {
+): ParseCommitsArgsResult {
   let root = defaultRoot;
-  let from = DEFAULT_FROM;
-  let to = DEFAULT_TO;
+  let base = DEFAULT_BASE;
   let gitBin = 'git';
 
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index] ?? '';
-    const needsValue =
-      flag === '--root' || flag === '--from' || flag === '--to' || flag === '--git';
+    const needsValue = flag === '--root' || flag === '--base' || flag === '--git';
     if (!needsValue) {
       return { ok: false, message: `unknown argument: ${flag}` };
     }
@@ -131,21 +92,42 @@ export function parseCommitArgs(
       return { ok: false, message: `${flag} requires a ${kind}` };
     }
     if (flag === '--root') root = value;
-    if (flag === '--from') from = value;
-    if (flag === '--to') to = value;
+    if (flag === '--base') base = value;
     if (flag === '--git') gitBin = value;
     index += 1;
   }
 
-  return { ok: true, args: { root, from, to, gitBin } };
+  return {
+    ok: true,
+    args: { root, base, gitBin },
+  };
 }
 
-export function buildLogArgv(from: string, to: string): string[] {
-  return ['log', '--reverse', `--format=${LOG_FORMAT}`, `${from}..${to}`];
+export function isConventionalSubject(subject: string): boolean {
+  return CONVENTIONAL_SUBJECT.test(subject);
 }
 
-export function buildRevParseArgv(ref: string): string[] {
-  return ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`];
+export function parseGitSubjects(raw: string): string[] {
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line !== '');
+}
+
+export function formatViolation(subject: string): string {
+  return subject;
+}
+
+export function buildMergeBaseArgv(base: string): string[] {
+  return ['merge-base', base, 'HEAD'];
+}
+
+export function buildRevParseArgv(base: string): string[] {
+  return ['rev-parse', '--verify', '--quiet', base];
+}
+
+export function buildLogArgv(mergeBase: string): string[] {
+  return ['log', '--no-merges', '--format=%s', `${mergeBase}..HEAD`];
 }
 
 export function defaultGitRunner(options: {
@@ -168,209 +150,79 @@ export function defaultGitRunner(options: {
   };
 }
 
-export function isConventionalType(value: string): value is ConventionalType {
-  return (CONVENTIONAL_TYPES as readonly string[]).includes(value);
-}
-
-export function parseConventionalHeader(subject: string): ConventionalHeader | undefined {
-  const match = HEADER_RE.exec(subject);
-  if (match === null) return undefined;
-  const type = match[1] ?? '';
-  if (!isConventionalType(type)) return undefined;
-  const scope = match[2];
-  const breaking = match[3] === '!';
-  const description = match[4] ?? '';
-  if (description.trim() === '') return undefined;
-  return {
-    type,
-    ...(scope === undefined ? {} : { scope }),
-    breaking,
-    description,
-  };
-}
-
-export function findTrackerIds(text: string): string[] {
-  const pattern = new RegExp(TRACKER_RE.source, TRACKER_RE.flags);
-  const found: string[] = [];
-  const seen = new Set<string>();
-  for (const match of text.matchAll(pattern)) {
-    const token = match[0] ?? '';
-    const key = token.toUpperCase();
-    if (token !== '' && !seen.has(key)) {
-      seen.add(key);
-      found.push(token);
-    }
-  }
-  return found;
-}
-
-export function evaluateCommit(commit: {
-  readonly parents: readonly string[];
-  readonly subject: string;
-  readonly body: string;
-}): CommitVerdict {
-  if (commit.parents.length > 1) {
-    return { ok: true, kind: 'merge' };
-  }
-  if (commit.subject.trim() === '') {
-    return { ok: false, kind: 'empty' };
-  }
-  const header = parseConventionalHeader(commit.subject);
-  if (header === undefined) {
-    return { ok: false, kind: 'prose' };
-  }
-  const tracked = findTrackerIds(`${commit.subject}\n${commit.body}`);
-  if (tracked.length === 0) {
-    return { ok: false, kind: 'missing-id' };
-  }
-  return { ok: true, kind: 'conventional' };
-}
-
-export function shortHash(hash: string): string {
-  return hash.length <= 7 ? hash : hash.slice(0, 7);
-}
-
-export function formatHit(hit: CommitHit): string {
-  const subject = hit.subject.trim() === '' ? '(empty subject)' : hit.subject;
-  return `${hit.kind} ${shortHash(hit.hash)} ${subject}`;
-}
-
-export type ParseLogResult =
-  | { readonly ok: true; readonly commits: readonly GitCommit[] }
-  | { readonly ok: false; readonly message: string };
-
-export function parseLog(stdout: string): ParseLogResult {
-  if (stdout === '') {
-    return { ok: true, commits: [] };
-  }
-  const records = stdout.split('\x1e');
-  const commits: GitCommit[] = [];
-  for (const record of records) {
-    if (record === '' || record === '\n') continue;
-    const trimmed = record.startsWith('\n') ? record.slice(1) : record;
-    const fields = trimmed.split('\x00');
-    if (fields.length < 3) {
-      return {
-        ok: false,
-        message: 'git log produced a malformed commit record: G1.9 will not invent a subject',
-      };
-    }
-    const hash = fields[0] ?? '';
-    const parentsRaw = fields[1] ?? '';
-    const subject = fields[2] ?? '';
-    const body = fields.slice(3).join('\x00');
-    if (hash === '') {
-      return {
-        ok: false,
-        message: 'git log produced a malformed commit record: G1.9 will not invent a subject',
-      };
-    }
-    const parents = parentsRaw === '' ? [] : parentsRaw.split(' ').filter((item) => item !== '');
-    commits.push({ hash, parents, subject, body });
-  }
-  return { ok: true, commits };
-}
-
-function fail(message: string): CommitCheckOutput {
-  return { ok: false, exitCode: 1, stdout: '', stderr: `${message}\n` };
-}
-
 function spawnErrorCode(error: Error): string | undefined {
   if (!('code' in error) || typeof error.code !== 'string') return undefined;
   return error.code;
 }
 
-function isAbsentBinary(run: GitRunResult): boolean {
-  if (run.error !== undefined && spawnErrorCode(run.error) === 'ENOENT') return true;
-  return run.error !== undefined && run.status === null;
+function fail(message: string): CommitsCheckOutput {
+  return { ok: false, exitCode: 1, stdout: '', stderr: `${message}\n` };
 }
 
-function git(args: CommitCheckArgs, runner: GitRunner, argv: readonly string[]): GitRunResult {
-  return runner({ bin: args.gitBin, argv, cwd: args.root });
+function runGit(
+  args: CommitsCheckArgs,
+  argv: readonly string[],
+  runner: GitRunner,
+): GitRunResult | CommitsCheckOutput {
+  const run = runner({ bin: args.gitBin, argv, cwd: args.root });
+  if (run.error !== undefined && (spawnErrorCode(run.error) === 'ENOENT' || run.status === null)) {
+    return fail('git is required: the binary is absent or not executable');
+  }
+  return run;
 }
 
-function refExists(args: CommitCheckArgs, runner: GitRunner, ref: string): boolean {
-  const run = git(args, runner, buildRevParseArgv(ref));
-  return run.status === 0;
+function isFail(result: GitRunResult | CommitsCheckOutput): result is CommitsCheckOutput {
+  return 'exitCode' in result;
 }
 
-export function runCommitCheck(
-  args: CommitCheckArgs,
+export function runCommitsCheck(
+  args: CommitsCheckArgs,
   runner: GitRunner = defaultGitRunner,
-): CommitCheckOutput {
+): CommitsCheckOutput {
   if (!existsSync(args.root) || !statSync(args.root).isDirectory()) {
     return fail('scan root is required: path is absent or not a directory');
   }
 
-  const version = git(args, runner, ['--version']);
-  if (isAbsentBinary(version) || version.status !== 0) {
-    return fail('git is required: the binary is absent or not executable');
-  }
-
-  const gitDir = git(args, runner, ['rev-parse', '--git-dir']);
-  if (gitDir.status !== 0) {
-    const detail = (gitDir.stderr || gitDir.stdout).trim() || 'not a git repository';
-    return fail(`scan root is not a git repository: ${detail}`);
-  }
-
-  if (!refExists(args, runner, args.to)) {
-    return fail(`commit-check range to is required: ${args.to} is absent`);
-  }
-
-  if (!refExists(args, runner, args.from)) {
+  const parsed = runGit(args, buildRevParseArgv(args.base), runner);
+  if (isFail(parsed)) return parsed;
+  if (parsed.status !== 0) {
     return fail(
-      `commit-check base is required: ${args.from} is absent — G1.9 does not rewrite history and will not invent a range`,
+      `base ref is required: ${args.base} is absent — a commit check that saw no history has not run`,
     );
   }
 
-  const log = git(args, runner, buildLogArgv(args.from, args.to));
-  if (isAbsentBinary(log)) {
-    return fail('git is required: the binary is absent or not executable');
-  }
-  if (log.status !== 0) {
-    const detail = (log.stderr || log.stdout).trim() || 'no output';
-    return fail(`git log failed (${String(log.status)}): ${detail}`);
+  const merged = runGit(args, buildMergeBaseArgv(args.base), runner);
+  if (isFail(merged)) return merged;
+  if (merged.status !== 0) {
+    const detail = (merged.stderr || merged.stdout).trim() || 'no output';
+    return fail(`git merge-base failed (${String(merged.status)}): ${detail}`);
   }
 
-  const parsed = parseLog(log.stdout);
-  if (!parsed.ok) {
-    return fail(parsed.message);
+  const mergeBase = merged.stdout.trim();
+  if (mergeBase === '') {
+    return fail('git merge-base produced no SHA: a commit check that saw no history has not run');
   }
 
-  const commits = parsed.commits;
-  if (commits.length === 0) {
-    return {
-      ok: true,
-      exitCode: 0,
-      stdout: `commit-check passed (0 new commits vs ${args.from}): G1.9 does not rewrite history\n`,
-      stderr: '',
-    };
+  const logged = runGit(args, buildLogArgv(mergeBase), runner);
+  if (isFail(logged)) return logged;
+  if (logged.status !== 0) {
+    const detail = (logged.stderr || logged.stdout).trim() || 'no output';
+    return fail(`git log failed (${String(logged.status)}): ${detail}`);
   }
 
-  const hits: CommitHit[] = [];
-  let mergeCount = 0;
-  for (const commit of commits) {
-    const verdict = evaluateCommit(commit);
-    if (verdict.ok && verdict.kind === 'merge') {
-      mergeCount += 1;
-      continue;
-    }
-    if (!verdict.ok) {
-      hits.push({ hash: commit.hash, kind: verdict.kind, subject: commit.subject });
-    }
-  }
-
-  if (hits.length > 0) {
-    const listed = hits.map((hit) => `  ${formatHit(hit)}`).join('\n');
+  const subjects = parseGitSubjects(logged.stdout);
+  const prose = subjects.filter((subject) => !isConventionalSubject(subject));
+  if (prose.length > 0) {
+    const listed = prose.map((subject) => `  ${formatViolation(subject)}`).join('\n');
     return fail(
-      `commit-check failed (${String(hits.length)}): new commits that are not Conventional Commits with a requirement/defect id are G1.9 red\n${listed}`,
+      `commits failed (${String(prose.length)}): prose subjects are G1.9 red; do not rewrite history on main\n${listed}`,
     );
   }
 
   return {
     ok: true,
     exitCode: 0,
-    stdout: `commit-check passed (${String(commits.length)} new commits, 0 prose, ${String(mergeCount)} merge)\n`,
+    stdout: `commits passed (${String(subjects.length)} new commits vs ${args.base}, 0 prose)\n`,
     stderr: '',
   };
 }

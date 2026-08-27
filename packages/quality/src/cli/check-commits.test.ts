@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,8 +10,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { repoRoot } from '../paths.js';
 
 /**
- * Exit-code tests for the CI entry point. The unit tests cover the policy; this covers the
- * only thing L1 actually reads — the process exit status — because a check that reports
+ * Exit-code tests for the CI entry point. The unit tests cover the subject policy; this covers
+ * the only thing L1 actually reads — the process exit status — because a check that reports
  * success without having seen git is the same fail-open G2.8 closed for an empty store.
  */
 
@@ -44,37 +44,31 @@ function tempDir(prefix: string): string {
   return root;
 }
 
-function gitAt(cwd: string, argv: readonly string[]): { status: number; stderr: string } {
-  const result = spawnSync('git', [...argv], {
-    cwd,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: 'G1.9',
-      GIT_AUTHOR_EMAIL: 'g19@invalid',
-      GIT_COMMITTER_NAME: 'G1.9',
-      GIT_COMMITTER_EMAIL: 'g19@invalid',
-    },
-  });
-  return { status: result.status ?? -1, stderr: result.stderr };
+function git(cwd: string, args: readonly string[]): void {
+  const result = spawnSync('git', [...args], { cwd, encoding: 'utf8' });
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
+  }
 }
 
-function initRepo(prefix: string): string {
-  const root = tempDir(prefix);
-  expect(gitAt(root, ['init', '-b', 'main']).status).toBe(0);
-  expect(gitAt(root, ['config', 'user.name', 'G1.9']).status).toBe(0);
-  expect(gitAt(root, ['config', 'user.email', 'g19@invalid']).status).toBe(0);
-  expect(gitAt(root, ['config', 'commit.gpgsign', 'false']).status).toBe(0);
+function initRepo(): string {
+  const root = tempDir('cli-commits-');
+  git(root, ['init', '-b', 'main']);
+  git(root, ['config', 'user.email', 'dev@example.com']);
+  git(root, ['config', 'user.name', 'Dev']);
+  git(root, ['config', 'commit.gpgsign', 'false']);
+  writeFileSync(join(root, 'README.md'), 'init\n');
+  git(root, ['add', 'README.md']);
+  git(root, ['commit', '-m', 'chore: initial']);
   return root;
 }
 
-function commitFile(root: string, relative: string, body: string, message: string): void {
-  const path = join(root, relative);
-  mkdirSync(join(path, '..'), { recursive: true });
-  writeFileSync(path, body);
-  expect(gitAt(root, ['add', relative]).status).toBe(0);
-  const committed = gitAt(root, ['commit', '-m', message]);
-  expect(committed.status).toBe(0);
+function fakeGit(script: string): string {
+  const root = tempDir('fake-git-');
+  const bin = join(root, 'git');
+  writeFileSync(bin, `#!/usr/bin/env node\n${script}\n`);
+  chmodSync(bin, 0o755);
+  return bin;
 }
 
 function run(args: readonly string[]): { status: number; stdout: string; stderr: string } {
@@ -90,41 +84,83 @@ describe('check-commits CLI', () => {
     expect(result.stderr).toContain('usage: check-commits');
   });
 
-  it('exits non-zero when the base ref is missing', () => {
-    const root = tempDir('cli-commits-nofrom-');
-    const result = run(['--root', root, '--from', 'origin/main', '--to', 'HEAD']);
+  it('exits non-zero when git is missing', () => {
+    const root = tempDir('cli-commits-nobin-');
+    mkdirSync(join(root, 'src'));
+    const result = run(['--root', root, '--base', 'main', '--git', join(root, 'no-such-git')]);
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/git is required|not a git repository/);
-    expect(result.stdout).not.toContain('commit-check passed');
+    expect(result.stderr).toContain('git is required');
+    expect(result.stdout).not.toContain('commits passed');
   });
 
-  it('exits non-zero when a new commit is a prose subject', () => {
-    const root = initRepo('cli-commits-prose-');
-    commitFile(root, 'README.md', 'base\n', 'ci(g1.9): seed the base so history stays');
-    expect(gitAt(root, ['checkout', '-b', 'work']).status).toBe(0);
-    commitFile(root, 'job.ts', 'export const x = 1\n', 'Add the lint job');
-    const result = run(['--root', root, '--from', 'main', '--to', 'HEAD']);
+  it('exits non-zero when a unique commit is prose — rewriting it is not the gate', () => {
+    const root = initRepo();
+    git(root, ['checkout', '-b', 'feature']);
+    writeFileSync(join(root, 'note.txt'), 'work\n');
+    git(root, ['add', 'note.txt']);
+    git(root, ['commit', '-m', 'Wire the skip detector']);
+    const result = run(['--root', root, '--base', 'main']);
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('G1.9 red');
-    expect(result.stderr).toContain('Add the lint job');
+    expect(result.stderr).toContain('commits failed (1)');
+    expect(result.stderr).toContain('Wire the skip detector');
+    expect(result.stdout).not.toContain('commits passed');
   });
 
-  it('exits zero when every new commit is Conventional Commits with a tracker id', () => {
-    const root = initRepo('cli-commits-ok-');
-    commitFile(root, 'README.md', 'base\n', 'prose history on main is not rewritten');
-    expect(gitAt(root, ['checkout', '-b', 'work']).status).toBe(0);
-    commitFile(root, 'job.ts', 'export const x = 1\n', 'ci(g1.9): fail a prose subject');
-    const result = run(['--root', root, '--from', 'main', '--to', 'HEAD']);
+  it('exits zero when the unique commit is conventional', () => {
+    const root = initRepo();
+    git(root, ['checkout', '-b', 'feature']);
+    writeFileSync(join(root, 'note.txt'), 'work\n');
+    git(root, ['add', 'note.txt']);
+    git(root, ['commit', '-m', 'feat: add skip detection']);
+    const result = run(['--root', root, '--base', 'main']);
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('commit-check passed');
-    expect(result.stdout).toContain('0 prose');
+    expect(result.stdout).toContain('commits passed (1 new commits vs main, 0 prose)');
   });
 
-  it('exits zero on an empty range so history on main is not rewritten', () => {
-    const root = initRepo('cli-commits-empty-');
-    commitFile(root, 'README.md', 'base\n', 'prose history on main is not rewritten');
-    const result = run(['--root', root, '--from', 'main', '--to', 'HEAD']);
+  it('skips a merge commit so absorbing main does not rewrite history', () => {
+    const root = initRepo();
+    git(root, ['checkout', '-b', 'feature']);
+    writeFileSync(join(root, 'note.txt'), 'work\n');
+    git(root, ['add', 'note.txt']);
+    git(root, ['commit', '-m', 'feat: add skip detection']);
+    git(root, ['checkout', 'main']);
+    writeFileSync(join(root, 'other.txt'), 'trunk\n');
+    git(root, ['add', 'other.txt']);
+    git(root, ['commit', '-m', 'chore: trunk move']);
+    git(root, ['checkout', 'feature']);
+    const merge = spawnSync(
+      'git',
+      ['merge', 'main', '-m', 'Merge main into feature without a conventional type'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    expect(merge.status).toBe(0);
+    const result = run(['--root', root, '--base', 'main']);
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('0 new commits');
+    expect(result.stdout).toContain('commits passed (1 new commits vs main, 0 prose)');
+  });
+
+  it('exits zero on an empty range — HEAD is already the base', () => {
+    const root = initRepo();
+    const result = run(['--root', root, '--base', 'main']);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('commits passed (0 new commits vs main, 0 prose)');
+  });
+
+  it('exits non-zero when a fake git reports a finding-shaped prose subject', () => {
+    const root = tempDir('cli-commits-fake-');
+    mkdirSync(join(root, '.git'));
+    const bin = fakeGit(`
+const argv = process.argv.slice(2).join(' ');
+if (argv.includes('rev-parse')) { process.stdout.write('aaa\\n'); process.exit(0); }
+if (argv.includes('merge-base')) { process.stdout.write('aaa\\n'); process.exit(0); }
+if (argv.includes('log')) {
+  process.stdout.write('Add the L1 G1.10 skip/empty-test job: a committed skip is red\\n');
+  process.exit(0);
+}
+process.exit(1);
+`);
+    const result = run(['--root', root, '--base', 'main', '--git', bin]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Add the L1 G1.10 skip/empty-test job');
   });
 });

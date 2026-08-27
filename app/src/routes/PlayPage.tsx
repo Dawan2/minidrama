@@ -13,6 +13,7 @@ import { UnlockPanel } from '../unlock/UnlockPanel';
 import { isPlaybackLock } from '../data/playback-api';
 import { useCatalogApi } from '../data/catalog-api-context';
 import { useClientConfig } from '../config/client-config-context';
+import { useFavoritesApi } from '../data/favorites-api-context';
 import { usePlaybackApi } from '../data/playback-api-context';
 import { useProgressApi } from '../data/progress-api-context';
 import { useResource } from '../data/use-resource';
@@ -50,6 +51,8 @@ import type { AdPlacement } from '../data/unlock-api';
  * over the other device's position (`PRG-001`).
  *
  * PNL-05 (quality / speed) stays deleted: VePlayer plugins own those (`AC-PL-6`).
+ * Double-tap 点赞 follows the current drama (`PUT /v1/dramas/{id}/favorite`). A single tap
+ * is still VePlayer's pause. 倍速 stays plugin-owned (X-26).
  */
 
 const EMPTY_EPISODES: Page<EpisodeItem> = {
@@ -75,12 +78,14 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
   const playbackApi = usePlaybackApi();
   const catalogApi = useCatalogApi();
   const progressApi = useProgressApi();
+  const favoritesApi = useFavoritesApi();
   const config = useClientConfig();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [unlockDismissed, setUnlockDismissed] = useState(false);
   const [advanceUnlock, setAdvanceUnlock] = useState<EpisodeItem | null>(null);
   const [advancePlacement, setAdvancePlacement] = useState<AdPlacement | null>(null);
   const [album, setAlbum] = useState<readonly PlaybackDescriptor[]>([]);
+  const [likedFlash, setLikedFlash] = useState(false);
   const advancingRef = useRef(false);
   const surfaceRef = useRef<PlayerSurfaceHandle>(null);
   const episodeIdRef = useRef(episodeId);
@@ -90,6 +95,7 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     setUnlockDismissed(false);
     setAdvanceUnlock(null);
     setAdvancePlacement(null);
+    setLikedFlash(false);
   }, [episodeId]);
 
   const session = useResource(
@@ -185,6 +191,16 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     void attemptAdvance(target, 'AFTER_EPISODE');
   }
 
+  async function onDoubleTap(): Promise<void> {
+    if (dramaId === '') {
+      return;
+    }
+    const result = await favoritesApi.addFavorite(dramaId);
+    if (result.ok) {
+      setLikedFlash(true);
+    }
+  }
+
   return (
     <main
       className="page page--play"
@@ -227,7 +243,13 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
                 void attemptAdvance(previous, 'MANUAL_SKIP');
               },
             })}
+        {...(dramaId === '' || pickerOpen || overlayEpisode !== null ? {} : { onDoubleTap })}
       />
+      {likedFlash ? (
+        <p className="player-liked" data-testid="player-liked" role="status">
+          {translate('player.liked')}
+        </p>
+      ) : null}
       {catalogEpisode === null ? null : (
         <p className="player-meta" data-testid="player-episode-label">
           {translate('drama.episodeLabel', undefined, { n: catalogEpisode.globalEpisodeNumber })}
@@ -362,6 +384,7 @@ function Attempt({
   bridge,
   catalog,
   locked,
+  onDoubleTap,
   onEnded,
   onRetry,
   onSwipeNext,
@@ -375,6 +398,7 @@ function Attempt({
   readonly bridge: PlatformBridge;
   readonly catalog: Resource<EpisodeItem>;
   readonly locked: boolean;
+  readonly onDoubleTap?: () => void;
   readonly onEnded: () => void;
   readonly onRetry: () => void;
   readonly onSwipeNext?: () => void;
@@ -417,6 +441,7 @@ function Attempt({
         progress={progress}
         {...(onSwipeNext === undefined ? {} : { onSwipeNext })}
         {...(onSwipePrevious === undefined ? {} : { onSwipePrevious })}
+        {...(onDoubleTap === undefined ? {} : { onDoubleTap })}
       />
     );
   }

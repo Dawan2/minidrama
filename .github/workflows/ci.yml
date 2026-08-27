@@ -76,8 +76,8 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
-      # A prose subject on origin/main..HEAD exits 1. History on main is not rewritten.
-      # There is no continue-on-error: a comment that forbids prose is not G1.9.
+      # A prose subject on merge-base(origin/main)..HEAD exits 1. Merge commits are skipped.
+      # There is no continue-on-error: rewriting history on main is not G1.9.
       - name: G1.9 commit convention
         run: pnpm run check:commits
 
