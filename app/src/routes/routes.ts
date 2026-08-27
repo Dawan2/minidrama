@@ -15,10 +15,11 @@ export const ROUTES = {
   search: '/search',
   drama: '/drama/:dramaId',
   play: '/play/:episodeId',
-  /** SCR-06, SCR-07 and SCR-08 — the three personal screens, all built. */
+  /** SCR-06, SCR-07, SCR-08 and SCR-09 — the personal screens, all built. */
   me: '/me',
   history: '/history',
   favorites: '/favorites',
+  wallet: '/wallet',
   fallback: '/fallback',
 } as const;
 
