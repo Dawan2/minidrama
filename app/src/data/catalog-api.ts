@@ -11,7 +11,7 @@ import type {
 
 import { asRecord, narrow, narrowPage } from './narrow';
 import type { ApiFailure } from './failure';
-import type { HttpClient } from './http';
+import type { HttpReader } from './http';
 
 /**
  * The catalogue read surface, as the client sees it.
@@ -54,7 +54,7 @@ export interface CatalogApi {
   fetchEpisodes(request: EpisodesRequest): Promise<Result<Page<EpisodeItem>, ApiFailure>>;
 }
 
-export function createCatalogApi(http: HttpClient): CatalogApi {
+export function createCatalogApi(http: HttpReader): CatalogApi {
   return {
     fetchFeed: async (request) => {
       const body = await http.getJson(FEED_PATH, {

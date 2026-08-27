@@ -3,7 +3,7 @@ import type { DramaSummary, Page, Result } from '@minidrama/shared';
 import { asRecord, narrowPage } from './narrow';
 import { narrowDramaSummary } from './catalog-api';
 import type { ApiFailure } from './failure';
-import type { HttpClient } from './http';
+import type { HttpReader } from './http';
 
 /**
  * The watch-history read: "what was I watching", as a list.
@@ -60,7 +60,7 @@ export interface HistoryApi {
   ): Promise<Result<Page<WatchHistoryEntry>, ApiFailure>>;
 }
 
-export function createHistoryApi(http: HttpClient): HistoryApi {
+export function createHistoryApi(http: HttpReader): HistoryApi {
   return {
     fetchWatchHistory: async (request) => {
       const body = await http.getJson(WATCH_HISTORY_PATH, {

@@ -14,8 +14,8 @@ import type { ApiFailure } from './failure';
  *    (`docs/02-information-architecture.md` §8.2: 10s for a normal read).
  * 2. **Every failure is a value.** Nothing here rejects. The surfaces switch on a classified
  *    failure, so there is no path where an unhandled rejection becomes a blank screen.
- * 3. **An idempotent GET retries exactly once.** The IA asks for it (§8.2) and the limit matters:
- *    "retry until it works" against a failing dependency is an outage amplifier.
+ * 3. **An idempotent request retries exactly once.** The IA asks for it (§8.2) and the limit
+ *    matters: "retry until it works" against a failing dependency is an outage amplifier.
  *
  * `fetch` and `sleep` are injected rather than imported so the behaviour above is testable without
  * a server and without a clock.
@@ -27,8 +27,22 @@ export interface HttpResponseLike {
   json(): Promise<unknown>;
 }
 
+/**
+ * The verbs this client sends, and — deliberately — no others.
+ *
+ * `PUT` and `DELETE` are here because favouriting a drama is a write
+ * (`docs/12-api-contracts.md` §4.3) and they are the only two writes any surface makes today. There
+ * is no `POST`: every write in this client is required to be idempotent, which is what lets rule 3
+ * above apply to a write at all, and `POST` is the verb that is not.
+ */
+export const WRITE_METHODS = ['PUT', 'DELETE'] as const;
+
+export type WriteMethod = (typeof WRITE_METHODS)[number];
+
+export type HttpMethod = 'GET' | WriteMethod;
+
 export interface HttpRequestInit {
-  readonly method: 'GET';
+  readonly method: HttpMethod;
   readonly headers: Readonly<Record<string, string>>;
   readonly signal: AbortSignal;
 }
@@ -50,9 +64,32 @@ export interface HttpClientOptions {
   readonly sleep?: (ms: number) => Promise<void>;
 }
 
-export interface HttpClient {
+/**
+ * The transport, split by capability rather than published as one interface.
+ *
+ * A read client that cannot write is not a style preference: `HttpReader` is the entire dependency
+ * of the catalogue and history clients, and declaring it that way is what makes "this module cannot
+ * mutate anything" a fact a reader can check at the import rather than a claim in a comment. It
+ * also keeps the test doubles honest — a stub for a read client supplies one method because one
+ * method is all it is allowed to be asked for.
+ */
+export interface HttpReader {
   getJson(path: string, query?: QueryParams): Promise<Result<unknown, ApiFailure>>;
 }
+
+export interface HttpWriter {
+  /**
+   * An idempotent write whose answer is its status, not its body.
+   *
+   * The favourite writes answer `204` (`docs/12-api-contracts.md` §4.3), so a success has nothing
+   * to parse and this never calls `json()` on one — a `204` has no body, and `Response.json()`
+   * rejects on an empty one, which would turn every successful write into a `MALFORMED` failure. A
+   * *failed* write still carries the error envelope, and that is still read.
+   */
+  send(method: WriteMethod, path: string, query?: QueryParams): Promise<Result<void, ApiFailure>>;
+}
+
+export interface HttpClient extends HttpReader, HttpWriter {}
 
 export function buildUrl(baseUrl: string, path: string, query: QueryParams = {}): string {
   const origin = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -69,7 +106,12 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
   const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   const sleep = options.sleep ?? defaultSleep;
 
-  const attempt = async (url: string): Promise<Result<unknown, ApiFailure>> => {
+  const attempt = async (
+    method: HttpMethod,
+    url: string,
+    /** `NONE` for a write, whose success is a `204` with nothing in it. */
+    successBody: 'JSON' | 'NONE',
+  ): Promise<Result<unknown, ApiFailure>> => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       controller.abort();
@@ -78,7 +120,9 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     let response: HttpResponseLike;
     try {
       response = await options.fetch(url, {
-        method: 'GET',
+        method,
+        // `Accept` is sent on a write too: the success has no body, but the failure envelope is
+        // JSON and it is the half of the answer a surface has to render.
         headers: { Accept: 'application/json' },
         signal: controller.signal,
       });
@@ -98,6 +142,10 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       );
     } finally {
       clearTimeout(timer);
+    }
+
+    if (response.ok && successBody === 'NONE') {
+      return ok(undefined);
     }
 
     // The error envelope is JSON too, so a failed parse of a failed response must still yield the
@@ -124,17 +172,37 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     return response.ok ? ok(body) : err(readErrorEnvelope(response.status, body));
   };
 
+  /**
+   * The single automatic retry, applied identically to a read and to a write.
+   *
+   * It is safe for the writes this client sends because the server publishes both of them as
+   * idempotent: a repeated `PUT` does not move `favoritedAt`, and a `DELETE` answers `204` whether
+   * or not there was a row (`docs/handoff/w2-work-j.md` decisions S45, S47). That is a property of
+   * the endpoint, not an assumption about the network — which is exactly why `WRITE_METHODS`
+   * excludes `POST` rather than leaving the retry to be switched off per call.
+   */
+  const withRetry = async (
+    method: HttpMethod,
+    url: string,
+    successBody: 'JSON' | 'NONE',
+  ): Promise<Result<unknown, ApiFailure>> => {
+    const first = await attempt(method, url, successBody);
+    if (first.ok || !isAutoRetryable(first.error)) {
+      return first;
+    }
+
+    await sleep(retryDelayMs);
+    return attempt(method, url, successBody);
+  };
+
   return {
-    getJson: async (path, query) => {
-      const url = buildUrl(options.baseUrl, path, query);
+    getJson: (path, query) => withRetry('GET', buildUrl(options.baseUrl, path, query), 'JSON'),
 
-      const first = await attempt(url);
-      if (first.ok || !isAutoRetryable(first.error)) {
-        return first;
-      }
-
-      await sleep(retryDelayMs);
-      return attempt(url);
+    send: async (method, path, query) => {
+      const result = await withRetry(method, buildUrl(options.baseUrl, path, query), 'NONE');
+      // The success value is discarded rather than cast: a write's answer is its status, and a body
+      // a caller cannot see is a body nobody can start depending on.
+      return result.ok ? ok(undefined) : result;
     },
   };
 }
