@@ -1,7 +1,6 @@
 import type { FeedCardType, FeedScene } from '@minidrama/shared';
 
 import type { DramaRecord } from '../catalog/types.js';
-import type { Viewer } from '../catalog/viewer.js';
 
 /**
  * Feed composition.
@@ -28,12 +27,17 @@ export interface ContinueWatchingEntry {
 /**
  * Where "continue watching" comes from.
  *
- * The `progress` module owns this and does not exist yet, so the default source is empty and the
- * HOME feed degrades to the popularity/recency mix — which is also exactly what an anonymous viewer
- * gets, and anonymous browsing is the launch-day default (`docs/12-api-contracts.md` §2.2).
+ * The progress module owns the rows. The default production source reads that store
+ * (`createProgressContinueWatchingSource`). This empty source remains for tests that want the rail
+ * off, and it is also exactly what an anonymous viewer gets — anonymous browsing is the launch-day
+ * default (`docs/12-api-contracts.md` §2.2). A rail invented for a viewer nobody resolved is worse
+ * than an absent one.
+ *
+ * `userId` is the session subject, or `null` when nobody is signed in. The catalogue viewer is a
+ * different question (unlocks / VIP) and stays anonymous on the default deployment.
  */
 export interface ContinueWatchingSource {
-  forViewer(viewer: Viewer): Promise<readonly ContinueWatchingEntry[]>;
+  forViewer(userId: string | null): Promise<readonly ContinueWatchingEntry[]>;
 }
 
 export function createEmptyContinueWatchingSource(): ContinueWatchingSource {

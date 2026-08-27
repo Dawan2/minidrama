@@ -3,9 +3,12 @@ import type { FastifyInstance } from 'fastify';
 import type { FeedCard, Page } from '@minidrama/shared';
 
 import { buildApp } from '../../app.js';
+import { createInMemorySessionStore } from '../identity/session-store.js';
+import { createInMemoryWatchProgressStore } from '../progress/store.js';
 import { loadConfig } from '../../config.js';
 import type { AppDependencies } from '../../app.js';
 import type { ContinueWatchingEntry, ContinueWatchingSource } from './feed.js';
+import type { WatchProgressRecord } from '../progress/progress.js';
 
 async function buildTestApp(dependencies: AppDependencies = {}): Promise<FastifyInstance> {
   const app = await buildApp({ ...loadConfig({}), logLevel: 'silent' }, dependencies);
@@ -17,8 +20,16 @@ function watching(...entries: readonly ContinueWatchingEntry[]): ContinueWatchin
   return { forViewer: (): Promise<readonly ContinueWatchingEntry[]> => Promise.resolve(entries) };
 }
 
-async function feedOf(app: FastifyInstance, query = ''): Promise<Page<FeedCard>> {
-  const response = await app.inject({ method: 'GET', url: `/v1/recommendations/feed${query}` });
+async function feedOf(
+  app: FastifyInstance,
+  query = '',
+  headers: Record<string, string> = {},
+): Promise<Page<FeedCard>> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/v1/recommendations/feed${query}`,
+    headers,
+  });
   expect(response.statusCode).toBe(200);
   return response.json<Page<FeedCard>>();
 }
@@ -198,6 +209,99 @@ describe('continue watching', () => {
     try {
       const page = await feedOf(resuming, '?limit=1');
       expect(page.items[0]?.continueEpisode?.globalEpisodeNumber).toBe(4);
+    } finally {
+      await resuming.close();
+    }
+  });
+});
+
+describe('continue watching — default source is the heartbeat table', () => {
+  const nowMs = Date.parse('2026-08-27T12:00:00.000Z');
+
+  function heartbeat(overrides: Partial<WatchProgressRecord> = {}): WatchProgressRecord {
+    return {
+      userId: 'open_abc',
+      episodeId: 'ep_sweet_e02',
+      positionSec: 41,
+      durationSec: 95,
+      completed: false,
+      clientUpdatedAtMs: nowMs,
+      updatedAtMs: nowMs,
+      ...overrides,
+    };
+  }
+
+  async function wiredFeed(): Promise<{
+    readonly app: FastifyInstance;
+    readonly token: string;
+    readonly otherToken: string;
+  }> {
+    const sessionStore = createInMemorySessionStore();
+    const progress = createInMemoryWatchProgressStore();
+    await progress.save(heartbeat());
+    const app = await buildTestApp({ sessionStore, watchProgressStore: progress });
+    return {
+      app,
+      token: sessionStore.issue('open_abc').accessToken,
+      otherToken: sessionStore.issue('open_xyz').accessToken,
+    };
+  }
+
+  it('leads the home feed from the heartbeat the same viewer wrote', async () => {
+    const { app: resuming, token } = await wiredFeed();
+
+    try {
+      const page = await feedOf(resuming, '?limit=3', { authorization: `Bearer ${token}` });
+
+      expect(page.items[0]).toMatchObject({
+        cardType: 'CONTINUE_WATCHING',
+        recReason: 'Continue watching',
+        continueEpisode: { episodeId: 'ep_sweet_e02', globalEpisodeNumber: 2, positionSec: 41 },
+      });
+      expect(page.items[0]?.drama.id).toBe('drm_sweet_0003');
+    } finally {
+      await resuming.close();
+    }
+  });
+
+  it('does not invent a rail for an anonymous caller, even when the store has rows', async () => {
+    const { app: resuming } = await wiredFeed();
+
+    try {
+      const page = await feedOf(resuming, '?limit=3');
+      expect(page.items.every((card) => card.cardType === 'DRAMA')).toBe(true);
+    } finally {
+      await resuming.close();
+    }
+  });
+
+  it("does not leak another viewer's heartbeat onto this rail", async () => {
+    const { app: resuming, otherToken } = await wiredFeed();
+
+    try {
+      const page = await feedOf(resuming, '?limit=3', {
+        authorization: `Bearer ${otherToken}`,
+      });
+      expect(page.items.every((card) => card.cardType === 'DRAMA')).toBe(true);
+    } finally {
+      await resuming.close();
+    }
+  });
+
+  it('answers a rejected session as anonymous rather than 401ing the catalogue mix', async () => {
+    const { app: resuming } = await wiredFeed();
+
+    try {
+      const response = await resuming.inject({
+        method: 'GET',
+        url: '/v1/recommendations/feed?limit=3',
+        headers: { authorization: 'Bearer not-a-session' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json<Page<FeedCard>>().items.every((card) => card.cardType === 'DRAMA')).toBe(
+        true,
+      );
     } finally {
       await resuming.close();
     }

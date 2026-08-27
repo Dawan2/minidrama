@@ -32,8 +32,8 @@ import type { WatchProgressStore } from './store.js';
  *
  * The per-drama read is in `drama-routes.ts`: it needs the episode-to-drama mapping `catalog`
  * owns, and it shares this module's store so a heartbeat the player just wrote is the row the
- * picker marks. The continue-watching card is still not here — that is a feed rail, not a
- * progress read.
+ * picker marks. The continue-watching card is a feed rail over this same store, not a progress
+ * read — it does not live here.
  */
 
 export interface ProgressRouteOptions {
