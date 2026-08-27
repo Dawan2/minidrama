@@ -43,6 +43,8 @@ That gap stays a row. It is not closed by adding WeChat, Beans, or a second unlo
 | `POST /episodes/{episodeId}/playback-token` | `POST /v1/playback/sessions` | live-mapped | Live returns a playback descriptor, not a media URL |
 | — | `POST /v1/entitlement/episode-access` | live-only | Doc 12 describes `viewerAccess` on reads, not this POST |
 | `POST /episodes/{episodeId}/unlock` | `POST /v1/unlock/coin-orders` | live-mapped | Same job, different path. Parameter name is `{episodeId}` in doc 12 |
+| — | `POST /v1/unlock/ad-sessions` | live-only | C4-08 nonce. F-4 placements only. No Portal id until GATE-4 |
+| — | `POST /v1/unlock/ad-grants` | live-only | C4-08 `isEnded` check. Client event is not a grant |
 | `POST /dramas/{dramaId}/unlock` | — | design-only | Whole-drama unlock is not served |
 | `GET /dramas/{dramaId}/unlock-quote` | — | design-only | |
 | `GET /users/me/unlocks` | — | design-only | |

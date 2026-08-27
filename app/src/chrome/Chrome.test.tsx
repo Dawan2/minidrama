@@ -170,4 +170,15 @@ describe('App chrome on every route', () => {
     expect(await screen.findByTestId('fallback-page')).toBeDefined();
     expect(screen.getByTestId('chrome')).toBeDefined();
   });
+
+  it('does not show an interstitial on open, including the player', async () => {
+    const bridge = await readyBridge();
+    const interstitial = vi.spyOn(bridge, 'showInterstitialAd');
+
+    renderChrome(bridge, '/home');
+    expect(interstitial).not.toHaveBeenCalled();
+
+    renderChrome(bridge, '/play/ep_test_0001');
+    expect(interstitial).not.toHaveBeenCalled();
+  });
 });

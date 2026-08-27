@@ -2,10 +2,11 @@
  * The boot configuration read: "which product flags are on, and how often should progress beat".
  *
  * `GET /v1/config` answers this shape. It is anonymous-capable — browsing and a failed silent
- * login still need a config — and it is fail-closed. Comments (PNL-04) and ad-unlock (C4-08)
- * are off on `main`. A `comments: true` here would render an entry whose endpoints do not exist.
- * Legal URLs, ad-unit ids, Beans and a coin→Beans rate are not part of this type: those are
- * unpublished, GATE-4, or Q-G-7 (`C4-04`, `C4-06`, `C3-09`).
+ * login still need a config — and it is fail-closed. Comments (PNL-04) stay off: a
+ * `comments: true` would render an entry whose endpoints do not exist. Ad-unlock endpoints
+ * exist (C4-08) but GATE-4 has not named a unit id, so `adUnlock` stays false. Legal URLs,
+ * ad-unit ids, Beans and a coin→Beans rate are not part of this type: those are unpublished,
+ * GATE-4, or Q-G-7 (`C4-04`, `C4-06`, `C3-09`).
  *
  * `progressHeartbeatSec` is the one number this product already owns (10 seconds; the progress
  * write's documented interval). A missing or unreadable value is that default, never 0.
@@ -27,7 +28,7 @@ export interface ConfigView {
   readonly features: {
     /** PNL-04 is not on `main`. Live and the conservative fallback are both `false`. */
     readonly comments: boolean;
-    /** C4-08 is not on `main`. No reward endpoint, no unit ids. Live and fallback are `false`. */
+    /** C4-08 endpoints exist. GATE-4 has not named a unit id. Live and fallback are `false`. */
     readonly adUnlock: boolean;
   };
   readonly playback: {

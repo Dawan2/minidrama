@@ -4,7 +4,15 @@ import type { BridgeErrorCode, Result } from '@minidrama/shared';
 import { apiFailure } from '../data/failure';
 import { MockBridge } from '../platform/mock-bridge';
 import type { ApiFailure } from '../data/failure';
-import type { CoinOrder, CreateCoinOrderRequest, UnlockApi } from '../data/unlock-api';
+import type {
+  AdUnlockGrant,
+  AdUnlockSession,
+  CoinOrder,
+  CreateAdGrantRequest,
+  CreateAdSessionRequest,
+  CreateCoinOrderRequest,
+  UnlockApi,
+} from '../data/unlock-api';
 import type { MockBridgeOptions } from '../platform/mock-bridge';
 import type { PlatformBridge } from '../platform/types';
 import type { UnlockPacing } from '../unlock/coin-unlock';
@@ -48,11 +56,21 @@ export interface StubUnlockApiScript {
     callIndex: number,
   ) => Result<CoinOrder, ApiFailure>;
   readonly read?: (orderId: string, callIndex: number) => Result<CoinOrder, ApiFailure>;
+  readonly adSession?: (
+    request: CreateAdSessionRequest,
+    callIndex: number,
+  ) => Result<AdUnlockSession, ApiFailure>;
+  readonly adGrant?: (
+    request: CreateAdGrantRequest,
+    callIndex: number,
+  ) => Result<AdUnlockGrant, ApiFailure>;
 }
 
 export interface StubUnlockApi extends UnlockApi {
   readonly createCalls: readonly CreateCoinOrderRequest[];
   readonly readCalls: readonly string[];
+  readonly adSessionCalls: readonly CreateAdSessionRequest[];
+  readonly adGrantCalls: readonly CreateAdGrantRequest[];
 }
 
 const UNSCRIPTED = apiFailure({
@@ -63,10 +81,14 @@ const UNSCRIPTED = apiFailure({
 export function stubUnlockApi(script: StubUnlockApiScript = {}): StubUnlockApi {
   const createCalls: CreateCoinOrderRequest[] = [];
   const readCalls: string[] = [];
+  const adSessionCalls: CreateAdSessionRequest[] = [];
+  const adGrantCalls: CreateAdGrantRequest[] = [];
 
   return {
     createCalls,
     readCalls,
+    adSessionCalls,
+    adGrantCalls,
 
     createCoinOrder: (request) => {
       const index = createCalls.length;
@@ -78,6 +100,18 @@ export function stubUnlockApi(script: StubUnlockApiScript = {}): StubUnlockApi {
       const index = readCalls.length;
       readCalls.push(orderId);
       return Promise.resolve(script.read?.(orderId, index) ?? err(UNSCRIPTED));
+    },
+
+    createAdSession: (request) => {
+      const index = adSessionCalls.length;
+      adSessionCalls.push(request);
+      return Promise.resolve(script.adSession?.(request, index) ?? err(UNSCRIPTED));
+    },
+
+    grantAdUnlock: (request) => {
+      const index = adGrantCalls.length;
+      adGrantCalls.push(request);
+      return Promise.resolve(script.adGrant?.(request, index) ?? err(UNSCRIPTED));
     },
   };
 }
@@ -101,6 +135,7 @@ export interface PayingBridgeOptions {
   /** The bridge error `pay` answers with. Absent means the payment succeeds. */
   readonly payFails?: BridgeErrorCode;
   readonly unavailable?: MockBridgeOptions['unavailable'];
+  readonly rewardedAdCompletes?: boolean;
 }
 
 export interface PayingBridge extends PlatformBridge {
@@ -117,9 +152,12 @@ export interface PayingBridge extends PlatformBridge {
  */
 export function payingBridge(options: PayingBridgeOptions = {}): PayingBridge {
   const payCalls: string[] = [];
-  const inner = new MockBridge(
-    options.unavailable === undefined ? {} : { unavailable: options.unavailable },
-  );
+  const inner = new MockBridge({
+    ...(options.unavailable === undefined ? {} : { unavailable: options.unavailable }),
+    ...(options.rewardedAdCompletes === undefined
+      ? {}
+      : { rewardedAdCompletes: options.rewardedAdCompletes }),
+  });
   void inner.init();
 
   return {

@@ -33,6 +33,10 @@ export const API_ERROR_CODES = [
   'PROGRESS_INVALID_POSITION',
   'UNLOCK_ALREADY_UNLOCKED',
   'UNLOCK_POLICY_NOT_ALLOWED',
+  // Ad unlock (C4-08 / T0-3c). The client reports `isEnded`; the server is the only grantor.
+  'UNLOCK_AD_NOT_COMPLETED',
+  'UNLOCK_AD_QUOTA_EXCEEDED',
+  'UNLOCK_AD_UNAVAILABLE',
   'PAYMENT_ORDER_NOT_FOUND',
   'PAYMENT_CHANNEL_UNAVAILABLE',
   // Server-to-server only. It answers TikTok's webhook sender, never a client, and it is

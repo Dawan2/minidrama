@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 
 import { DEFAULT_CAPSULE_INSET_PX, capsuleInsetFromRect } from './capsule-inset';
 import { navigationBarForPath } from './navigation-bar';
 import { useBridge } from '../platform/bridge-context';
+import { createInterstitialSlotState, maybeShowInterstitial } from '../ads/interstitial';
+import { isPlayPath } from '../routes/routes';
 
 /**
  * Shell chrome for every route: capsule avoidance and the navigation-bar colour.
@@ -32,6 +34,8 @@ export function Chrome({ children }: ChromeProps): React.JSX.Element {
   const [inset, setInset] = useState(DEFAULT_CAPSULE_INSET_PX);
   const [capsule, setCapsule] = useState<'fallback' | 'measured'>('fallback');
   const [navBarApplied, setNavBarApplied] = useState(false);
+  const previousPath = useRef<string | null>(null);
+  const interstitialState = useRef(createInterstitialSlotState());
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +83,21 @@ export function Chrome({ children }: ChromeProps): React.JSX.Element {
       cancelled = true;
     };
   }, [bridge, palette.frontColor, palette.backgroundColor]);
+
+  useEffect(() => {
+    const previous = previousPath.current;
+    previousPath.current = location.pathname;
+    // Boot is not a leave, and leaving play is the only sanctioned interstitial slot. The unit
+    // id is null until GATE-4: maybeShowInterstitial is still the product call site, and a
+    // missing id is a skip rather than a made-up Portal placement.
+    if (previous === null) return;
+    if (!isPlayPath(previous) || isPlayPath(location.pathname)) return;
+    void maybeShowInterstitial({
+      bridge,
+      adUnitId: null,
+      state: interstitialState.current,
+    });
+  }, [bridge, location.pathname]);
 
   return (
     <div

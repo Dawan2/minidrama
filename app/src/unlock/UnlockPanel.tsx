@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { EpisodeItem } from '@minidrama/shared';
 
 import { describeUnlockOffer } from './unlock-offer';
@@ -7,15 +7,19 @@ import { playPath } from '../routes/routes';
 import { translate } from '../core/i18n';
 import { useCoinUnlock } from './use-coin-unlock';
 import { useResource } from '../data/use-resource';
+import { useClientConfig } from '../config/client-config-context';
 import { useUnlockApi } from '../data/unlock-api-context';
 import { useWalletApi } from '../data/wallet-api-context';
 import { WalletBalance } from '../wallet/WalletBalance';
+import { watchRewardedAdUnlock } from '../ads/rewarded-unlock';
 import type { CoinUnlockFailure, CoinUnlockStage, UnlockPacing } from './coin-unlock';
 import type { CoinUnlockSettlement } from './use-coin-unlock';
 import type { PlatformBridge } from '../platform/types';
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
 import type { TranslationKey } from '../core/i18n';
 import type { UnlockOffer, UnpurchasableCause } from './unlock-offer';
+import type { AdPlacement } from '../data/unlock-api';
+import type { RewardedUnlockFailure, RewardedUnlockOutcome } from '../ads/rewarded-unlock';
 
 /**
  * PNL-02, the unlock panel, as an overlay over the episode list.
@@ -89,6 +93,13 @@ export interface UnlockPanelProps {
    * clock it has to fake.
    */
   readonly pacing?: UnlockPacing;
+  /**
+   * F-4 permitted slot. Absent means this panel is not an ad offer (drama-list unlock stays
+   * coins/VIP only). Present only for 连播 (`AFTER_EPISODE`) and 切集 (`MANUAL_SKIP`).
+   * Rendered only when `features.adUnlock` is on. Live `GET /v1/config` keeps that flag
+   * false until GATE-4 names a unit id — a button that would 503 is not an offer.
+   */
+  readonly adPlacement?: AdPlacement;
 }
 
 export function UnlockPanel({
@@ -98,8 +109,10 @@ export function UnlockPanel({
   onClose,
   onEntitlementChanged,
   pacing,
+  adPlacement,
 }: UnlockPanelProps): React.JSX.Element {
   const api = useUnlockApi();
+  const { features } = useClientConfig();
   const offer = describeUnlockOffer(episode, capabilities);
 
   const unlock = useCoinUnlock({
@@ -161,14 +174,27 @@ export function UnlockPanel({
         </p>
 
         {offer.kind === 'COINS' ? (
-          <CoinChannel
-            offer={offer}
-            episode={episode}
-            state={unlock.state.status}
-            stage={unlock.state.status === 'RUNNING' ? unlock.state.stage : null}
-            settled={settled}
-            onStart={unlock.start}
-          />
+          <>
+            <CoinChannel
+              offer={offer}
+              episode={episode}
+              state={unlock.state.status}
+              stage={unlock.state.status === 'RUNNING' ? unlock.state.stage : null}
+              settled={settled}
+              onStart={unlock.start}
+            />
+            {adPlacement !== undefined &&
+            features.adUnlock &&
+            unlock.state.status === 'OFFERED' &&
+            bridge.canIUse('createRewardedVideoAd') ? (
+              <AdChannel
+                bridge={bridge}
+                episodeId={episode.id}
+                placement={adPlacement}
+                onEntitlementChanged={onEntitlementChanged}
+              />
+            ) : null}
+          </>
         ) : offer.kind === 'VIP' ? (
           <VipChannel />
         ) : (
@@ -236,6 +262,103 @@ function CoinChannel({
   );
 }
 
+const AD_FAILURE_KEYS: Readonly<Record<RewardedUnlockFailure, TranslationKey>> = {
+  UNSUPPORTED: 'unlock.adUnavailable',
+  UNAVAILABLE: 'unlock.adUnavailable',
+  NOT_COMPLETED: 'unlock.adIncomplete',
+  QUOTA: 'unlock.adQuota',
+  ALREADY_UNLOCKED: 'unlock.unlocked',
+  REFUSED: 'unlock.adUnavailable',
+  UNREACHABLE: 'unlock.failedUnreachable',
+};
+
+function AdChannel({
+  bridge,
+  episodeId,
+  placement,
+  onEntitlementChanged,
+}: {
+  readonly bridge: PlatformBridge;
+  readonly episodeId: string;
+  readonly placement: AdPlacement;
+  readonly onEntitlementChanged: () => void;
+}): React.JSX.Element {
+  const api = useUnlockApi();
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<RewardedUnlockOutcome | null>(null);
+
+  async function start(): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    setOutcome(null);
+    const result = await watchRewardedAdUnlock({ api, bridge, episodeId, placement });
+    setOutcome(result);
+    setBusy(false);
+    if (
+      result.kind === 'UNLOCKED' ||
+      (result.kind === 'FAILED' && result.reason === 'ALREADY_UNLOCKED')
+    ) {
+      onEntitlementChanged();
+    }
+  }
+
+  if (busy) {
+    return (
+      <p className="unlock-panel__message" data-testid="unlock-ad-progress" role="status" aria-busy>
+        {translate('unlock.adWatching')}
+      </p>
+    );
+  }
+
+  if (outcome !== null && outcome.kind === 'UNLOCKED') {
+    return (
+      <p className="unlock-panel__message" data-testid="unlock-ad-success">
+        {translate('unlock.unlocked')}
+      </p>
+    );
+  }
+
+  if (outcome !== null && outcome.kind === 'FAILED') {
+    return (
+      <>
+        <p
+          className="unlock-panel__message"
+          data-testid="unlock-ad-failure"
+          data-reason={outcome.reason}
+          role="alert"
+        >
+          {translate(AD_FAILURE_KEYS[outcome.reason])}
+        </p>
+        {outcome.reason === 'NOT_COMPLETED' || outcome.reason === 'UNREACHABLE' ? (
+          <button
+            className="unlock-panel__action"
+            data-testid="unlock-ad-retry"
+            type="button"
+            onClick={() => {
+              void start();
+            }}
+          >
+            {translate('unlock.retry')}
+          </button>
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <button
+      className="unlock-panel__action"
+      data-testid="unlock-ad-action"
+      type="button"
+      onClick={() => {
+        void start();
+      }}
+    >
+      {translate('unlock.adAction')}
+    </button>
+  );
+}
+
 /**
  * The current coin balance, when — and only when — the server sent one.
  *
@@ -259,9 +382,9 @@ function UnlockWalletBalance(): React.JSX.Element | null {
  * would post an order the server answers `422 UNLOCK_POLICY_NOT_ALLOWED` to — a request whose only
  * purpose is to be refused, made after the viewer has been told it would work.
  *
- * There is no subscription order endpoint yet, so the second line states that rather than implying
- * a rail that does not exist. Whole-drama and ad unlocks are the other two channels IA §2 P5
- * reserves structure for; neither has an API, and a greyed placeholder for them would be furniture.
+ * Whole-drama unlock is still without an API. Ad unlock exists as C4-08, but only from the
+ * two F-4 placements PlayPage passes in — a greyed "watch an ad" on a drama-list open would
+ * be the prohibited free-form offer.
  */
 function VipChannel(): React.JSX.Element {
   return (

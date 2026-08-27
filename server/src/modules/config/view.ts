@@ -13,8 +13,8 @@ import {
  * placeholder:
  *
  * 1. **No invented flags.** `comments` and `adUnlock` leave as booleans. A stuffed `true` is
- *    copied only when the caller named it — today's route names `false`, because PNL-04 and
- *    C4-08 are not on `main`.
+ *    copied only when the caller named it — today's route names `false`, because PNL-04 has
+ *    no endpoints and GATE-4 has not named a unit id.
  * 2. **No legal URLs, ad-unit ids, coin name or Beans.** Only the two `ConfigView` keys can
  *    leave. A `termsUrl` stuffed onto the facts is dropped (`C4-04`, `C3-09`).
  */

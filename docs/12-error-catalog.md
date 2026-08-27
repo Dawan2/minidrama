@@ -62,6 +62,9 @@
 |---|---|---|---|
 | UNLOCK_ALREADY_UNLOCKED | 409 | 已解锁过该集（响应 details 附既有记录） | `{ unlockId, unlockedAt }` |
 | UNLOCK_POLICY_NOT_ALLOWED | 422 | 该集策略不允许此解锁方式（如免费集/VIP_ONLY 集发起币解锁） | `{ episodeId, unlockPolicy }` |
+| UNLOCK_AD_NOT_COMPLETED | 422 | 激励视频未完整观看（`isEnded` 未通过服务端校验） | `{ episodeId }` |
+| UNLOCK_AD_QUOTA_EXCEEDED | 429 | 当日广告解锁次数已用尽 | `{ usedToday, dailyLimit }` |
+| UNLOCK_AD_UNAVAILABLE | 503 | 广告位未配置或激励视频通道不可用 | `{ episodeId }` |
 | UNLOCK_NOTHING_TO_UNLOCK | 422 | 整剧解锁时无剩余付费集 | `{ dramaId }` |
 | UNLOCK_PRICE_CHANGED | 409 | 报价已变化（整剧解锁下单与报价间价格变动），客户端应重新获取报价 | `{ dramaId, currentPayableCoins }` |
 

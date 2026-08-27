@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@minidrama/shared';
+import { CONSERVATIVE_CLIENT_CONFIG, err, ok } from '@minidrama/shared';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import {
@@ -25,6 +25,12 @@ import type { PayingBridge, StubUnlockApi, StubUnlockApiScript } from '../testin
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
 
 const BOTH: PurchaseCapabilities = { coin: true, vip: true };
+
+/** Test-only: live `GET /v1/config` keeps this false until GATE-4 names a unit id. */
+const AD_UNLOCK_ON = {
+  ...CONSERVATIVE_CLIENT_CONFIG,
+  features: { comments: false, adUnlock: true },
+};
 
 interface PanelHarness {
   readonly unlockApi: StubUnlockApi;
@@ -517,5 +523,78 @@ describe('getting out of the panel', () => {
     const labelId = dialog.getAttribute('aria-labelledby');
     expect(labelId).toBeTruthy();
     expect(document.getElementById(labelId ?? '')?.textContent).toBeTruthy();
+  });
+});
+
+describe('the ad channel (F-4 placements only)', () => {
+  it('is absent when the panel is not a permitted placement', () => {
+    renderPanel();
+    expect(screen.queryByTestId('unlock-ad-action')).toBeNull();
+  });
+
+  it('is absent when createRewardedVideoAd is missing, even on a permitted placement', () => {
+    renderSurface(
+      <UnlockPanel
+        adPlacement="AFTER_EPISODE"
+        bridge={payingBridge({ unavailable: ['createRewardedVideoAd'] })}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={vi.fn()}
+        pacing={instantPacing()}
+      />,
+      { api: stubCatalogApi(), config: AD_UNLOCK_ON, unlockApi: stubUnlockApi() },
+    );
+    expect(screen.queryByTestId('unlock-ad-action')).toBeNull();
+  });
+
+  it('is absent when features.adUnlock is off, even on a permitted placement with the SDK', () => {
+    renderSurface(
+      <UnlockPanel
+        adPlacement="AFTER_EPISODE"
+        bridge={payingBridge()}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={vi.fn()}
+        pacing={instantPacing()}
+      />,
+      { api: stubCatalogApi(), unlockApi: stubUnlockApi() },
+    );
+    expect(screen.queryByTestId('unlock-ad-action')).toBeNull();
+  });
+
+  it('posts isEnded false to the server and does not treat a skip as a grant', async () => {
+    const unlockApi = stubUnlockApi({
+      adSession: () =>
+        ok({
+          nonce: 'nonce_1',
+          adUnitId: 'ad_fx_rewarded',
+          placement: 'AFTER_EPISODE',
+          episodeId: 'ep_test_0004',
+        }),
+      adGrant: () => err(unlockFailure(422, 'UNLOCK_AD_NOT_COMPLETED')),
+    });
+    const onEntitlementChanged = vi.fn();
+    const bridge = payingBridge({ rewardedAdCompletes: false });
+
+    renderSurface(
+      <UnlockPanel
+        adPlacement="AFTER_EPISODE"
+        bridge={bridge}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={onEntitlementChanged}
+        pacing={instantPacing()}
+      />,
+      { api: stubCatalogApi(), config: AD_UNLOCK_ON, unlockApi },
+    );
+
+    fireEvent.click(screen.getByTestId('unlock-ad-action'));
+    const failure = await screen.findByTestId('unlock-ad-failure');
+    expect(failure.getAttribute('data-reason')).toBe('NOT_COMPLETED');
+    expect(onEntitlementChanged).not.toHaveBeenCalled();
+    expect(unlockApi.adGrantCalls[0]?.isEnded).toBe(false);
   });
 });
