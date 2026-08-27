@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { DramaDetail, FavoriteList, FavoriteState, WalletView } from '@minidrama/shared';
 import type { FastifyInstance } from 'fastify';
 
@@ -240,6 +244,82 @@ async function probeAfterBounce(
   }
 
   return undefined;
+}
+
+const USAGE = 'usage: check-integrate [--db <sqlite-path>] [--url <DATABASE_URL>]';
+
+export type IntegrateParseResult =
+  | { readonly ok: true; readonly databaseUrl: string | undefined }
+  | { readonly ok: false; readonly message: string };
+
+export function parseIntegrateArgs(argv: readonly string[]): IntegrateParseResult {
+  let databaseUrl: string | undefined;
+  let dbPath: string | undefined;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const flag = argv[index] ?? '';
+    if (flag !== '--db' && flag !== '--url') {
+      return { ok: false, message: `unknown argument: ${flag}` };
+    }
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith('--')) {
+      return {
+        ok: false,
+        message: `${flag} requires a ${flag === '--url' ? 'DATABASE_URL' : 'path'}`,
+      };
+    }
+    if (flag === '--db') {
+      if (databaseUrl !== undefined) {
+        return { ok: false, message: '--db and --url cannot both be set' };
+      }
+      dbPath = value;
+    } else {
+      if (dbPath !== undefined) {
+        return { ok: false, message: '--db and --url cannot both be set' };
+      }
+      databaseUrl = value;
+    }
+    index += 1;
+  }
+
+  if (dbPath !== undefined) {
+    return { ok: true, databaseUrl: `sqlite:${dbPath}` };
+  }
+  return { ok: true, databaseUrl };
+}
+
+export async function runIntegrateCli(
+  argv: readonly string[],
+  io: {
+    readonly stdout: NodeJS.WritableStream;
+    readonly stderr: NodeJS.WritableStream;
+  } = process,
+): Promise<number> {
+  const parsed = parseIntegrateArgs(argv);
+  if (!parsed.ok) {
+    io.stderr.write(`${parsed.message}\n${USAGE}\n`);
+    return 2;
+  }
+
+  let databaseUrl = parsed.databaseUrl;
+  let tempRoot: string | undefined;
+  if (databaseUrl === undefined) {
+    tempRoot = mkdtempSync(join(tmpdir(), 'check-integrate-'));
+    databaseUrl = `sqlite:${join(tempRoot, 'g22.sqlite')}`;
+  }
+
+  const result = await checkIntegrate({ databaseUrl });
+  if (tempRoot !== undefined) {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+
+  if (!result.ok) {
+    io.stderr.write(`${result.message}\n`);
+    return 1;
+  }
+
+  io.stdout.write(`${result.message}\n`);
+  return 0;
 }
 
 export async function checkIntegrate(options: {
