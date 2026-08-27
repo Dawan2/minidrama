@@ -91,7 +91,7 @@ A stuffed `{ completed: true, beans: 50 }` still PUTs only the three contract fi
 | --- | --- |
 | G2.5 (`98e75c6`) | Already on `main` at pick. Not retaken |
 | `bc-eed03394` (subsequent C4, long-running) | G2.3-shaped. This slot does not touch `.github/workflows/` |
-| `bc-d41b8b99` (more C4 backlog) | Running at pick. No `cursor/*` heartbeat branch on origin. This slot's files are progress write + PlayPage |
+| `bc-d41b8b99` (more C4 backlog) | **Landed as CodeQL** (`7fb19ba` / `docs/handoff/w14-c4-more2.md`). `l2.yml` job `codeql`, `packages/quality/src/codeql*`. Merged in; this slot does not touch those files |
 
 `git diff origin/main -- .github/workflows/` is empty of this slot's work.
 
@@ -99,22 +99,23 @@ A stuffed `{ completed: true, beans: 50 }` still PUTs only the three contract fi
 
 ## 5. Verification
 
-`pnpm verify` green on `107cfa6`. L1 sequence unchanged: format → lint → typecheck →
+`pnpm verify` green after merging `origin/main` (`7fb19ba` CodeQL / G2.4 remainder, landed
+while this slot ran). No file overlap. L1 sequence unchanged: format → lint → typecheck →
 test:coverage → check:coverage → build → guardrails.
 
 | Package | Tests |
 | --- | ---: |
 | `packages/shared` | 61 |
 | `packages/config` | 45 |
-| `packages/quality` | 144 |
+| `packages/quality` | 188 |
 | `server` | 1,734 |
 | `app` | 1,113 |
-| **Total** | **3,097** |
+| **Total** | **3,141** |
 
 Zero skipped. Coverage gate:
 
 ```
-coverage global lines 93.83% (14454/15404), branches 91.63%, core lines 95.50%, diff lines 93.09% (256/275)
+coverage global lines 93.94% (14817/15772), branches 91.64%, core lines 95.50%, diff lines 93.09% (256/275)
 coverage gate passed
 ```
 
