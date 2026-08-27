@@ -67,7 +67,20 @@ export interface DramaStat {
 export interface DramaSummary {
   readonly id: string;
   readonly title: string;
-  readonly coverUrl: string;
+  /**
+   * `null` when there is no cover the client may load.
+   *
+   * That covers two cases the client should treat identically: no cover was ever set, and the
+   * stored cover named a host the trusted-cover registry does not list, so the server refused to
+   * pass it on (`server/src/modules/catalog/covers.ts`). Neither is renderable, and distinguishing
+   * them would only invite a client to try the refused one anyway.
+   *
+   * The field is nullable rather than optional so that "no cover" is a value the client has to
+   * handle, not a key it can forget to look for. Any UI that renders a cover therefore needs a
+   * placeholder state; the server does not invent a stand-in URL, because a stand-in would itself
+   * be a cover URL from a host nobody registered.
+   */
+  readonly coverUrl: string | null;
   readonly category: DramaCategory;
   readonly tags: readonly string[];
   readonly totalEpisodes: number;
@@ -99,6 +112,7 @@ export interface DramaViewerState {
 
 export interface DramaDetail extends DramaSummary {
   readonly description: string;
+  /** Nullable for the same two reasons as `coverUrl`: never set, or set to an untrusted host. */
   readonly horizontalCoverUrl: string | null;
   readonly seasons: readonly SeasonSummary[];
   /** `null` for an anonymous viewer, and while favourites and progress do not exist yet. */

@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { catalogRoutes } from './modules/catalog/routes.js';
+import { createAnonymousViewerResolver } from './modules/catalog/viewer.js';
+import { createInMemoryCatalogStore } from './modules/catalog/store.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
 import { createInMemoryWatchProgressStore } from './modules/progress/store.js';
@@ -27,6 +30,12 @@ import { progressRoutes } from './modules/progress/routes.js';
 import { registerCors } from './core/cors.js';
 import { unlockRoutes } from './modules/unlock/routes.js';
 import { watchHistoryRoutes } from './modules/progress/history-routes.js';
+import type { CatalogStore } from './modules/catalog/store.js';
+// Aliased because the entitlement module publishes an interface of the same name that answers a
+// different question: it maps an `Authorization` header to a viewer id, where this one maps a
+// request to the viewer's unlocks and VIP state. Reconciling the two is an integration decision,
+// not this slot's (`docs/handoff/w4-work-s.md` §5).
+import type { ViewerResolver as CatalogViewerResolver } from './modules/catalog/viewer.js';
 import type { EntitlementFactsPort } from './modules/entitlement/facts-port.js';
 import type { PlatformCredentials } from './modules/platform-tiktok/credentials.js';
 import type { PlatformIdentityPort } from './modules/platform-tiktok/identity-port.js';
@@ -67,6 +76,13 @@ export interface AppDependencies {
    * because it is reachable from a test process and from nowhere else.
    */
   readonly sessionStore?: SessionStore;
+  /**
+   * The storefront's content source, and how a catalogue request becomes a viewer. The resolver
+   * defaults to the anonymous one, which owns no unlocks and no VIP, so an unwired deployment
+   * reports every paid episode as needing an unlock rather than giving it away.
+   */
+  readonly catalogStore?: CatalogStore;
+  readonly catalogViewerResolver?: CatalogViewerResolver;
   /**
    * Entitlement reads content and viewer state. The facts port defaults to refusing until the data
    * layer exists, so a deployment cannot serve invented entitlements by omission. The viewer
@@ -186,6 +202,11 @@ export async function buildApp(
     (config.testLoginEnabled ? createMockIdentityPort() : createTiktokIdentityPort(credentials));
 
   await app.register(healthRoutes);
+
+  await app.register(catalogRoutes, {
+    store: dependencies.catalogStore ?? createInMemoryCatalogStore(),
+    viewerResolver: dependencies.catalogViewerResolver ?? createAnonymousViewerResolver(),
+  });
 
   await app.register(playbackRoutes, {
     factsPort: entitlementFactsPort,
