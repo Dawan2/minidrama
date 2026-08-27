@@ -316,16 +316,20 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
 
     send: async (method, path, writeOptions) => {
       const headers: Record<string, string> = { Accept: 'application/json' };
-      const request: Omit<HttpRequestInit, 'signal'> = { method, headers };
       if (writeOptions?.body !== undefined) {
         headers['Content-Type'] = 'application/json';
-        request.body = JSON.stringify(writeOptions.body);
       }
       const result = await withRetry(
         buildUrl(options.baseUrl, path, writeOptions?.query),
         // `Accept` is sent on a write too: the success has no body, but the failure envelope is
         // JSON and it is the half of the answer a surface has to render.
-        request,
+        {
+          method,
+          headers,
+          ...(writeOptions?.body === undefined
+            ? {}
+            : { body: JSON.stringify(writeOptions.body) }),
+        },
         'NONE',
       );
       // The success value is discarded rather than cast: a write's answer is its status, and a body

@@ -141,7 +141,12 @@ describe('the episode progress write', () => {
   });
 
   it('passes a 401 through rather than inventing an anonymous watch', async () => {
-    const failure = apiFailure({ kind: 'HTTP', status: 401, code: 'AUTH_REQUIRED' });
+    const failure = apiFailure({
+      kind: 'HTTP',
+      status: 401,
+      code: 'AUTH_REQUIRED',
+      message: 'no session',
+    });
     const result = await createProgressApi({
       getJson: () => Promise.resolve(ok(emptyView)),
       send: () => Promise.resolve({ ok: false, error: failure }),
