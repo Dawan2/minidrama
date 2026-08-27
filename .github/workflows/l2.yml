@@ -6,8 +6,8 @@ name: L2
 #
 # G2.1 is the L1 re-run, which ci.yml already does on main. This workflow is G2.8 (licenses),
 # G2.7 (migrate up → down → up on sqlite), G2.2 (HTTP + file-backed sqlite), G2.6 (client ZIP /
-# first-screen JS / empty files / debug symbols / test backdoors), and G2.4 (Semgrep with the
-# 14-security §2.1 custom rules). G2.3 and G2.5 are still absent.
+# first-screen JS / empty files / debug symbols / test backdoors), G2.4 (Semgrep with the
+# 14-security §2.1 custom rules), and G2.5 (Trivy filesystem SCA). G2.3 is still absent.
 
 on:
   push:
@@ -148,3 +148,35 @@ jobs:
       # continue-on-error: grepping the tree instead of running Semgrep is not G2.4.
       - name: Semgrep custom rules
         run: pnpm run check:sast
+
+  sca:
+    name: G2.5 SCA
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: 0.66.0
+        run: |
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tgz
+          tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy
+          trivy version
+
+      # A missing binary, a missing lockfile, a CRITICAL finding, or a HIGH finding with a
+      # fix older than seven days exits 1. There is no continue-on-error: grepping CVE ids
+      # instead of running Trivy is not G2.5.
+      - name: Trivy filesystem SCA
+        run: pnpm run check:sca

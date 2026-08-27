@@ -34,3 +34,17 @@ export {
   runSastCheck,
 } from './sast.js';
 export type { SastCheckArgs, SastFinding, SastRule } from './sast.js';
+
+export {
+  HIGH_FIX_GRACE_MS,
+  LOCKFILE_NAME,
+  USAGE as SCA_USAGE,
+  buildTrivyArgv,
+  defaultLockfile,
+  formatVulnerability,
+  isBlockingVulnerability,
+  parseScaArgs,
+  parseTrivyResults,
+  runScaCheck,
+} from './sca.js';
+export type { ScaCheckArgs, ScaVulnerability } from './sca.js';

@@ -213,12 +213,13 @@ pnpm check:migrate        # G2.7; up → down → up on a temp sqlite file; a no
 pnpm check:integration    # G2.2; HTTP against a sqlite file; :memory: or postgres fails
 pnpm check:artifact       # G2.6; ZIP / first-screen JS; empty files, maps, backdoors fail
 pnpm check:sast           # G2.4; Semgrep custom rules; a missing binary or high finding fails
+pnpm check:sca            # G2.5; Trivy lockfile SCA; a missing binary or CRITICAL finding fails
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
 `pnpm verify` is exactly what L1 CI runs, in the same order. L2 (`check:licenses`, `check:migrate`,
-`check:integration`, `check:artifact`, `check:sast`) is a second workflow and is not folded into
-`verify`, so adding it cannot become a reason to skip a verify step.
+`check:integration`, `check:artifact`, `check:sast`, `check:sca`) is a second workflow and is not
+folded into `verify`, so adding it cannot become a reason to skip a verify step.
 
 ---
 
