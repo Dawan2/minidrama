@@ -202,11 +202,12 @@ async function request(
     headers.set('content-type', 'application/json');
   }
 
-  const response = await fetch(`${origin}${path}`, {
-    method,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  const init: RequestInit = { method, headers };
+  if (options.body !== undefined) {
+    init.body = JSON.stringify(options.body);
+  }
+
+  const response = await fetch(`${origin}${path}`, init);
 
   const text = await response.text();
   if (text.length === 0) {
