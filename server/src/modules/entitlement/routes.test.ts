@@ -81,15 +81,16 @@ describe('POST /v1/entitlement/episode-access — request handling', () => {
     expect(errorCode(response)).toBe('COMMON_VALIDATION_FAILED');
   });
 
-  it.each([['', 'an empty string'], [42, 'a number'], [null, 'null']] as const)(
-    'rejects %j as an episodeId (%s)',
-    async (episodeId, _description) => {
-      const response = await ask(episodeId);
+  it.each([
+    ['', 'an empty string'],
+    [42, 'a number'],
+    [null, 'null'],
+  ] as const)('rejects %j as an episodeId (%s)', async (episodeId, _description) => {
+    const response = await ask(episodeId);
 
-      expect(response.statusCode).toBe(400);
-      expect(errorCode(response)).toBe('COMMON_VALIDATION_FAILED');
-    },
-  );
+    expect(response.statusCode).toBe(400);
+    expect(errorCode(response)).toBe('COMMON_VALIDATION_FAILED');
+  });
 
   it('returns the full access view and nothing else', async () => {
     expect(await access('ep_fx_s2e01')).toEqual({
