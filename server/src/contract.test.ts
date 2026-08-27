@@ -87,6 +87,57 @@ function concretePath(path: string): string {
   });
 }
 
+/**
+ * The routes Fastify actually holds, read back off the built app.
+ *
+ * `printRoutes` is the only published way to ask the instance what it registered, and it answers
+ * with a tree: a node's path is its own segment appended to its ancestors'. The decoration is a
+ * fixed four characters per level, which is what makes the depth recoverable.
+ *
+ * `HEAD` is dropped because Fastify synthesises one for every `GET` and no contract describes them.
+ */
+function registeredOperations(tree: string): readonly Operation[] {
+  const DECORATION = /^(?:[├└]── |[│ ] {3})*/;
+  const NODE = /^(\S*)(?: \(([A-Z, ]+)\))?$/;
+
+  const ancestors: string[] = [];
+  const operations: Operation[] = [];
+
+  for (const line of tree.split('\n')) {
+    if (line.trim() === '') continue;
+
+    const decoration = DECORATION.exec(line)?.[0] ?? '';
+    const depth = decoration.length / 4;
+    const node = NODE.exec(line.slice(decoration.length));
+    if (node === null) {
+      throw new Error(`could not read a route out of printRoutes line: ${JSON.stringify(line)}`);
+    }
+
+    ancestors.length = depth;
+    ancestors[depth] = node[1] ?? '';
+
+    const methods = node[2];
+    if (methods === undefined) continue;
+
+    const path = ancestors.slice(0, depth + 1).join('');
+    for (const method of methods.split(', ')) {
+      if (method === 'HEAD') continue;
+      operations.push({ method: method.toLowerCase() as HttpMethod, path });
+    }
+  }
+
+  return operations;
+}
+
+/** `printRoutes` writes `:dramaId`; the contract writes `{dramaId}`. */
+function toContractPath(path: string): string {
+  return path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
+}
+
+function sortedKeys(operations: readonly Operation[]): readonly string[] {
+  return operations.map(({ method, path }) => `${method.toUpperCase()} ${path}`).sort();
+}
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
@@ -99,12 +150,35 @@ afterAll(async () => {
 });
 
 describe('contracts/openapi.yaml', () => {
+  /**
+   * The two halves of "one contract, matching the routes"
+   * (`docs/plan/cycle-2-integration.md` §5 A5). The `it.each` below proves every documented
+   * operation reaches a handler; this proves the converse, which nothing asserted before C2's
+   * integration and which is the direction that fails silently.
+   *
+   * A merge that drops a `register` call from `app.ts` leaves the contract describing an endpoint
+   * that is gone, and `it.each` catches that. A merge that drops a *path block* from the contract
+   * leaves a served endpoint undocumented, and until this test existed the whole suite stayed
+   * green — which is exactly the failure mode A6 predicted for `entitlementRoutes` and
+   * `unlockRoutes`.
+   */
+  it('documents every route the server registers, and registers every route it documents', () => {
+    const registered = registeredOperations(app.printRoutes({ commonPrefix: false })).map(
+      ({ method, path }) => ({ method, path: toContractPath(path) }),
+    );
+
+    expect(sortedKeys(registered)).toEqual(sortedKeys(operations));
+  });
+
   it('describes the operations this server implements', () => {
     expect(operations).toEqual(
       expect.arrayContaining([
         { method: 'get', path: '/health' },
         { method: 'post', path: '/v1/playback/sessions' },
         { method: 'post', path: '/v1/auth/login' },
+        // The three the trunk served and that `r` and `m` both dropped at their fork points, named
+        // here because A5 asks for their presence to be asserted rather than assumed.
+        { method: 'post', path: '/v1/entitlement/episode-access' },
         { method: 'put', path: '/v1/progress/episodes/{episodeId}' },
         { method: 'get', path: '/v1/progress/episodes/{episodeId}' },
         { method: 'get', path: '/v1/users/me/watch-history' },

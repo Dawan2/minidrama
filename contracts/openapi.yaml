@@ -1063,6 +1063,10 @@ components:
     PageInfo:
       type: object
       required: [nextCursor, hasMore]
+      description: |
+        Cursor pagination, `docs/12-api-contracts.md` §2.3. `nextCursor` is opaque: clients echo it
+        back and never parse it. It is `null` exactly when `hasMore` is false, so a cursor is never
+        handed out that leads into an empty page.
       properties:
         nextCursor:
           type: [string, 'null']
@@ -1087,6 +1091,10 @@ components:
       type: object
       required:
         [id, title, coverUrl, category, tags, totalEpisodes, freeEpisodes, isCompleted, stat]
+      description: |
+        The list-card view of a drama. It carries no episode and no playback identifier of any kind:
+        those reach a client only through a playback session (correction A4,
+        `docs/architecture/system-overview.md` §1.1).
       properties:
         id:
           type: string
@@ -1104,7 +1112,9 @@ components:
         totalEpisodes:
           type: integer
           minimum: 0
-          description: Counted over listed episodes, so it matches the grid the client renders.
+          description: |
+            Counted over the episodes a viewer can see, so it matches the grid the client renders
+            and drafts are not advertised.
         freeEpisodes:
           type: integer
           minimum: 0
@@ -1176,7 +1186,10 @@ components:
         unlockedBy:
           type: [string, 'null']
           enum: [COIN, VIP, AD, GRANT, null]
-          description: Non-null only when `reason` is `UNLOCKED`.
+          description: |
+            How access was granted; non-null only when `reason` is `UNLOCKED`. `VIP` means the live
+            subscription grants it and access ends with the subscription; `COIN`, `AD` and `GRANT`
+            are durable receipts for this episode.
 
     EpisodeItem:
       type: object
@@ -1353,25 +1366,6 @@ components:
           description: |
             The coin price, present only when paying is one of the options. A paid episode whose
             stored price is not a positive integer is answered `503` rather than quoted as free.
-
-    ViewerAccess:
-      type: object
-      required: [playable, reason, unlockedBy]
-      description: |
-        The `viewerAccess` view of `docs/12-api-contracts.md` §3.3. `UNAVAILABLE` is not returned
-        here — unavailable content uses the error envelope.
-      properties:
-        playable:
-          type: boolean
-        reason:
-          type: string
-          enum: [FREE, UNLOCKED, VIP, NEED_UNLOCK, NEED_VIP]
-        unlockedBy:
-          type: [string, 'null']
-          enum: [COIN, AD, GRANT, VIP, null]
-          description: |
-            How access was granted. `VIP` means the live subscription grants it and access ends with
-            the subscription; `COIN`, `AD` and `GRANT` are durable receipts for this episode.
 
     CreateCoinUnlockOrderRequest:
       type: object
@@ -1558,69 +1552,6 @@ components:
           type: string
           format: date-time
           description: Server time of the last accepted report. Absent when `recorded` is false.
-
-    PageInfo:
-      type: object
-      required: [nextCursor, hasMore]
-      description: |
-        Cursor pagination, `docs/12-api-contracts.md` §2.3. `nextCursor` is opaque: clients echo it
-        back and never parse it. It is `null` exactly when `hasMore` is false, so a cursor is never
-        handed out that leads into an empty page.
-      properties:
-        nextCursor:
-          type: [string, 'null']
-        hasMore:
-          type: boolean
-
-    DramaStat:
-      type: object
-      required: [playCount, favoriteCount, score]
-      properties:
-        playCount:
-          type: integer
-          minimum: 0
-        favoriteCount:
-          type: integer
-          minimum: 0
-        score:
-          type: number
-
-    DramaSummary:
-      type: object
-      required:
-        [id, title, coverUrl, category, tags, totalEpisodes, freeEpisodes, isCompleted, stat]
-      description: |
-        The list-card view of a drama. It carries no episode and no playback identifier of any kind:
-        those reach a client only through a playback session (correction A4,
-        `docs/architecture/system-overview.md` §1.1).
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        coverUrl:
-          type: string
-        category:
-          type: string
-          enum: [ROMANCE, REVENGE, FAMILY, SUSPENSE, COMEDY, FANTASY, OTHER]
-        tags:
-          type: array
-          items:
-            type: string
-        totalEpisodes:
-          type: integer
-          minimum: 0
-          description: Counted over what a viewer can see, so drafts are not advertised.
-        freeEpisodes:
-          type: integer
-          minimum: 0
-          description: |
-            Display copy ("first 3 free"), counted in `globalEpisodeNumber` order. Never an input to
-            a playability decision, which arrives already decided from the server.
-        isCompleted:
-          type: boolean
-        stat:
-          $ref: '#/components/schemas/DramaStat'
 
     WatchHistoryEntry:
       type: object
