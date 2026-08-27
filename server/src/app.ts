@@ -208,6 +208,12 @@ export async function buildApp(
   // One store issues sessions and resolves them. Separating those was the state this server was in:
   // the login route minted opaque tokens and forgot them, so every per-viewer endpoint refused a
   // session it had just issued.
+  //
+  // Every module that asks who is calling reads this one resolver: entitlement, playback and the
+  // coin-order endpoints below. That matters most for the last of them, because an order is
+  // attributed to whatever it resolves to and a payment is later correlated against that same
+  // account id — so a second resolver here would not be a wiring inconsistency, it would be a
+  // purchase recorded for the wrong viewer.
   const sessionStore = dependencies.sessionStore ?? createInMemorySessionStore({ now });
   const viewerResolver = dependencies.viewerResolver ?? createSessionViewerResolver(sessionStore);
 
