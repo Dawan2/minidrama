@@ -246,4 +246,28 @@ describe('PlayerSurface', () => {
     });
     expect(report).not.toHaveBeenCalled();
   });
+
+  it('does not flush a pre-seek 0 after a non-zero session resume', async () => {
+    const report = vi.fn(async () => ok(undefined));
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        playlist={[{ ...descriptor, resumePositionSec: 45 }]}
+        progress={{ intervalSec: 10, report }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    expect(MockVePlayer.instances[0]?.config.startTime).toBe(45);
+    MockVePlayer.instances[0]!.tick(0, 90);
+    MockVePlayer.instances[0]!.pause();
+    await waitFor(() => {
+      expect(MockVePlayer.instances[0]?.playing).toBe(false);
+    });
+    expect(report).not.toHaveBeenCalled();
+  });
 });
