@@ -17,7 +17,10 @@ describe('gateAdvance', () => {
       create: (episodeId) => ok(playbackDescriptor({ episodeId })),
     });
 
-    expect(await gateAdvance(api, 'ep_test_0002')).toEqual({ kind: 'ENTITLED' });
+    expect(await gateAdvance(api, 'ep_test_0002')).toEqual({
+      kind: 'ENTITLED',
+      descriptor: playbackDescriptor({ episodeId: 'ep_test_0002' }),
+    });
     expect(api.createCalls).toEqual(['ep_test_0002']);
   });
 

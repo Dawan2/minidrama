@@ -7,7 +7,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from '../player/mock-veplayer';
-import { PlayPage, nextCatalogEpisode } from './PlayPage';
+import { PlayPage, nextCatalogEpisode, previousCatalogEpisode } from './PlayPage';
 import { ROUTES } from './routes';
 import { apiFailure } from '../data/failure';
 import {
@@ -247,16 +247,20 @@ describe('locked episodes are intercepted at every entry', () => {
     });
     await player();
 
+    const current = await player();
     fireEvent.click(await screen.findByTestId('player-next'));
 
-    await waitFor(async () => {
+    await waitFor(() => {
       expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(second.id);
-      expect((await player()).config.episodeId).toBe(second.id);
     });
-    expect((await player()).config.vid).toBe(`vid_${second.id}`);
-    expect((await player()).config.vid).not.toMatch(/vid_demo_/);
+    expect(current.destroyed).toBe(false);
+    expect(current.playNextCount).toBe(1);
+    expect(current.currentEpisodeId).toBe(second.id);
+    expect(current.config.vid).not.toMatch(/vid_demo_/);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(1);
     expect(playbackApi.createCalls[0]).toBe(first.id);
-    expect(playbackApi.createCalls.slice(1)).toEqual([second.id, second.id]);
+    expect(playbackApi.createCalls).toContain(second.id);
+    expect(playbackApi.createCalls.join(',')).not.toMatch(/ep_demo_|vid_demo_/);
   });
 
   it('sessions a picker destination rather than playing the previous episode', async () => {
@@ -430,6 +434,154 @@ describe('the catalogue queue', () => {
     expect(nextCatalogEpisode(current, [current, locked])?.id).toBe(locked.id);
     expect(nextCatalogEpisode(locked, [current, locked])).toBeUndefined();
   });
+
+  it('names the previous catalogue episode for swipe-down 切集', () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const second = episodeItem({ globalEpisodeNumber: 2 });
+    expect(previousCatalogEpisode(second, [first, second])?.id).toBe(first.id);
+    expect(previousCatalogEpisode(first, [first, second])).toBeUndefined();
+  });
+});
+
+describe('autoplay on ended and swipe 切集', () => {
+  it('advances an entitled next on ended via playNext, not a second instance or a demo album', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const second = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi();
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: first.id,
+      api: playCatalog([first, second]),
+      playbackApi,
+    });
+    const current = await player();
+
+    current.emitForTest('ended');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(second.id);
+    });
+    expect(current.destroyed).toBe(false);
+    expect(current.playNextCount).toBe(1);
+    expect(current.currentEpisodeId).toBe(second.id);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(1);
+    expect(current.config.vid).not.toMatch(/vid_demo_/);
+    expect(current.config.episodeId).not.toMatch(/ep_demo_/);
+  });
+
+  it('holds the final frame and opens the unlock overlay when ended hits a locked next', async () => {
+    const free = episodeItem({ globalEpisodeNumber: 1 });
+    const locked = lockedEpisodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) =>
+        episodeId === locked.id
+          ? err(lockedPlaybackFailure())
+          : ok(playbackDescriptor({ episodeId })),
+    });
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: free.id,
+      api: playCatalog([free, locked]),
+      playbackApi,
+    });
+    const current = await player();
+
+    current.emitForTest('ended');
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(free.id);
+    expect(screen.getByTestId('play-page').dataset['state']).toBe('playing');
+    expect(current.destroyed).toBe(false);
+    expect(current.playNextCount).toBe(0);
+    expect(current.currentEpisodeId).toBe(free.id);
+    expect(MockVePlayer.instances.filter((instance) => !instance.destroyed)).toHaveLength(1);
+    expect(current.config.vid).not.toMatch(/vid_demo_/);
+  });
+
+  it('does not invent a next session when the last episode ends', async () => {
+    const last = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi();
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: last.id,
+      api: playCatalog([episodeItem({ globalEpisodeNumber: 1 }), last]),
+      playbackApi,
+    });
+    const current = await player();
+    const callsBefore = [...playbackApi.createCalls];
+
+    current.emitForTest('ended');
+
+    await waitFor(() => {
+      expect(current.playNextCount).toBe(0);
+    });
+    expect(playbackApi.createCalls).toEqual(callsBefore);
+    expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(last.id);
+    expect(current.destroyed).toBe(false);
+  });
+
+  it('treats swipe-up as 连播 through the same gate', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const second = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi();
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: first.id,
+      api: playCatalog([first, second]),
+      playbackApi,
+    });
+    const current = await player();
+    const surface = screen.getByTestId('player-surface');
+
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientY: 280 }],
+      touches: [{ clientY: 280 }],
+    });
+    fireEvent.touchEnd(surface, {
+      changedTouches: [{ clientY: 200 }],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(second.id);
+    });
+    expect(current.destroyed).toBe(false);
+    expect(current.playNextCount).toBe(1);
+    expect(current.currentEpisodeId).toBe(second.id);
+  });
+
+  it('rebuilds on swipe-down because playNext cannot go backwards', async () => {
+    const first = episodeItem({ globalEpisodeNumber: 1 });
+    const second = episodeItem({ globalEpisodeNumber: 2, id: 'ep_test_0002' });
+    const playbackApi = stubPlaybackApi();
+
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: second.id,
+      api: playCatalog([first, second]),
+      playbackApi,
+    });
+    const current = await player();
+    const surface = screen.getByTestId('player-surface');
+
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientY: 200 }],
+      touches: [{ clientY: 200 }],
+    });
+    fireEvent.touchEnd(surface, {
+      changedTouches: [{ clientY: 280 }],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('play-page').dataset['episodeId']).toBe(first.id);
+      expect(current.destroyed).toBe(true);
+    });
+    expect((await player()).config.episodeId).toBe(first.id);
+    expect((await player()).playNextCount).toBe(0);
+    expect((await player()).config.vid).not.toMatch(/vid_demo_/);
+  });
 });
 
 describe('PNL-01 on the player', () => {
@@ -503,5 +655,26 @@ describe('watch progress heartbeats', () => {
     expect(JSON.stringify(progressApi.progressReports)).not.toMatch(
       /completed|ep_demo_|vid_demo_|beans/i,
     );
+  });
+
+  it('does not report a pre-seek 0 after a session resume, which would LWW-wipe the other device', async () => {
+    const progressApi = stubProgressApi();
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) => ok(playbackDescriptor({ episodeId, resumePositionSec: 45 })),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      api: playCatalog([episodeItem({ durationSec: 90 })]),
+      playbackApi,
+      progressApi,
+    });
+    const instance = await player();
+    expect(instance.config.startTime).toBe(45);
+    instance.tick(0, 90);
+    instance.pause();
+    await waitFor(() => {
+      expect(instance.playing).toBe(false);
+    });
+    expect(progressApi.progressReports).toEqual([]);
   });
 });

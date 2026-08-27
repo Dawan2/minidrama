@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ok, type PlaybackDescriptor, type WatchProgressReport } from '@minidrama/shared';
 
@@ -98,6 +98,53 @@ describe('PlayerSurface', () => {
     expect(first.currentEpisodeId).toBe('ep_2');
     expect(screen.getByTestId('player-surface').dataset['episodeId']).toBe('ep_2');
     expect(forbiddenElements()).toEqual([]);
+  });
+
+  it('notifies the page when the current episode ends, without building a second player', async () => {
+    const onEnded = vi.fn();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface bridge={bridge} episodeId="ep_1" onEnded={onEnded} playlist={playlist} />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    MockVePlayer.instances[0]!.emitForTest('ended');
+
+    expect(onEnded).toHaveBeenCalledTimes(1);
+    expect(MockVePlayer.instances).toHaveLength(1);
+  });
+
+  it('treats an upward flick as next and a tap as nothing', async () => {
+    const onSwipeNext = vi.fn();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onSwipeNext={onSwipeNext}
+        playlist={playlist}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const surface = screen.getByTestId('player-surface');
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientY: 280 }],
+      touches: [{ clientY: 280 }],
+    });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientY: 270 }] });
+    expect(onSwipeNext).not.toHaveBeenCalled();
+
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientY: 280 }],
+      touches: [{ clientY: 280 }],
+    });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientY: 200 }] });
+    expect(onSwipeNext).toHaveBeenCalledTimes(1);
   });
 
   it('walks the whole album on one instance', async () => {
@@ -240,6 +287,30 @@ describe('PlayerSurface', () => {
       expect(MockVePlayer.instances).toHaveLength(1);
     });
     MockVePlayer.instances[0]!.emitForTest('timeupdate', { currentTime: 4 });
+    MockVePlayer.instances[0]!.pause();
+    await waitFor(() => {
+      expect(MockVePlayer.instances[0]?.playing).toBe(false);
+    });
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it('does not flush a pre-seek 0 after a non-zero session resume', async () => {
+    const report = vi.fn(async () => ok(undefined));
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        playlist={[{ ...descriptor, resumePositionSec: 45 }]}
+        progress={{ intervalSec: 10, report }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    expect(MockVePlayer.instances[0]?.config.startTime).toBe(45);
+    MockVePlayer.instances[0]!.tick(0, 90);
     MockVePlayer.instances[0]!.pause();
     await waitFor(() => {
       expect(MockVePlayer.instances[0]?.playing).toBe(false);

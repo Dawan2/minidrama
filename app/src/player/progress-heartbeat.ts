@@ -17,7 +17,11 @@ import type { VePlayerEventName } from './veplayer-types';
  *   - fractional seconds are floored, never rounded up into a second the viewer has not reached;
  *   - `completed` is not a client field;
  *   - `401 AUTH_REQUIRED` stops further writes for this instance (no anonymous watch row);
- *   - a failed send keeps only the latest observation per episode (`queued`).
+ *   - a failed send keeps only the latest observation per episode (`queued`);
+ *   - a `timeupdate` before the player has seeked to session `resumePositionSec` is not a watch.
+ *     Reporting it would give that device a *newer* `clientUpdatedAt` at position 0, and the
+ *     server's last-write-wins merge would treat the jump as a deliberate rewind (it is larger
+ *     than `backwardJitterToleranceSec`) and wipe the other device's position (`PRG-001`).
  */
 
 export interface ProgressHeartbeatReport {
@@ -30,15 +34,37 @@ export interface ProgressHeartbeatOptions {
   readonly intervalSec: number;
   readonly report: ProgressHeartbeatReport;
   readonly now?: () => number;
+  /**
+   * Session resume, the same number VePlayer gets as `startTime`. Omitted or `0` means this
+   * opening is from the beginning, so the first real observation is already at the resume
+   * point and must not be held back.
+   */
+  readonly resumePositionSec?: number;
   /** Optional. PlayerSurface wires `visibilitychange` / `pagehide` so a backgrounded app flushes. */
   readonly subscribeHidden?: (flush: () => void) => () => void;
 }
 
 export interface ProgressHeartbeat {
   observe(event: VePlayerEventName, payload?: unknown): void;
-  /** Flushes the previous episode, then starts observing the new one. */
-  setEpisode(episodeId: string): void;
+  /**
+   * Flushes the previous episode, then starts observing the new one. `resumePositionSec` is
+   * that episode's session resume, or `0` when the caller does not have one.
+   */
+  setEpisode(episodeId: string, resumePositionSec?: number): void;
   dispose(): void;
+}
+
+/**
+ * How far behind session resume a `timeupdate` may sit and still count as "the player has
+ * landed". Matches `DEFAULT_WATCH_PROGRESS_RULES.backwardJitterToleranceSec` on the server:
+ * a gap inside that bound is player quantisation, not a second device, and a gap outside it
+ * is either a pre-seek tick at 0 or a real rewind. Until we have seen a landing, we assume
+ * pre-seek and do not write.
+ */
+export const RESUME_LOCK_TOLERANCE_SEC = 2;
+
+export function isPreResumeObservation(positionSec: number, resumePositionSec: number): boolean {
+  return positionSec < resumePositionSec - RESUME_LOCK_TOLERANCE_SEC;
 }
 
 interface Observation {
@@ -50,6 +76,8 @@ export function createProgressHeartbeat(options: ProgressHeartbeatOptions): Prog
   const intervalMs = Math.max(1, Math.floor(options.intervalSec)) * 1000;
   const now = options.now ?? Date.now;
   let episodeId = options.episodeId;
+  let resumePositionSec = Math.max(0, Math.floor(options.resumePositionSec ?? 0));
+  let landed = !isPreResumeObservation(0, resumePositionSec);
   let playing = false;
   let disposed = false;
   let halted = false;
@@ -78,7 +106,7 @@ export function createProgressHeartbeat(options: ProgressHeartbeatOptions): Prog
       playing = false;
       const fromPayload = observationFromPayload(payload);
       if (fromPayload !== null) {
-        latest = fromPayload;
+        acceptObservation(fromPayload);
       }
       flush();
       return;
@@ -89,10 +117,9 @@ export function createProgressHeartbeat(options: ProgressHeartbeatOptions): Prog
     }
 
     const observation = observationFromPayload(payload);
-    if (observation === null) {
+    if (observation === null || !acceptObservation(observation)) {
       return;
     }
-    latest = observation;
     if (!playing || playStartedAt === null) {
       return;
     }
@@ -104,12 +131,25 @@ export function createProgressHeartbeat(options: ProgressHeartbeatOptions): Prog
     }
   }
 
-  function setEpisode(nextId: string): void {
+  function acceptObservation(observation: Observation): boolean {
+    if (!landed) {
+      if (isPreResumeObservation(observation.positionSec, resumePositionSec)) {
+        return false;
+      }
+      landed = true;
+    }
+    latest = observation;
+    return true;
+  }
+
+  function setEpisode(nextId: string, nextResumePositionSec = 0): void {
     if (disposed || nextId === episodeId) {
       return;
     }
     flush();
     episodeId = nextId;
+    resumePositionSec = Math.max(0, Math.floor(nextResumePositionSec));
+    landed = !isPreResumeObservation(0, resumePositionSec);
     latest = null;
     lastBeatAt = null;
     playStartedAt = playing ? now() : null;
