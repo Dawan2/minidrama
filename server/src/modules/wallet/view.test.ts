@@ -161,6 +161,8 @@ describe('toWalletTransactionPage', () => {
 
   it('drops a row without an id or a domain type rather than rewriting it as spend', () => {
     expect(toWalletTransaction({ id: '', type: 'RECHARGE' })).toBeNull();
-    expect(toWalletTransaction({ id: 'txn_1', type: 'SPEND' } as WalletLedgerRow)).toBeNull();
+    expect(
+      toWalletTransaction({ id: 'txn_1', type: 'SPEND' } as unknown as WalletLedgerRow),
+    ).toBeNull();
   });
 });
