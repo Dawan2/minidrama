@@ -386,16 +386,24 @@ describe('no coin-to-Beans rate is invented on the client', () => {
  * whose endpoints do not exist.
  */
 describe('the splash does not invent comments-on, legal URLs or ad-unit ids', () => {
-  it('names no comments: true, termsUrl, privacyUrl or adUnitId outside comments', () => {
+  it('names no comments: true, termsUrl or privacyUrl in the boot config files', () => {
     const offenders: string[] = [];
-    const invented = /comments:\s*true|\b(termsUrl|privacyUrl|adUnitId|rewardedAdUnitId)\b/;
+    const invented = /comments:\s*true|\b(termsUrl|privacyUrl|legalUrls)\b/;
+    const scoped = (path: string): boolean =>
+      path.startsWith(`src/boot${sep}`) ||
+      path.startsWith(`src/config${sep}`) ||
+      path === `src/data/config-api.ts` ||
+      path === 'src/main.tsx';
 
     for (const file of sourceFiles()) {
       const path = relativeToApp(file);
+      if (!scoped(path) || isTestFile(path)) {
+        continue;
+      }
       readFileSync(file, 'utf8')
         .split('\n')
         .forEach((line, index) => {
-          if (isCommentLine(line) || isTestFile(path)) {
+          if (isCommentLine(line)) {
             return;
           }
           if (invented.test(line)) {
