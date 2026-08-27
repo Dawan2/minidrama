@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from 'fastify';
 
-import { createIgnoringPaidTradeOrderSink } from './paid-trade-orders.js';
+import { ERROR_OUTCOMES, createIgnoringPaidTradeOrderSink } from './paid-trade-orders.js';
 import { errorBody } from '../../core/errors.js';
 import {
   REDEEM_SUCCESS_EVENT,
@@ -171,10 +171,11 @@ export async function platformTiktokRoutes(
       });
     }
 
-    // The wallet debit and the `Unlock` row are still nobody's here: this endpoint publishes a
-    // verified payment and the order module records it, but granting an episode is W14 work against
-    // a data layer that does not exist. The event stays stored either way, which is what makes
-    // replay the recovery path rather than a lost payment.
+    // Whether the sink recorded anything, granted anything or refused changes nothing above: the
+    // response is a `200` because the delivery was authentic, and the outcome went to the log. The
+    // event stays stored either way, which is what makes replay the recovery path rather than a lost
+    // payment. The coin wallet and its ledger are still W14's; this endpoint has never known what a
+    // paid order buys, and it still does not.
     return reply.status(200).send({ received: true, duplicate: false });
   });
 }
@@ -217,10 +218,11 @@ async function publishVerifiedPayment(input: PublishVerifiedPaymentInput): Promi
     eventId: input.eventId,
   });
 
-  // `PAYER_MISMATCH` and `ORDER_NOT_PAYABLE` mean an authentic payment arrived for an order we hold
-  // and we declined to act on it. That is a correlation bug or an attempt to pay somebody else's
-  // order, and either way somebody has been charged for something they will not receive.
-  const level = outcome === 'PAYER_MISMATCH' || outcome === 'ORDER_NOT_PAYABLE' ? 'error' : 'info';
+  // An authentic payment arrived for an order we hold and the money did not end up where it
+  // belongs: a correlation bug, an attempt to pay somebody else's order, an entitlement that was
+  // not written, or an episode bought twice. Each needs a human and none of them is visible to the
+  // viewer, who has been charged either way.
+  const level = ERROR_OUTCOMES.includes(outcome) ? 'error' : 'info';
 
   input.log[level]({ eventId: input.eventId, tradeOrderId, outcome }, 'verified payment published');
 }

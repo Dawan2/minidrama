@@ -30,12 +30,31 @@ export interface PaidTradeOrder {
  * Operator vocabulary, not a client contract — the callback answers `200` either way, because a
  * non-200 is read as failed delivery and brings the event back for 72 hours.
  *
- * `NO_MATCHING_ORDER` is expected traffic in a system that sells more than one thing. The last two
- * are not: they mean an authentic payment arrived for an order we hold and we declined to record
- * it, which needs a human.
+ * The first three are ordinary traffic: a payment recorded, a redelivery of one, and an event for
+ * something this module did not sell. `ERROR_OUTCOMES` below is the rest, and every member of it
+ * means an authentic payment arrived and somebody's money is now in the wrong place.
  */
 export type PaidTradeOrderOutcome =
-  'RECORDED' | 'ALREADY_RECORDED' | 'NO_MATCHING_ORDER' | 'PAYER_MISMATCH' | 'ORDER_NOT_PAYABLE';
+  | 'RECORDED'
+  | 'ALREADY_RECORDED'
+  | 'NO_MATCHING_ORDER'
+  | 'PAYER_MISMATCH'
+  | 'ORDER_NOT_PAYABLE'
+  /** The payment was recorded and what it bought was not granted. The viewer paid for nothing. */
+  | 'UNLOCK_NOT_GRANTED'
+  /** The viewer was charged for something they already owned, on a second order for one episode. */
+  | 'DUPLICATE_PURCHASE';
+
+/**
+ * The outcomes a human has to look at. Named here rather than at the log line so that adding an
+ * outcome forces a decision about whether it pages anybody.
+ */
+export const ERROR_OUTCOMES: readonly PaidTradeOrderOutcome[] = [
+  'PAYER_MISMATCH',
+  'ORDER_NOT_PAYABLE',
+  'UNLOCK_NOT_GRANTED',
+  'DUPLICATE_PURCHASE',
+];
 
 export interface PaidTradeOrderSink {
   /**

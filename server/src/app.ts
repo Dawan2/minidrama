@@ -1,8 +1,10 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 
+import { createGrantedUnlockFactsPort } from './modules/unlock/granted-facts.js';
 import { createInMemorySessionStore } from './modules/identity/session-store.js';
 import { createInMemoryUnlockOrderStore } from './modules/unlock/order-store.js';
+import { createInMemoryUnlockStore } from './modules/unlock/unlock-store.js';
 import { createInMemoryWebhookEventStore } from './modules/platform-tiktok/event-store.js';
 import { createMockIdentityPort } from './modules/identity/test-login.js';
 import { createSessionViewerResolver } from './modules/identity/session-viewer-resolver.js';
@@ -30,6 +32,7 @@ import type { ServerConfig } from './config.js';
 import type { SessionStore } from './modules/identity/session-store.js';
 import type { SignatureVerifier } from './modules/platform-tiktok/signature-verifier.js';
 import type { UnlockOrderStore } from './modules/unlock/order-store.js';
+import type { UnlockStore } from './modules/unlock/unlock-store.js';
 import type { ViewerResolver } from './modules/entitlement/viewer-resolver.js';
 import type { WebhookEventStore } from './modules/platform-tiktok/event-store.js';
 
@@ -77,6 +80,11 @@ export interface AppDependencies {
    * payment can be matched to.
    */
   readonly unlockOrderStore?: UnlockOrderStore;
+  /**
+   * The unlock records a verified payment writes — what a viewer owns. Injected by tests that need
+   * to read the receipts back; it defaults to the in-memory skeleton like the order store.
+   */
+  readonly unlockStore?: UnlockStore;
   readonly tradeOrderPort?: PlatformTradeOrderPort;
   readonly now?: () => number;
 }
@@ -137,8 +145,17 @@ export async function buildApp(
   // One facts port and one viewer resolver for both modules. Playback enforces the decision that
   // entitlement reports, so giving them separate sources of facts is how the browse view and the
   // play attempt start disagreeing about what a viewer owns.
-  const entitlementFactsPort =
-    dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort();
+  //
+  // The facts are the configured ones plus the unlock records a verified payment wrote. Until the
+  // data layer reads both from one database (W7) they live in separate stores, and a payment that
+  // wrote a receipt no decision could see would be a purchase that changed nothing — so the join is
+  // made here, once, for every module that asks what a viewer owns. It adds facts and decides
+  // nothing: a facts port that refuses still refuses, which is what the default deployment does.
+  const unlockStore = dependencies.unlockStore ?? createInMemoryUnlockStore();
+  const entitlementFactsPort = createGrantedUnlockFactsPort(
+    dependencies.entitlementFactsPort ?? createUnavailableEntitlementFactsPort(),
+    unlockStore,
+  );
 
   // One store, read by the resolver and written by the login route. Two instances here would be an
   // app that issues sessions it cannot resolve — the state W3 slot L found the server in.
@@ -196,9 +213,12 @@ export async function buildApp(
     signatureVerifier,
     eventStore: dependencies.webhookEventStore ?? createInMemoryWebhookEventStore(),
     clientKey: credentials.clientKey,
-    // Fulfilment stays here, on the verified callback. It records the payment against the order and
-    // grants nothing: the unlock row is W14's, and until it exists a paid order is a paid order.
-    paidTradeOrders: createUnlockOrderPaymentSink(unlockOrderStore),
+    // Fulfilment stays here, on the verified callback: it records the payment against the order and
+    // then writes the unlock record the entitlement decision reads. Both stores go to the sink,
+    // because both writes belong to one payment — and they are the same two instances the
+    // entitlement facts and the order endpoints read, or a viewer would pay for a receipt nobody
+    // can see.
+    paidTradeOrders: createUnlockOrderPaymentSink({ orderStore: unlockOrderStore, unlockStore }),
     now,
   });
 

@@ -30,12 +30,13 @@ import type { UnlockOrderStore } from './order-store.js';
  * a deployment holding no key, sent for another viewer's payment, sent as a refund instead of a
  * redeem: every one of them is followed by a re-read of the order, which must still say `PENDING`.
  *
- * The second claim is that fulfilment is *not fabricated* while the wallet slot is missing. A
- * verified callback moves the order to `PAID` and stops there, and the assertions that follow it
- * are that the episode is still locked at `POST /v1/entitlement/episode-access` and still refused
- * at `POST /v1/playback/sessions`. A stub that flipped `unlockGranted` to `true` here would pass a
- * naive reading of "the unlock works" and hand out paid content to anyone who could reach the
- * order endpoint.
+ * The second claim is the converse, and it is why the first one has to be exhaustive: a callback
+ * that *does* verify now grants the episode. It moves the order to `FULFILLED`, writes the unlock
+ * record, and the assertions that follow it are that the episode reports `UNLOCKED` at
+ * `POST /v1/entitlement/episode-access` and is issued a session at `POST /v1/playback/sessions`.
+ * Opening the order still grants nothing on its own — that block is unchanged — so the signature is
+ * the only thing between a request and paid content, and every way of skipping it is enumerated
+ * above.
  */
 
 const SECRET = 'client-secret-for-tests';
@@ -448,8 +449,26 @@ describe('POST /v1/unlock/coin-orders — idempotency', () => {
       idempotencyKey: `idem-${COIN_OR_VIP_EPISODE}`,
     });
 
-    expect(body(replay).status).toBe('PAID');
-    expect(body(replay).unlockGranted).toBe(false);
+    expect(body(replay).status).toBe('FULFILLED');
+    expect(body(replay).unlockGranted).toBe(true);
+  });
+
+  /**
+   * And a *new* key is not a way to buy the same episode twice. The order was paid and the episode
+   * is now owned, so the decision function reports it as unlocked and the front door has nothing to
+   * sell — which is the only thing standing between a client that regenerates its idempotency key
+   * and a second charge for content the viewer already holds.
+   */
+  it('refuses a fresh order for an episode the payment already unlocked', async () => {
+    const order = await openOrder();
+    await callback(order.payment.tradeOrderId);
+
+    const second = await createOrder(COIN_OR_VIP_EPISODE, { idempotencyKey: 'a-different-key' });
+
+    expect(second.statusCode).toBe(409);
+    expect(errorCode(second)).toBe('UNLOCK_ALREADY_UNLOCKED');
+    expect(tradeOrders.requests).toHaveLength(1);
+    expect(await orderStore.list()).toHaveLength(1);
   });
 });
 
@@ -622,26 +641,50 @@ describe('fulfilment — a verified callback', () => {
 
     expect(response.statusCode).toBe(200);
     expect(body(await readOrder(order.orderId))).toMatchObject({
-      status: 'PAID',
+      status: 'FULFILLED',
       paidAt: '2026-08-27T10:00:00.000Z',
     });
   });
 
-  // The whole point of the slot. Being charged and being entitled are different facts, and the
-  // second one is written by a step that does not exist yet.
-  it('does not grant the unlock, and does not pretend to', async () => {
+  // The other half of the slot's claim. Everything above is about a payment that did not happen;
+  // this is the one that did, and being charged has to end in being able to watch.
+  it('grants the unlock, and says so where the client reads it', async () => {
     const order = await openOrder();
     await callback(order.payment.tradeOrderId);
 
-    expect(body(await readOrder(order.orderId)).unlockGranted).toBe(false);
+    expect(body(await readOrder(order.orderId)).unlockGranted).toBe(true);
 
     const access = await episodeAccess(COIN_OR_VIP_EPISODE);
+    expect(
+      access.json<{ viewerAccess: { playable: boolean; reason: string; unlockedBy: string } }>()
+        .viewerAccess,
+    ).toEqual({ playable: true, reason: 'UNLOCKED', unlockedBy: 'COIN' });
+
+    const attempt = await playbackAttempt(COIN_OR_VIP_EPISODE);
+    expect(attempt.statusCode).toBe(201);
+  });
+
+  // Only the episode that was bought. A grant that widened to the drama, the season or the viewer's
+  // other open orders would be the same defect as a missing signature check, in the other direction.
+  it('grants nothing but the episode the order named', async () => {
+    const order = await openOrder(COIN_OR_VIP_EPISODE);
+    await openOrder(COIN_ONLY_EPISODE);
+
+    await callback(order.payment.tradeOrderId);
+
+    expect((await playbackAttempt(COIN_ONLY_EPISODE)).statusCode).toBe(403);
+    expect((await playbackAttempt('ep_fx_s2e05')).statusCode).toBe(403);
+  });
+
+  it('grants nothing to another viewer', async () => {
+    const order = await openOrder();
+    await callback(order.payment.tradeOrderId);
+
+    const access = await episodeAccess(COIN_OR_VIP_EPISODE, 'usr_fx_lapsed_grant');
+
     expect(access.json<{ viewerAccess: { reason: string } }>().viewerAccess.reason).toBe(
       'NEED_UNLOCK',
     );
-
-    const attempt = await playbackAttempt(COIN_OR_VIP_EPISODE);
-    expect(attempt.statusCode).toBe(403);
   });
 
   it('pays exactly the order the trade order belongs to', async () => {
@@ -651,7 +694,7 @@ describe('fulfilment — a verified callback', () => {
     await callback(second.payment.tradeOrderId);
 
     expect(body(await readOrder(first.orderId)).status).toBe('PENDING');
-    expect(body(await readOrder(second.orderId)).status).toBe('PAID');
+    expect(body(await readOrder(second.orderId)).status).toBe('FULFILLED');
   });
 
   it('treats a redelivery as a duplicate and does not restamp the payment', async () => {
