@@ -83,6 +83,68 @@ describe('test-only code cannot reach the bundle', () => {
 });
 
 /**
+ * Where a credential may and may not go, as a source scan.
+ *
+ * The session is held in memory by one module and attached by one other. These are the two ways a
+ * bearer token leaks out of that arrangement without anybody deciding to leak it: it gets written
+ * somewhere durable "so the viewer stays signed in", or it gets printed while somebody is debugging
+ * something else.
+ */
+describe('a session token stays in memory and out of the logs', () => {
+  const CREDENTIAL_WORDS = /\b(accessToken|authCode|bearerToken|Authorization)\b/;
+
+  function offendingLines(pattern: RegExp, permitted: ReadonlySet<string> = new Set()): string[] {
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles()) {
+      const path = relativeToApp(file);
+      if (isTestFile(path) || permitted.has(path)) {
+        continue;
+      }
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, index) => {
+          if (!isCommentLine(line) && pattern.test(line)) {
+            offenders.push(`${path}:${String(index + 1)} ${line.trim()}`);
+          }
+        });
+    }
+
+    return offenders;
+  }
+
+  /**
+   * Minis holds the access token in memory and re-runs silent login when it expires
+   * (`contracts/openapi.yaml`, `LoginResponse`). Persisting it would leave a credential in a
+   * WebView's storage, outliving the session it belongs to, for a refresh that costs nothing to
+   * redo.
+   */
+  it('is never written to storage, because nothing in the app writes to storage', () => {
+    expect(offendingLines(/\b(localStorage|sessionStorage|indexedDB)\b|document\.cookie/)).toEqual(
+      [],
+    );
+  });
+
+  it('is never handed to a console call', () => {
+    const offenders = offendingLines(/console\.\w+\(/).filter((line) =>
+      CREDENTIAL_WORDS.test(line),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  /**
+   * One attachment point. A call site that assembles its own `Authorization` is a second way to
+   * authenticate with none of the transport's rules — no expiry guard, no invalidation on `401`,
+   * and nothing stopping a hard-coded token from shipping.
+   */
+  it('is turned into a header only by the transport', () => {
+    const permitted = new Set([join('src', 'data', 'http.ts')]);
+    expect(offendingLines(/['"]?Bearer\s/, permitted)).toEqual([]);
+    expect(offendingLines(/Authorization/, permitted)).toEqual([]);
+  });
+});
+
+/**
  * The client must never derive playability. `viewerAccess` is the answer that arrives already
  * decided, and `freeEpisodes` is a badge and nothing else (`packages/shared/src/catalog.ts`).
  *

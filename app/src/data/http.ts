@@ -7,7 +7,7 @@ import type { ApiFailure } from './failure';
 /**
  * The one place in the client that makes an HTTP request.
  *
- * It exists to hold four rules that are easy to state and easy to forget in a component:
+ * It exists to hold five rules that are easy to state and easy to forget in a component:
  *
  * 1. **Every request is bounded.** An unbounded request inside a WebView is a loading state that
  *    never ends and a user whose only escape is killing the mini app
@@ -22,9 +22,15 @@ import type { ApiFailure } from './failure';
  *    does not say whether the request arrived — an automatic second attempt is a second thing the
  *    viewer can be charged for. Repeating that write is the caller's decision, made with the same
  *    `Idempotency-Key`, which is what makes the repeat harmless.
+ * 5. **The `Authorization` header is attached here and nowhere else.** An order belongs to an
+ *    account, so a request that should carry a session and does not is answered `401 AUTH_REQUIRED`
+ *    (`docs/12-api-contracts.md` §2). One attachment point means one thing to audit and one thing
+ *    to change when the token's lifecycle grows: a call site cannot forget the header, and — because
+ *    a caller's own `Authorization` is dropped before the token source is consulted — a call site
+ *    cannot invent one either.
  *
- * `fetch` and `sleep` are injected rather than imported so the behaviour above is testable without
- * a server and without a clock.
+ * `fetch`, `sleep` and the token source are injected rather than imported so the behaviour above is
+ * testable without a server, without a clock and without a platform.
  */
 
 export interface HttpResponseLike {
@@ -57,6 +63,22 @@ export interface HttpRequestInit {
 
 export type FetchLike = (url: string, init: HttpRequestInit) => Promise<HttpResponseLike>;
 
+/**
+ * Where the bearer token comes from, asked once per attempt rather than read once at construction.
+ *
+ * Per-attempt is the whole point: the token arrives after boot, is dropped the moment the server
+ * refuses it, and will later be replaced by a refresh. A value captured when the client was built
+ * would be `null` forever in the first case and stale in the last.
+ *
+ * `null` means "there is no session", and the request goes out without the header — never with a
+ * placeholder, an empty bearer or a locally minted identifier. A missing session has to reach the
+ * server as a missing session, because the server is the only thing that can decide what an
+ * anonymous caller may have.
+ */
+export type AuthTokenSource = () => string | null;
+
+export const AUTHORIZATION_HEADER = 'Authorization';
+
 /** `undefined` means "omit"; every other value is stringified. */
 export type QueryParams = Readonly<Record<string, string | number | undefined>>;
 
@@ -70,6 +92,21 @@ export interface HttpClientOptions {
   readonly timeoutMs?: number;
   readonly retryDelayMs?: number;
   readonly sleep?: (ms: number) => Promise<void>;
+  /**
+   * Absent means the transport is anonymous *by construction*, which is what the login exchange
+   * itself needs: a session cannot be created by presenting one. It is deliberately not a
+   * per-request flag — a flag is an opt-out every other call site also gets.
+   */
+  readonly authToken?: AuthTokenSource;
+  /**
+   * Called when a request that **did** carry a token was answered `401`. The token is dead; the
+   * session holder drops it so the next request is honestly anonymous instead of replaying a
+   * credential the server has already refused.
+   *
+   * Not a refresh-and-replay interceptor (IA §8.2). Replaying a `POST` after a refresh is a second
+   * write, and the only `POST` here opens a payment — see rule 4.
+   */
+  readonly onCredentialRefused?: () => void;
 }
 
 export interface PostOptions {
@@ -152,9 +189,14 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       controller.abort();
     }, timeoutMs);
 
+    // Rule 5: the token is read here, per attempt, and merged last. Nothing a caller passed can
+    // survive into `Authorization`, and a retry after the session changed uses the current token.
+    const bearer = bearerHeader(options.authToken);
+    const headers = { ...request.headers, ...bearer };
+
     let response: HttpResponseLike;
     try {
-      response = await options.fetch(url, { ...request, signal: controller.signal });
+      response = await options.fetch(url, { ...request, headers, signal: controller.signal });
     } catch (cause) {
       // An aborted request and a dead network both surface as a thrown error, and only the signal
       // can tell them apart. Reporting a timeout as "you are offline" sends the user to check a
@@ -171,6 +213,15 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       );
     } finally {
       clearTimeout(timer);
+    }
+
+    // Only when the request actually presented a token: a `401` on an anonymous read is the server
+    // declining a stranger, and dropping a good session because of one would sign the viewer out
+    // for no reason. Checked before the body is parsed, and before the `204` shortcut below, so a
+    // refused credential is noticed on a write as well as on a read — whether or not a gateway
+    // bothered to send an envelope.
+    if (response.status === 401 && AUTHORIZATION_HEADER in bearer) {
+      options.onCredentialRefused?.();
     }
 
     if (response.ok && successBody === 'NONE') {
@@ -253,13 +304,46 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            ...postOptions?.headers,
+            ...withoutAuthorization(postOptions?.headers),
           },
           body: JSON.stringify(body),
         },
         'JSON',
       ),
   };
+}
+
+/**
+ * The header, or nothing at all.
+ *
+ * An empty or blank token is treated as no token. `Bearer ` with nothing after it is a credential
+ * the server can only refuse, and it refuses it as `401`, which is the same answer an anonymous
+ * request gets after a great deal more confusion in the logs.
+ */
+function bearerHeader(source: AuthTokenSource | undefined): Readonly<Record<string, string>> {
+  const token = source?.() ?? null;
+  return token === null || token.trim() === '' ? {} : { [AUTHORIZATION_HEADER]: `Bearer ${token}` };
+}
+
+/**
+ * A caller's `Authorization`, in any casing, is dropped rather than honoured.
+ *
+ * `PostOptions.headers` exists for the idempotency key. Letting it carry a credential too would put
+ * a second, unaudited way to authenticate next to the first, and the interesting case is not a
+ * malicious call site but a well-meaning one that hard-codes a header during debugging and ships
+ * it.
+ */
+function withoutAuthorization(
+  headers: Readonly<Record<string, string>> | undefined,
+): Readonly<Record<string, string>> {
+  if (headers === undefined) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(headers).filter(
+      ([name]) => name.toLowerCase() !== AUTHORIZATION_HEADER.toLowerCase(),
+    ),
+  );
 }
 
 function defaultSleep(ms: number): Promise<void> {

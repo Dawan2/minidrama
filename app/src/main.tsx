@@ -3,15 +3,18 @@ import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 
 import './styles/app.css';
-import { anonymousSession } from './auth/session';
+import { ANONYMOUS } from './auth/session';
 import { App } from './App';
 import { CatalogApiProvider } from './data/catalog-api-context';
 import { createBridge } from './platform/create-bridge';
 import { createCatalogApi } from './data/catalog-api';
 import { createFavoritesApi } from './data/favorites-api';
 import { createHistoryApi } from './data/history-api';
-import { createHttpClient } from './data/http';
 import { createSearchApi } from './data/search-api';
+import { createSessionApi } from './data/session-api';
+import { createSessionStore } from './session/session-store';
+import { createSilentLogin } from './session/silent-login';
+import { createTransports } from './data/transports';
 import { createUnlockApi } from './data/unlock-api';
 import { FavoritesApiProvider } from './data/favorites-api-context';
 import { HistoryApiProvider } from './data/history-api-context';
@@ -19,15 +22,31 @@ import { SearchApiProvider } from './data/search-api-context';
 import { SessionProvider } from './auth/session-context';
 import { DEFAULT_LOCALE, isRtl } from './core/i18n';
 import { UnlockApiProvider } from './data/unlock-api-context';
+import type { Session } from './auth/session';
+import type { SessionStore } from './session/session-store';
 
 /**
  * Boot entry point.
  *
  * The sequence in `docs/architecture/system-overview.md` §3.1 is serial by design: nothing
  * business-facing renders on a half-initialized runtime. Wave 1 wired bridge selection and `init`;
- * this slot adds the catalogue client and leaves login, `/config` and deep-link resolution as the
- * remaining continuation, marked below so the order is not reinvented.
+ * later slots added the catalogue and unlock clients; this one adds silent login, and leaves
+ * `/config` and deep-link resolution as the remaining continuation, marked below so the order is
+ * not reinvented.
  */
+
+/**
+ * Silent login is awaited before the first render, because the alternative is a viewer who taps
+ * "Unlock" a second after boot and is told to sign in while the login that would have worked is
+ * still in flight.
+ *
+ * It gets a shorter budget than a normal read for the other half of that trade: a misconfigured
+ * base URL must not hold the first paint for a full request timeout. Whatever happens, boot
+ * continues — the catalogue is anonymous-capable, so a signed-out app still shows content and only
+ * refuses to sell.
+ */
+const SILENT_LOGIN_TIMEOUT_MS = 5_000;
+
 async function boot(): Promise<void> {
   const container = document.getElementById('root');
   if (!container) {
@@ -45,52 +64,81 @@ async function boot(): Promise<void> {
   // W2, in this order: capability probe merge → silent login → GET /v1/config → deep-link target.
 
   /**
-   * The catalogue reads are anonymous-capable (`docs/12-api-contracts.md` §2.2), so the client is
-   * constructed before login and carries no credentials. When session handling lands it belongs
-   * inside this client — one place that attaches the header and one place that refreshes it —
-   * rather than at the call sites.
+   * Two transports, one session store, and the rule that separates them: everything business-facing
+   * carries the header, and the login exchange cannot, because a session cannot be created by
+   * presenting one (`data/transports.ts`).
    *
    * A missing base URL is left to fail as a request rather than throwing here: a boot that dies
    * because an environment variable is absent is a white screen, and the retryable error state is
    * a screen with a button on it.
    */
-  const http = createHttpClient({
+  const sessionStore = createSessionStore();
+  const transports = createTransports({
     baseUrl: import.meta.env['VITE_API_BASE_URL'] ?? '',
     fetch: (url, init) => fetch(url, init),
+    session: sessionStore,
+    loginTimeoutMs: SILENT_LOGIN_TIMEOUT_MS,
   });
+  const signIn = createSilentLogin({
+    bridge,
+    api: createSessionApi(transports.login),
+    store: sessionStore,
+  });
+  const signedIn = await signIn();
+  if (signedIn.outcome !== 'SIGNED_IN') {
+    // The outcome and nothing else. The `authCode` and the token are credentials, and a console in
+    // a WebView is not a private place (`contracts/openapi.yaml`: never logged, never echoed).
+    console.warn('[boot] no session was established', signedIn.outcome);
+  }
+
   /**
-   * One transport, four API clients. The history read is session-scoped and the catalogue and
-   * search reads are not, so they are separate interfaces — but they share the timeout, the single
-   * automatic retry and the envelope handling, which is the whole reason `http.ts` exists.
+   * One transport, five API clients. The history and favourites reads are session-scoped and the
+   * catalogue and search reads are not, so they are separate interfaces — but they share the
+   * timeout, the single automatic retry, the envelope handling and now the session header, which is
+   * the whole reason `http.ts` exists.
    *
-   * The `Authorization` header belongs in this transport when the identity slot lands: one place
-   * that attaches it and one place that refreshes it. Until then the history read is anonymous, and
-   * the `401` it earns is what SCR-07 renders as a sign-in prompt.
+   * The catalogue reads are anonymous-*capable* (`docs/12-api-contracts.md` §2.2), so they render
+   * whether or not the login above produced anything; they still travel on the shared transport,
+   * because a signed-in viewer's reads should say who they are.
    */
-  const api = createCatalogApi(http);
-  const search = createSearchApi(http);
-  const historyApi = createHistoryApi(http);
+  const api = createCatalogApi(transports.http);
+  const search = createSearchApi(transports.http);
+  const historyApi = createHistoryApi(transports.http);
 
   /**
    * The two writes share that transport too, deliberately: the timeout, the failure classification
-   * and — when session handling lands — the `Authorization` header all belong in one place. They do
-   * not share a client interface, because `http.ts` splits the transport by capability and each of
-   * these asks for only the half it uses — the favourite verbs are idempotent and answer `204`, a
-   * coin order is neither.
+   * and the session header all belong in one place. They do not share a client interface, because
+   * `http.ts` splits the transport by capability and each of these asks for only the half it uses —
+   * the favourite verbs are idempotent and answer `204`, a coin order is neither.
    *
    * The unlock client is provided unconditionally rather than behind a capability check. Whether a
    * purchase can be *made* is `bridge.canIUse('pay')`, asked per render at the surface that offers
    * one; a missing provider here would only turn that question into a crash.
    */
-  const unlockApi = createUnlockApi(http);
-  const favoritesApi = createFavoritesApi(http);
+  const unlockApi = createUnlockApi(transports.http);
+  const favoritesApi = createFavoritesApi(transports.http);
 
   /**
-   * The session the app boots with. Silent login is the remaining continuation above, so today this
-   * is anonymous and `signIn` cannot succeed. Replacing this one value with a stateful session is
-   * the whole of the client-side wiring the identity slot needs.
+   * The session the surfaces see. This is the seam `auth/session.ts` left for the identity slot,
+   * now backed by the real store instead of the anonymous stand-in.
+   *
+   * `state` reads through to the store on every access rather than being snapshotted at boot. A
+   * snapshot would be stale the moment the in-place retry in `SignInPrompt` succeeds — the surface
+   * refetches and re-renders, and the profile screen would still call the viewer a guest. Reading
+   * through also means an expired token cannot leave a screen claiming a session the transport has
+   * already stopped sending.
    */
-  const session = anonymousSession();
+  const session: Session = {
+    get state() {
+      return viewerState(sessionStore);
+    },
+    // "Whether a session now exists" is asked of the store rather than read off the outcome, so
+    // `ALREADY_SIGNED_IN` counts as the success it is.
+    signIn: async () => {
+      await signIn();
+      return sessionStore.session() !== null;
+    },
+  };
 
   document.documentElement.lang = DEFAULT_LOCALE;
   document.documentElement.dir = isRtl(DEFAULT_LOCALE) ? 'rtl' : 'ltr';
@@ -114,6 +162,17 @@ async function boot(): Promise<void> {
       </SessionProvider>
     </StrictMode>,
   );
+}
+
+/**
+ * The store's session, as the state the surfaces are allowed to reason about.
+ *
+ * `openId` is carried across because it is the account the session belongs to; it decides copy and
+ * never access, which is the rule `auth/session.ts` exists to state.
+ */
+function viewerState(store: SessionStore): Session['state'] {
+  const held = store.session();
+  return held === null ? ANONYMOUS : { status: 'AUTHENTICATED', openId: held.openId };
 }
 
 void boot();
