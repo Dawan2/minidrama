@@ -206,17 +206,14 @@ describe('createTiktokIdentityPort — 200 with no open_id', () => {
 });
 
 describe('createTiktokIdentityPort — platform errors', () => {
-  it.each(['invalid_grant', 'access_denied'])(
-    'maps %s to AUTH_CODE_REJECTED',
-    async (error) => {
-      const port = portWith(async () => jsonResponse(400, { error, error_description: 'nope' }));
+  it.each(['invalid_grant', 'access_denied'])('maps %s to AUTH_CODE_REJECTED', async (error) => {
+    const port = portWith(async () => jsonResponse(400, { error, error_description: 'nope' }));
 
-      expect(await port.exchangeAuthCode(AUTH_CODE)).toEqual({
-        ok: false,
-        error: 'AUTH_CODE_REJECTED',
-      });
-    },
-  );
+    expect(await port.exchangeAuthCode(AUTH_CODE)).toEqual({
+      ok: false,
+      error: 'AUTH_CODE_REJECTED',
+    });
+  });
 
   it('maps a nested error.code of invalid_grant the same way', async () => {
     const port = portWith(async () =>

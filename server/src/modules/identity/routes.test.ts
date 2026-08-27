@@ -10,10 +10,7 @@ import { createPlatformCredentials } from '../platform-tiktok/credentials.js';
 import { createTiktokIdentityPort } from '../platform-tiktok/identity-port.js';
 import { loadConfig } from '../../config.js';
 import type { AppDependencies } from '../../app.js';
-import type {
-  IdentityHttpClient,
-  PlatformIdentityPort,
-} from '../platform-tiktok/identity-port.js';
+import type { IdentityHttpClient, PlatformIdentityPort } from '../platform-tiktok/identity-port.js';
 
 /**
  * Silent login: the contract, the validation, the deny path — and, since W3 slot L, what the issued

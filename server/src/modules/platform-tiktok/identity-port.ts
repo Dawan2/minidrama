@@ -208,10 +208,7 @@ function readPlatformError(body: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
-function failureForPlatformError(
-  platformError: string,
-  status: number,
-): IdentityExchangeFailure {
+function failureForPlatformError(platformError: string, status: number): IdentityExchangeFailure {
   if (platformError === 'invalid_client') return 'PROVIDER_UNAVAILABLE';
   if (CODE_REJECTED_ERRORS.has(platformError)) return 'AUTH_CODE_REJECTED';
   return failureForStatus(status);
