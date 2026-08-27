@@ -347,7 +347,7 @@
 
 ### 4.10 客户端配置 Config
 
-`GET /config`（匿名可用）— 客户端启动时拉取功能开关与静态配置。**Live OpenAPI is `GET /v1/config`.** The design example below still shows `comments: true` as the flag's *shape*; the running handler returns the conservative product state (`comments: false`, `adUnlock: false`, heartbeat 10 s) because PNL-04 and C4-08 are not on `main`. Legal URLs, ad-unit ids and `wallet.coinName` are omitted — C4/C5 URLs are unpublished (SCR-12), GATE-4 has not named a unit id, and the coin name already lives in i18n (`C4-04`).
+`GET /config`（匿名可用）— 客户端启动时拉取功能开关与静态配置。**Live OpenAPI is `GET /v1/config`.** The design example below still shows `comments: true` as the flag's *shape*; the running handler returns the conservative product state (`comments: false`, `adUnlock: false`, heartbeat 10 s) because PNL-04 is not on `main` and GATE-4 has not named a unit id (C4-08 wired the grant path; the flag stays off). Legal URLs, ad-unit ids and `wallet.coinName` are omitted — C4/C5 URLs are unpublished (SCR-12), GATE-4 has not named a unit id, and the coin name already lives in i18n (`C4-04`).
 
 ```json
 {

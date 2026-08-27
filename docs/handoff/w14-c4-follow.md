@@ -5,8 +5,9 @@
 > trade_order stub on main).
 > **Item:** `C4-08` / C2 `T0-3c` — product call sites for `showRewardedAd` / `showInterstitialAd`,
 > plus the server-side reward check. No invented ad-unit ids. D5 / D6 stay `[ ]`.
-> **Not in scope:** C4-06 (already on main), remaining L2 (`bc-33b61d7a`), C4-plus
-> (`bc-e055048b`), C4-04 `GET /config`, C4-07 VIP, enabling wallet top-up, Beans. No pull request.
+> **Not in scope:** C4-06 (already on main at pick), remaining L2 and C4-plus (in flight at
+> pick; both landed on `main` before this merge), C4-07 VIP, enabling wallet top-up, Beans.
+> No pull request. Did not invent Portal ad-unit ids. Live `adUnlock` stays `false`.
 
 ---
 
@@ -20,10 +21,10 @@ G2.6), C4-05, C4-06, PLY-002, playNext, and `GET /v1/users/me`:
 | C4-01 / C4-02 G2.7 G2.2 G2.6 | on `main` |
 | C4-05 OAuth stub | on `main` |
 | C4-06 trade_order stub | on `main` at `74fd7cd` |
-| Remaining L2 (G2.3 / G2.4 / G2.5) | in flight, `bc-33b61d7a` |
-| C4-plus extra | in flight, `bc-e055048b` |
+| Remaining L2 (G2.3 / G2.4 / G2.5) | in flight at pick (`bc-33b61d7a`); G2.4 landed before merge |
+| C4-plus extra | in flight at pick (`bc-e055048b`); C4-04 landed at `2a74748` |
 | C4-03 T14 Postgres | do not fake |
-| C4-04 splash / `GET /config` | next Tier A; overlaps C4-plus contract work |
+| C4-04 splash / `GET /config` | landed on `main` while this branch was open |
 | **C4-08 ads** | **this slot** |
 | C4-07 VIP | no contract; do not invent |
 
@@ -60,7 +61,8 @@ Default `buildApp` has `rewardedAdUnitId: null`. Tests inject `ad_fx_rewarded`, 
 false never reaches the SDK. A skip still POSTs `isEnded: false` so the nonce is consumed.
 
 UnlockPanel shows the ad channel only when PlayPage passes a placement (连播 =
-`AFTER_EPISODE`, 切集 = `MANUAL_SKIP`). A drama-list open does not.
+`AFTER_EPISODE`, 切集 = `MANUAL_SKIP`) **and** `features.adUnlock` is on. Live config
+keeps that flag false. A drama-list open does not.
 
 `maybeShowInterstitial` is the interstitial product caller. Chrome invokes it when *leaving*
 play, never on boot, never during play. The unit id is `null` until GATE-4, so production
@@ -117,9 +119,14 @@ panel. `window.TTMinis` still does not.
 
 | Who | Overlap |
 | --- | --- |
-| `bc-33b61d7a` (remaining L2) | `l2.yml` / Playwright / SAST. This slot does not touch `.github/workflows/` |
-| `bc-e055048b` (C4-plus) | Unknown extra. This slot does not add `GET /config`, VIP, or wallet transactions |
+| `bc-33b61d7a` (remaining L2) | **Landed.** G2.4 Semgrep on `main` at `38ac2c4`. This slot still does not touch `.github/workflows/` |
+| `bc-e055048b` (C4-plus / C4-04) | **Landed.** `GET /v1/config` at `2a74748`. ConfigView forbids ad-unit ids. `adUnlock` stays `false` |
 | C4-06 on main | Trade-order create. Untouched |
+
+Merged `origin/main` at `2a74748`. No file conflicts. After that merge the panel reads
+`features.adUnlock` so a live `false` does not offer a channel that would 503. Tests that
+exercise the channel inject `adUnlock: true`. Interstitial unit id remains `null` — config
+does not carry one, and inventing a Portal id is GATE-4.
 
 `git diff origin/main -- .github/workflows/` is empty of this slot's work.
 
@@ -127,8 +134,8 @@ panel. `window.TTMinis` still does not.
 
 ## 5. Verification
 
-`pnpm verify` green on this branch after merging `origin/main`. L1 sequence unchanged: format
-→ lint → typecheck → test:coverage → check:coverage → build → guardrails.
+`pnpm verify` green on this branch after merging `origin/main` (`2a74748`). L1 sequence
+unchanged: format → lint → typecheck → test:coverage → check:coverage → build → guardrails.
 
 D5 / D6 remain `[ ]`. G2.6 `check:artifact` is L2, not folded into `pnpm verify`.
 
@@ -137,10 +144,7 @@ D5 / D6 remain `[ ]`. G2.6 `check:artifact` is L2, not folded into `pnpm verify`
 ## 6. Left open
 
 - **D5 / D6.** Wired against the mock. GATE-4 unit ids and a device still required. Do not
-  mark the checklist `[x]`.
-- **C4-04 `GET /config`.** Ad-unit ids should eventually be delivered there (MI-2). This slot
-  used injected server config and a null client id for interstitials rather than inventing
-  `/v1/config`.
+  mark the checklist `[x]`. `adUnlock` stays `false` on live config.
 - **C4-07 VIP, recharge / Beans.** Unchanged. Top-up stays disabled.
-- **G2.3, G2.4, G2.5.** Left for `bc-33b61d7a`.
+- **G2.3, G2.5.** L2 remainder after G2.4 landed.
 - **`docs/plan/cycle-4-backlog.md`.** Not rewritten. The document belongs to the plan slot.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@minidrama/shared';
+import { CONSERVATIVE_CLIENT_CONFIG, err, ok } from '@minidrama/shared';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import {
@@ -25,6 +25,12 @@ import type { PayingBridge, StubUnlockApi, StubUnlockApiScript } from '../testin
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
 
 const BOTH: PurchaseCapabilities = { coin: true, vip: true };
+
+/** Test-only: live `GET /v1/config` keeps this false until GATE-4 names a unit id. */
+const AD_UNLOCK_ON = {
+  ...CONSERVATIVE_CLIENT_CONFIG,
+  features: { comments: false, adUnlock: true },
+};
 
 interface PanelHarness {
   readonly unlockApi: StubUnlockApi;
@@ -537,6 +543,22 @@ describe('the ad channel (F-4 placements only)', () => {
         onEntitlementChanged={vi.fn()}
         pacing={instantPacing()}
       />,
+      { api: stubCatalogApi(), config: AD_UNLOCK_ON, unlockApi: stubUnlockApi() },
+    );
+    expect(screen.queryByTestId('unlock-ad-action')).toBeNull();
+  });
+
+  it('is absent when features.adUnlock is off, even on a permitted placement with the SDK', () => {
+    renderSurface(
+      <UnlockPanel
+        adPlacement="AFTER_EPISODE"
+        bridge={payingBridge()}
+        capabilities={BOTH}
+        episode={lockedEpisodeItem({ priceCoins: 30 })}
+        onClose={vi.fn()}
+        onEntitlementChanged={vi.fn()}
+        pacing={instantPacing()}
+      />,
       { api: stubCatalogApi(), unlockApi: stubUnlockApi() },
     );
     expect(screen.queryByTestId('unlock-ad-action')).toBeNull();
@@ -566,7 +588,7 @@ describe('the ad channel (F-4 placements only)', () => {
         onEntitlementChanged={onEntitlementChanged}
         pacing={instantPacing()}
       />,
-      { api: stubCatalogApi(), unlockApi },
+      { api: stubCatalogApi(), config: AD_UNLOCK_ON, unlockApi },
     );
 
     fireEvent.click(screen.getByTestId('unlock-ad-action'));

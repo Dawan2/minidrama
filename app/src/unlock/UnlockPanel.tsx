@@ -7,6 +7,7 @@ import { playPath } from '../routes/routes';
 import { translate } from '../core/i18n';
 import { useCoinUnlock } from './use-coin-unlock';
 import { useResource } from '../data/use-resource';
+import { useClientConfig } from '../config/client-config-context';
 import { useUnlockApi } from '../data/unlock-api-context';
 import { useWalletApi } from '../data/wallet-api-context';
 import { WalletBalance } from '../wallet/WalletBalance';
@@ -95,6 +96,8 @@ export interface UnlockPanelProps {
   /**
    * F-4 permitted slot. Absent means this panel is not an ad offer (drama-list unlock stays
    * coins/VIP only). Present only for 连播 (`AFTER_EPISODE`) and 切集 (`MANUAL_SKIP`).
+   * Rendered only when `features.adUnlock` is on. Live `GET /v1/config` keeps that flag
+   * false until GATE-4 names a unit id — a button that would 503 is not an offer.
    */
   readonly adPlacement?: AdPlacement;
 }
@@ -109,6 +112,7 @@ export function UnlockPanel({
   adPlacement,
 }: UnlockPanelProps): React.JSX.Element {
   const api = useUnlockApi();
+  const { features } = useClientConfig();
   const offer = describeUnlockOffer(episode, capabilities);
 
   const unlock = useCoinUnlock({
@@ -180,6 +184,7 @@ export function UnlockPanel({
               onStart={unlock.start}
             />
             {adPlacement !== undefined &&
+            features.adUnlock &&
             unlock.state.status === 'OFFERED' &&
             bridge.canIUse('createRewardedVideoAd') ? (
               <AdChannel
