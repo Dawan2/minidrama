@@ -23,7 +23,15 @@ export interface TradeOrderRequest {
   readonly orderId: string;
   readonly userId: string;
   readonly episodeId: string;
-  /** The server-quoted price. The client never supplies an amount, here or anywhere. */
+  /**
+   * The server-quoted price, in the virtual coins `docs/12-domain-model.md` §3.3 prices episodes
+   * in. The client never supplies an amount, here or anywhere.
+   *
+   * The platform charges Beans, and what a coin is worth in Beans is a pricing decision that does
+   * not exist yet — so this port carries the number we do have and no conversion. W23 supplies the
+   * mapping and this request grows the platform-side amount next to it; inventing a rate here would
+   * bury a commercial decision in a type definition.
+   */
   readonly priceCoins: number;
 }
 
