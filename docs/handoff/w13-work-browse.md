@@ -83,15 +83,18 @@ That is a mistyped `#/browse?category=BOGUS` becoming a `400`. The parser has to
 
 ## 4. Verify
 
-`pnpm verify` after the chrome-test wait. Format, lint, typecheck, test, build, guardrails.
+`pnpm verify` green on this branch after merging `origin/main` at `fcc6fd6` (orders sqlite,
+watch-progress sqlite). Format, lint, typecheck, test, build, guardrails. Artifact
+`dist/assets/index-Dm7zgKrK.js` 333.58 kB / 101.93 kB gzip. Guardrails passed.
 
 | Package | Tests |
 | ---: | ---: |
 | `packages/shared` | 55 |
 | `packages/config` | 45 |
 | `packages/quality` | 37 |
-| `server` | 1,504 |
-| `app` | (see the green run) |
+| `server` | 1,537 |
+| `app` | 950 |
+| **Total** | **2,624** |
 
 No fiat, no Beans, no invented endpoint.
 
