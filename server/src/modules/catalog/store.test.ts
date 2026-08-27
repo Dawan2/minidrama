@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
+import { SEED_LISTED_EPISODE_FLOOR, SEED_PUBLISHED_DRAMA_FLOOR } from './fixtures.js';
 import { SEED_CATALOG, createInMemoryCatalogStore, dramaSortKey } from './store.js';
 import { isListed, positionEpisodes } from './numbering.js';
+import type { DramaRecord } from './types.js';
+
+function seedDrama(id: string): DramaRecord {
+  const found = SEED_CATALOG.dramas.find((drama) => drama.id === id);
+  if (found === undefined) {
+    throw new Error(`seed is missing ${id}`);
+  }
+  return found;
+}
+
+function listedEpisodesOf(drama: DramaRecord) {
+  return positionEpisodes(
+    SEED_CATALOG.seasons.filter((season) => season.dramaId === drama.id),
+    SEED_CATALOG.episodes.filter((episode) => episode.dramaId === drama.id),
+  ).filter(isListed);
+}
 
 const store = createInMemoryCatalogStore();
 
@@ -54,6 +71,56 @@ describe('the seed catalogue', () => {
   it('carries no media handle: no asset key, no vid, no video URL', () => {
     const serialised = JSON.stringify(SEED_CATALOG);
     expect(serialised).not.toMatch(/\.m3u8|\.mp4|assetKey|"vid"|playUrl|videoUrl/i);
+  });
+
+  // Volume without ingest. A partner content id here would read as GATE-8 passed; it is not.
+  it('carries no BytePlus partner content id', () => {
+    const serialised = JSON.stringify(SEED_CATALOG);
+    expect(serialised).not.toMatch(/byteplus|partnerContent|playAuthToken|albumId/i);
+  });
+
+  it('meets the W7 listed-episode floor without adding dramas', () => {
+    const published = SEED_CATALOG.dramas.filter((drama) => drama.status === 'PUBLISHED');
+    const listed = SEED_CATALOG.dramas.flatMap(listedEpisodesOf);
+
+    expect(published.length).toBeGreaterThanOrEqual(SEED_PUBLISHED_DRAMA_FLOOR);
+    expect(listed.length).toBeGreaterThanOrEqual(SEED_LISTED_EPISODE_FLOOR);
+  });
+
+  // The floor is only useful if a default page does not exhaust the longest listed run. A catalogue
+  // of 80 one-episode dramas would meet the count and still never produce a second episode page.
+  it('gives one published drama more listed episodes than the default episode page', () => {
+    const defaultEpisodePage = 50;
+    const longest = Math.max(
+      ...SEED_CATALOG.dramas
+        .filter((drama) => drama.status === 'PUBLISHED')
+        .map((drama) => listedEpisodesOf(drama).length),
+    );
+
+    expect(longest).toBeGreaterThan(defaultEpisodePage);
+    expect(longest).toBeGreaterThanOrEqual(SEED_LISTED_EPISODE_FLOOR);
+  });
+
+  it('keeps the numbering and publication fixtures the access tests are about', () => {
+    const dynasty = seedDrama('drm_dynasty_0002');
+    const revengeListed = listedEpisodesOf(seedDrama('drm_revenge_0001'));
+
+    expect(dynasty.freeEpisodes).toBe(3);
+    expect(listedEpisodesOf(dynasty)).toHaveLength(6);
+    expect(SEED_CATALOG.seasons.find((season) => season.id === 'ssn_dynasty_s3')?.status).toBe(
+      'OFFLINE',
+    );
+    expect(revengeListed.map((entry) => entry.episode.id)).toEqual([
+      'ep_revenge_e01',
+      'ep_revenge_e02',
+      'ep_revenge_e03',
+      'ep_revenge_e04',
+      'ep_revenge_e05',
+      'ep_revenge_e06',
+      'ep_revenge_e07',
+    ]);
+    expect(seedDrama('drm_offline_0007').status).toBe('OFFLINE');
+    expect(seedDrama('drm_draft_0008').status).toBe('DRAFT');
   });
 });
 
