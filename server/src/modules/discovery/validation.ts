@@ -1,17 +1,19 @@
 import { err, ok } from '@minidrama/shared';
+import { decodeFavoritesCursor } from './favorites-cursor.js';
+import type { FavoritesCursor } from './favorites.js';
 import type { Result } from '@minidrama/shared';
 
 /**
  * What a caller is allowed to say, as pure functions.
  *
  * Every value here arrives from a query string or a path segment, which means every one of them is
- * attacker-controlled and unbounded until something bounds it. The three rules below are the whole
- * input edge of this slot, and they are separated from the matching rules in `search.ts` for the
+ * attacker-controlled and unbounded until something bounds it. The rules below are the whole input
+ * edge of this module, and they are separated from the matching rules in `search.ts` for the
  * usual reason: "the request was malformed" and "nothing matched" are different answers, and a
  * function that decided both would make it hard to tell which one it gave.
  */
 
-export type DiscoveryField = 'q' | 'limit' | 'dramaId';
+export type DiscoveryField = 'q' | 'limit' | 'dramaId' | 'cursor';
 
 export type DiscoveryFieldReason =
   /** Missing, or present and empty once whitespace is removed. */
@@ -21,7 +23,9 @@ export type DiscoveryFieldReason =
   /** Not a whole number where one was required. */
   | 'not_an_integer'
   /** Given more than once. A repeated parameter is a client bug, not a value to guess at. */
-  | 'repeated';
+  | 'repeated'
+  /** Structurally not a value this server issued. Only an opaque token can be this. */
+  | 'malformed';
 
 export interface FieldFailure {
   readonly field: DiscoveryField;
@@ -132,4 +136,61 @@ export function validateDramaId(raw: unknown): Result<string, FieldFailure> {
   if (typeof raw !== 'string' || raw.length === 0) return err(fieldFailure('dramaId', 'required'));
   if (raw.length > MAX_DRAMA_ID_LENGTH) return err(fieldFailure('dramaId', 'out_of_range'));
   return ok(raw);
+}
+
+/**
+ * `?limit=` on the favourites list. Separate from `SEARCH_LIMIT`, and larger.
+ *
+ * 20 and 100 are the numbers `docs/12-api-contracts.md` §2.3 gives every list endpoint, and this is
+ * the first list endpoint, so it takes them rather than inventing a third convention. Search's
+ * maximum is lower on purpose (S55): search results are retyped, a favourites list is scrolled, and
+ * the viewer who has followed 300 dramas is a good outcome rather than an abuse case.
+ */
+export const FAVORITES_LIMIT = { fallback: 20, max: 100 } as const;
+
+/**
+ * Out of range is refused rather than clamped, for the same reason search refuses it: a client that
+ * asks for 500 and silently receives 100 believes it has seen the whole list. Here it would also
+ * make it stop paging, because a page shorter than requested is the obvious end-of-list signal —
+ * which is why `pageInfo.hasMore` exists and why this parameter has to be honest.
+ */
+export function parseFavoritesLimit(raw: unknown): Result<number, FieldFailure> {
+  const single = singleQueryValue(raw, 'limit');
+  if (!single.ok) return single;
+  if (single.value === undefined) return ok(FAVORITES_LIMIT.fallback);
+
+  if (!/^[0-9]+$/u.test(single.value)) return err(fieldFailure('limit', 'not_an_integer'));
+
+  const value = Number.parseInt(single.value, 10);
+  if (value < 1 || value > FAVORITES_LIMIT.max) return err(fieldFailure('limit', 'out_of_range'));
+
+  return ok(value);
+}
+
+/**
+ * `?cursor=`. Absent means the first page; present and unreadable is a `400`.
+ *
+ * Refusing a malformed cursor is the one choice here worth defending, because falling back to the
+ * first page is the tempting alternative and it is silently wrong: a client whose cursor we have
+ * stopped understanding — a deploy that changed the encoding, a truncated URL — would loop over
+ * page one forever, and neither the client nor its logs would show anything but a lot of traffic.
+ */
+export function parseFavoritesCursor(
+  raw: unknown,
+): Result<FavoritesCursor | undefined, FieldFailure> {
+  const single = singleQueryValue(raw, 'cursor');
+  if (!single.ok) return single;
+  if (single.value === undefined) return ok(undefined);
+
+  const decoded = decodeFavoritesCursor(single.value);
+  if (decoded === undefined) return err(fieldFailure('cursor', 'malformed'));
+
+  // A cursor naming an identifier longer than we ever issue did not come from us, whatever its
+  // encoding says. Checked here rather than in the codec so that one bound on a drama id lives in
+  // one place.
+  if (decoded.dramaId.length > MAX_DRAMA_ID_LENGTH) {
+    return err(fieldFailure('cursor', 'malformed'));
+  }
+
+  return ok(decoded);
 }
