@@ -119,6 +119,18 @@ describe('the terminal error state', () => {
     }
     expect(messages.size).toBe(3);
   });
+
+  // The default copy is about a drama, and a terminal state's only job is to explain itself. A
+  // screen about the viewer's own list saying "we could not find this drama" explains the wrong
+  // thing, and there is nothing to press that would reveal the right one.
+  it('takes copy from the surface while keeping the reason for diagnosis', () => {
+    renderRouted(<TerminalError reason="REJECTED" messageKey="history.unavailable" />);
+
+    const state = screen.getByTestId('terminal-error');
+    expect(state.getAttribute('data-reason')).toBe('REJECTED');
+    expect(state.textContent).toContain('We could not load your list.');
+    expect(state.textContent).not.toContain('drama');
+  });
 });
 
 /**

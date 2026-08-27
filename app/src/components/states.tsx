@@ -123,6 +123,13 @@ const TERMINAL_MESSAGE_KEYS: Readonly<Record<TerminalReason, TranslationKey>> = 
 export interface TerminalErrorProps {
   readonly reason: TerminalReason;
   readonly traceId?: string | null;
+  /**
+   * Copy for a surface whose missing thing is not a drama. The default map is worded for the
+   * catalogue ("we could not find this drama"), which is wrong on a screen about the viewer's own
+   * list, and wrong copy in a terminal state is the whole failure: the state's only job is to
+   * explain itself, since it offers nothing to press.
+   */
+  readonly messageKey?: TranslationKey;
 }
 
 /**
@@ -130,7 +137,11 @@ export interface TerminalErrorProps {
  * request was refused, and a button that cannot succeed is worse than no button — the user presses
  * it until they give up on the app rather than on the page.
  */
-export function TerminalError({ reason, traceId }: TerminalErrorProps): React.JSX.Element {
+export function TerminalError({
+  reason,
+  traceId,
+  messageKey,
+}: TerminalErrorProps): React.JSX.Element {
   return (
     <div
       className="state state--terminal"
@@ -139,7 +150,7 @@ export function TerminalError({ reason, traceId }: TerminalErrorProps): React.JS
       data-trace-id={traceId ?? ''}
       role="alert"
     >
-      <p className="state__message">{translate(TERMINAL_MESSAGE_KEYS[reason])}</p>
+      <p className="state__message">{translate(messageKey ?? TERMINAL_MESSAGE_KEYS[reason])}</p>
       <Link className="state__action" to={ROUTES.home}>
         {translate('fallback.backHome')}
       </Link>
