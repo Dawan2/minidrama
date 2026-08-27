@@ -135,4 +135,6 @@ New server tests: 3 (ledger-port) + 5 (query) + 5 (view) + 14 (routes) + 2 (app)
 - **C3-09.** Still a missing business input. No rate was written.
 - **Durable stores besides unlock.** In flight (`bc-d26f106a`); not this slot.
 
-Sqlite next-store and the episode picker were running and were not touched.
+Sqlite next-store (`bc-d26f106a`) was running and was not touched. PNL-01 landed on
+`main` as `2aea931` while this slot verified (`app/src/picker/`). This branch has taken
+it; the files do not overlap.
