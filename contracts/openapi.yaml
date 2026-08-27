@@ -378,6 +378,171 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/progress/episodes/{episodeId}:
+    parameters:
+      - name: episodeId
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+    put:
+      operationId: reportEpisodeProgress
+      summary: Report a watch position
+      description: |
+        A heartbeat while playing, plus one report on exit. Upsert, and deliberately tolerant: a
+        report that loses the last-write-wins comparison on `clientUpdatedAt` is ignored and still
+        answers `204` (`docs/12-error-catalog.md` §8). An error there would teach the client to retry
+        a report it is right to have dropped.
+
+        The response has no body. Nothing useful can be said in it — the client already knows the
+        position it sent — and returning the merged row would invite it to trust a value that may
+        have come from another device mid-scrub.
+      tags: [progress]
+      security:
+        - bearerSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchProgressReport'
+      responses:
+        '204':
+          description: The report was accepted, whether or not it changed the stored position.
+        '400':
+          description: |
+            `COMMON_VALIDATION_FAILED` for a malformed body or episode id.
+            `PROGRESS_INVALID_POSITION` for a position that cannot be true of the episode it
+            describes — a small overshoot is clamped to the duration, a large one is refused rather
+            than clamped, because clamping would let one call mark any episode complete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: '`AUTH_REQUIRED`. Progress is per-viewer; there is no anonymous reporting.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: '`COMMON_SERVICE_UNAVAILABLE`. The session could not be resolved.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: getEpisodeProgress
+      summary: Ask where to resume an episode
+      description: |
+        Answers `200` with a zero position for an episode the viewer never watched, rather than
+        `404`: "you have never watched this" is a complete answer to "where do I resume", and a `404`
+        would make every first play of every episode handle an error. `recorded` is what tells
+        "never watched" apart from "watched, position 0".
+
+        The answer is per-viewer and is sent `Cache-Control: private, no-store`.
+      tags: [progress]
+      security:
+        - bearerSession: []
+      responses:
+        '200':
+          description: Where to resume, and whether anything was ever reported.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeResumeView'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: '`AUTH_REQUIRED`. No credential, or one that could not be read or resolved.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: '`COMMON_SERVICE_UNAVAILABLE`. The session could not be resolved.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/users/me/watch-history:
+    get:
+      operationId: listWatchHistory
+      summary: List the dramas this viewer has been watching
+      description: |
+        One row per **drama**, sorted `watchedAt` descending and paged like every other list
+        (`docs/12-api-contracts.md` §4.7). Storage is per episode, so a viewer eleven episodes into
+        one drama has eleven rows; the newest row per drama is the one that appears here, because the
+        alternative buries every other drama behind the one they are already deep into.
+
+        This is the only list read in the product that is **not** anonymous-capable, and the three
+        answers below are three different screens in the client. They must never be collapsed:
+
+          - `401` — nobody is asking. The client runs silent login and retries once.
+          - `200` with `items: []` — signed in, watched nothing. An empty state, not an error.
+          - `503` — signed in, has watched something, and the catalogue cannot describe it. A fault,
+            and never reported as an empty list: "you have never watched anything" is a claim about
+            the viewer that a viewer acts on by leaving.
+
+        A drama whose episodes the catalogue cannot describe — deleted, unpublished or withdrawn — is
+        left out of the list rather than rendered with placeholder text, because its row would be a
+        cover and a resume button that playback answers with `410`.
+
+        The answer is per-viewer and is sent `Cache-Control: private, no-store`.
+      tags: [progress]
+      security:
+        - bearerSession: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Opaque. Echo back `pageInfo.nextCursor` and never parse it. A cursor this server did not
+            mint is `400`, not a silent restart from the beginning.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+          description: |
+            Clamped to 50 rather than refused: a client asking for a page size we do not serve is
+            asking a question we can answer. A value that is not a positive integer is `400`.
+      responses:
+        '200':
+          description: |
+            One page of history, possibly empty. An empty page is an answer about the viewer, not a
+            failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchHistoryPage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          description: |
+            `AUTH_REQUIRED`. No credential, or one that could not be read or resolved. History
+            belongs to a session: there is no anonymous reading of it, and an empty list is never
+            the answer to a request that could not be identified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            `COMMON_SERVICE_UNAVAILABLE`. Either the session could not be resolved, or the viewer has
+            watched something and the catalogue cannot describe it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/auth/login:
     post:
       operationId: login
@@ -641,6 +806,174 @@ components:
                 The platform's identifier for the payment, and the only field the callback is
                 correlated on.
 
+    WatchProgressReport:
+      type: object
+      required: [positionSec, durationSec, clientUpdatedAt]
+      description: |
+        The write shape. It says `positionSec` — an observation about the past — while the read says
+        `resumePositionSec`, an instruction about the future and the same key the playback descriptor
+        carries.
+      properties:
+        positionSec:
+          type: integer
+          minimum: 0
+          description: Whole seconds. Clamped to `durationSec`; refused if far beyond it.
+        durationSec:
+          type: integer
+          minimum: 1
+          description: |
+            The duration the player loaded. Sent with every report because the completion rule, the
+            clamp and the refusal are all relations between the two values, and the asset's length is
+            something the player knows and we do not.
+        clientUpdatedAt:
+          type: string
+          format: date-time
+          description: |
+            The client's clock when the position was observed. The last-write-wins key: two devices
+            are adjudicated on this rather than on arrival order, which is a property of the network.
+            A value implausibly far in the future is pulled back to server time.
+        completed:
+          type: boolean
+          deprecated: true
+          description: |
+            Accepted and ignored. Completion is computed server-side from the ratio; a client that
+            could set it could inflate a completion metric.
+
+    EpisodeResumeView:
+      type: object
+      required: [episodeId, resumePositionSec, completed, recorded]
+      properties:
+        episodeId:
+          type: string
+        resumePositionSec:
+          type: integer
+          minimum: 0
+          description: |
+            The player's `startTime`, and the same field name as in the playback descriptor. `0` when
+            nothing was ever reported.
+        completed:
+          type: boolean
+          description: |
+            Server-computed from the position/duration ratio, and sticky: a rewatch does not clear it.
+        recorded:
+          type: boolean
+          description: |
+            False when this viewer never reported a position for this episode. It exists so that
+            "never watched" and "watched, position 0" are distinguishable — a continue-watching entry
+            point has to tell them apart to decide whether the episode belongs in the list at all.
+        durationSec:
+          type: integer
+          minimum: 1
+          description: From the last accepted report. Absent when `recorded` is false.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Server time of the last accepted report. Absent when `recorded` is false.
+
+    PageInfo:
+      type: object
+      required: [nextCursor, hasMore]
+      description: |
+        Cursor pagination, `docs/12-api-contracts.md` §2.3. `nextCursor` is opaque: clients echo it
+        back and never parse it. It is `null` exactly when `hasMore` is false, so a cursor is never
+        handed out that leads into an empty page.
+      properties:
+        nextCursor:
+          type: [string, 'null']
+        hasMore:
+          type: boolean
+
+    DramaStat:
+      type: object
+      required: [playCount, favoriteCount, score]
+      properties:
+        playCount:
+          type: integer
+          minimum: 0
+        favoriteCount:
+          type: integer
+          minimum: 0
+        score:
+          type: number
+
+    DramaSummary:
+      type: object
+      required:
+        [id, title, coverUrl, category, tags, totalEpisodes, freeEpisodes, isCompleted, stat]
+      description: |
+        The list-card view of a drama. It carries no episode and no playback identifier of any kind:
+        those reach a client only through a playback session (correction A4,
+        `docs/architecture/system-overview.md` §1.1).
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        coverUrl:
+          type: string
+        category:
+          type: string
+          enum: [ROMANCE, REVENGE, FAMILY, SUSPENSE, COMEDY, FANTASY, OTHER]
+        tags:
+          type: array
+          items:
+            type: string
+        totalEpisodes:
+          type: integer
+          minimum: 0
+          description: Counted over what a viewer can see, so drafts are not advertised.
+        freeEpisodes:
+          type: integer
+          minimum: 0
+          description: |
+            Display copy ("first 3 free"), counted in `globalEpisodeNumber` order. Never an input to
+            a playability decision, which arrives already decided from the server.
+        isCompleted:
+          type: boolean
+        stat:
+          $ref: '#/components/schemas/DramaStat'
+
+    WatchHistoryEntry:
+      type: object
+      required: [drama, lastEpisodeNumber, lastPositionSec, watchedAt, lastEpisodeId]
+      properties:
+        drama:
+          $ref: '#/components/schemas/DramaSummary'
+        lastEpisodeNumber:
+          type: integer
+          minimum: 1
+          description: |
+            Counted in `globalEpisodeNumber`, the number the client displays everywhere else. The
+            per-season number would name a different episode in every season past the first.
+        lastPositionSec:
+          type: integer
+          minimum: 0
+          description: Where to resume, in whole seconds.
+        watchedAt:
+          type: string
+          format: date-time
+          description: |
+            Server time of the last accepted report, and the sort key. Clients never reorder by it.
+        lastEpisodeId:
+          type: string
+          description: |
+            The episode to resume. `docs/12-api-contracts.md` §4.7 lists four fields and none of them
+            can address the player — `#/play/:episodeId` takes an id, and an episode number is not
+            one — so the client registered this as a contract gap
+            (`docs/handoff/w3-work-m.md` §5). It is never absent: every row in this list is derived
+            from a stored progress row, and that row is keyed by the episode id.
+
+    WatchHistoryPage:
+      type: object
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WatchHistoryEntry'
+        pageInfo:
+          $ref: '#/components/schemas/PageInfo'
+
     LoginRequest:
       type: object
       required: [provider, authCode]
@@ -724,6 +1057,16 @@ components:
             details:
               type: [object, 'null']
               additionalProperties: true
+
+  securitySchemes:
+    bearerSession:
+      type: http
+      scheme: bearer
+      description: |
+        The opaque session token from `POST /v1/auth/login`, as `Authorization: Bearer <token>`. It
+        is not a JWT and carries no claims: the mapping from token to user is the server's, so a
+        token cannot be constructed. Declared on the endpoints that are per-viewer; endpoints without
+        it either serve everyone the same answer or enforce their own rule.
 
   responses:
     Error:
