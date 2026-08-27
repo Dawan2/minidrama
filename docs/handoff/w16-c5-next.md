@@ -90,22 +90,41 @@ hit. A comment that says skips are forbidden is not this gate.
 
 | Who | Overlap |
 | --- | --- |
-| `bc-2fd6c885` (swipe / ended 连播) | **RUNNING.** `PlayerSurface` / `PlayPage`. Untouched |
-| `bc-5d32d64f` (third playback slice) | **RUNNING.** No `cursor/*` branch on origin yet. Untouched |
+| `bc-2fd6c885` (swipe / ended 连播) | **Landed** on `main` while this slot ran (`docs/handoff/w16-playback-ux.md`). Player files. Untouched by this slot |
+| `bc-5d32d64f` (third playback slice / drama-detail Continue) | **Landed** as `docs/handoff/w16-playback-ux3.md`. Untouched |
 | `bc-3c74c2c9` (PRG-001 remainder) | **Idle. Landed** at `8e5c803`. Not retaken |
+| C5-02 / D-18 wallet ledger | **Landed** as `e6b9b86` / `docs/handoff/w16-c5-follow.md` while this slot ran. Merged in; no overlap with `skips.ts` / `ci.yml` |
 | C4-03 / C4-07 / D-17 | Unchanged; billing cannot be code-fixed |
 
-`git diff origin/main -- app/ server/` is empty of this slot's work.
+Merged `origin/main` at `e6b9b86`. No file conflicts. `git diff origin/main -- app/ server/` is empty of this slot's work.
 
 ---
 
 ## 5. Verification
 
-`pnpm verify` on this branch after the implementation. L1 sequence is now format → lint →
-typecheck → **check:skips** → test:coverage → check:coverage → build → guardrails. G1.8
-`check:secrets` and G1.6 `check:contract` stay out of `verify`.
+`pnpm verify` green on this branch after merging `origin/main` (`e6b9b86`). L1 sequence is
+now format → lint → typecheck → **check:skips** → test:coverage → check:coverage → build →
+guardrails. G1.8 `check:secrets` and G1.6 `check:contract` stay out of `verify`.
 
-G1.9 Conventional Commits is not this slice. Commit subjects remain prose.
+| Package | Tests |
+| --- | ---: |
+| shared | 63 |
+| quality | 313 |
+| config | 45 |
+| server | 1,785 |
+| app | 1,166 |
+| **Total** | **3,372** |
+
+```
+skip-check passed (223 test files, 0 skips, 0 empty)
+coverage global lines 94.20% (16424/17436), branches 91.27%, core lines 95.70%, diff lines 99.21% (251/253)
+coverage gate passed
+```
+
+Guardrails passed against `app/dist` (`index-XKnvt0-l.js` 357.25 kB / 109.15 kB gzip).
+
+G1.9 Conventional Commits is not this slice. Commit subjects remain prose. Test count did
+not fall (3,341 on `main` after C5-02 → 3,372 here; the extra tests are G1.10).
 
 ---
 
@@ -113,8 +132,7 @@ G1.9 Conventional Commits is not this slice. Commit subjects remain prose.
 
 - **G1.9.** Prose subjects. Further D-20 slice. Do not rewrite history.
 - **D-17.** Billing. Cannot be closed from a branch.
-- **C5-02 / D-18.** Merge or drop `origin/cursor/w13-work-c3-remain-72c4`.
 - **C5-03 / D-19.** P3 writeback of `wave-protocol.md` §6.2.
-- **Protocol-C4 播放体验 remainder.** Swipe/ended and the third slice are in flight; a11y
-  (`QA-011` / `QA-010`) and PLY-012 are not this slot.
+- **Protocol-C4 a11y / PLY-012.** Swipe/ended and the third slice landed while this slot
+  ran. `QA-011` / `QA-010` and token re-issue are not this slot.
 - **`docs/plan/cycle-5-backlog.md`.** Not rewritten. The document belongs to the plan slot.
