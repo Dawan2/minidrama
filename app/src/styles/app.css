@@ -886,6 +886,7 @@ a {
 }
 
 .player-start {
+  /* CN-10 start / switch wait. Last frame stays; the episode is not skipped. */
   position: absolute;
   inset: 0;
   display: flex;
