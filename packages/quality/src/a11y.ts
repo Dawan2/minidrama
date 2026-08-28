@@ -7,12 +7,13 @@ import { basename, join, relative } from 'node:path';
  * implemented-screen HTML, plus a WCAG contrast check on declared CSS colors.
  *
  * Smallest job scanned SCR-13 only. Later remainders added SCR-02 (home),
- * SCR-03 (browse / theatre), SCR-04 (drama detail), SCR-05 (player), and
- * SCR-06 (profile). This remainder adds SCR-08 (favourites / `#/favorites`),
- * the next unblocked implemented numbered hash screen after profile. SCR-07
- * history is in flight on a sibling (`bc-1ed8782f`) and is not required
- * here. Deleting any required stem is red. Remaining SCR/PNL fixtures are
- * later remainders.
+ * SCR-03 (browse / theatre), SCR-04 (drama detail), SCR-05 (player),
+ * SCR-06 (profile), and SCR-08 (favourites). This remainder adds SCR-09
+ * (wallet / `#/wallet`), the next unblocked implemented numbered hash
+ * screen after favorites. SCR-07 history is in flight on a sibling
+ * (`bc-1ed8782f`) and is not required here. Search (`bc-bd2fe31d`) is also
+ * in flight and is not required here. Deleting any required stem is red.
+ * Remaining SCR/PNL fixtures are later remainders.
  *
  * This module invokes axe-core. A TypeScript comment that names WCAG is not
  * QA-010. jsdom is the host: color-contrast stays incomplete without canvas, so
@@ -39,6 +40,7 @@ export const REQUIRED_SCREEN_STEMS = [
   'scr-05-play',
   'scr-06-profile',
   'scr-08-favorites',
+  'scr-09-wallet',
   'scr-13-fallback',
 ] as const;
 
