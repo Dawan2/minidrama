@@ -3,6 +3,7 @@ import { ok, type PlaybackDescriptor } from '@minidrama/shared';
 import { createPlayerFacade } from './player-facade';
 import { createProgressHeartbeat } from './progress-heartbeat';
 import { createStallWatchdog } from './player-stall';
+import { createStartWatchdog } from './player-start';
 import { isHorizontalScrub, verticalSwipe } from './episode-swipe';
 import { isDoubleTap, type TapPoint } from './episode-double-tap';
 import { translate } from '../core/i18n';
@@ -10,6 +11,7 @@ import type { PlatformBridge } from '../platform/types';
 import type { PlayerFacade } from './player-facade';
 import type { ProgressHeartbeat, ProgressHeartbeatReport } from './progress-heartbeat';
 import type { StallChrome, StallPacing } from './player-stall';
+import type { StartChrome, StartPacing } from './player-start';
 
 export interface PlayerSurfaceProps {
   readonly bridge: PlatformBridge;
@@ -53,8 +55,15 @@ export interface PlayerSurfaceProps {
    * The overlay stays on this surface so the last frame is not torn down.
    */
   readonly onStallRetry?: () => void;
+  /**
+   * CN-10 / J12-7 start or switch timeout. PlayPage remints the route episode.
+   * Ignored when omitted. The last frame stays; the episode is not skipped.
+   */
+  readonly onStartTimeout?: () => void;
   /** Test seam. Production uses `Date.now` / `setInterval`. */
   readonly stall?: StallPacing;
+  /** Test seam for the start/switch wait. Separate from stall so the clocks do not steal ticks. */
+  readonly start?: StartPacing;
 }
 
 export interface PlayerSurfaceHandle {
@@ -97,7 +106,9 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
       onDoubleTap,
       onPlayerFatal,
       onStallRetry,
+      onStartTimeout,
       stall,
+      start,
     },
     ref,
   ) {
@@ -105,10 +116,13 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
     const facadeRef = useRef<PlayerFacade | null>(null);
     const heartbeatRef = useRef<ProgressHeartbeat | null>(null);
     const stallRef = useRef<ReturnType<typeof createStallWatchdog> | null>(null);
+    const startRef = useRef<ReturnType<typeof createStartWatchdog> | null>(null);
     const progressRef = useRef(progress);
     progressRef.current = progress;
     const stallPacingRef = useRef(stall);
     stallPacingRef.current = stall;
+    const startPacingRef = useRef(start);
+    startPacingRef.current = start;
     const onEndedRef = useRef(onEnded);
     onEndedRef.current = onEnded;
     const onSwipeNextRef = useRef(onSwipeNext);
@@ -121,6 +135,8 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
     onPlayerFatalRef.current = onPlayerFatal;
     const onStallRetryRef = useRef(onStallRetry);
     onStallRetryRef.current = onStallRetry;
+    const onStartTimeoutRef = useRef(onStartTimeout);
+    onStartTimeoutRef.current = onStartTimeout;
     const pointerOrigin = useRef<{ x: number; y: number } | null>(null);
     const lastTap = useRef<TapPoint | null>(null);
     const playlistRef = useRef(playlist);
@@ -132,6 +148,7 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
     const [state, setState] = useState<SurfaceState>('loading');
     const [generation, setGeneration] = useState(0);
     const [stallChrome, setStallChrome] = useState<StallChrome>('none');
+    const [startChrome, setStartChrome] = useState<StartChrome>('none');
 
     useImperativeHandle(ref, () => ({
       enqueueNext(descriptor: PlaybackDescriptor): void {
@@ -148,7 +165,10 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
           pendingReissueRef.current = descriptor;
           return;
         }
-        facade.reissue(descriptor);
+        startRef.current?.arm();
+        if (!facade.reissue(descriptor)) {
+          startRef.current?.reset();
+        }
       },
     }));
 
@@ -217,6 +237,19 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
       });
       stallRef.current = stallWatchdog;
       setStallChrome('none');
+      const startPacing = startPacingRef.current;
+      const startWatchdog = createStartWatchdog({
+        onChrome: (chrome) => {
+          if (!cancelled) {
+            setStartChrome(chrome);
+          }
+        },
+        ...(startPacing?.now === undefined ? {} : { now: startPacing.now }),
+        ...(startPacing?.schedule === undefined ? {} : { schedule: startPacing.schedule }),
+      });
+      startRef.current = startWatchdog;
+      setStartChrome('none');
+      startWatchdog.arm();
 
       void createPlayerFacade(bridge, {
         container,
@@ -225,6 +258,7 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         onEvent: (event, payload) => {
           heartbeat?.observe(event, payload);
           stallWatchdog.observe(event, payload);
+          startWatchdog.observe(event, payload);
           if (event === 'ended') {
             onEndedRef.current?.();
           }
@@ -245,6 +279,7 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         }
         if (!result.ok) {
           heartbeat?.dispose();
+          startWatchdog.reset();
           setState('unavailable');
           return;
         }
@@ -257,6 +292,7 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         }
         const pendingReissue = pendingReissueRef.current;
         if (pendingReissue !== null) {
+          startWatchdog.arm();
           result.value.reissue(pendingReissue);
           pendingReissueRef.current = null;
         }
@@ -264,6 +300,7 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         // The route can move while the player is being built, and the switch effect below found no
         // facade to talk to when it did. This is that reconciliation, not a duplicate of it.
         if (result.value.switchToEpisode(wantedEpisodeRef.current) === 'OUT_OF_REACH') {
+          startWatchdog.reset();
           setGeneration((current) => current + 1);
         }
       });
@@ -277,6 +314,10 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         stallWatchdog.dispose();
         if (stallRef.current === stallWatchdog) {
           stallRef.current = null;
+        }
+        startWatchdog.dispose();
+        if (startRef.current === startWatchdog) {
+          startRef.current = null;
         }
         facade?.destroy();
         facade = null;
@@ -293,7 +334,12 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
       if (facade === null) {
         return;
       }
+      if (facade.currentEpisode().episodeId === episodeId) {
+        return;
+      }
+      startRef.current?.arm();
       if (facade.switchToEpisode(episodeId) === 'OUT_OF_REACH') {
+        startRef.current?.reset();
         setGeneration((current) => current + 1);
       }
     }, [episodeId]);
@@ -370,6 +416,31 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
                 onClick={() => {
                   stallRef.current?.reset();
                   onStallRetryRef.current?.();
+                }}
+              >
+                {translate('state.retry')}
+              </button>
+            ) : null}
+          </div>
+        )}
+        {startChrome === 'none' ? null : (
+          <div className="player-start" data-phase={startChrome} data-testid="player-start">
+            <span
+              aria-hidden="true"
+              className="player-start__indicator"
+              data-testid="player-start-indicator"
+            />
+            <p className="player-start__copy" role="status">
+              {translate(startChrome === 'timeout' ? 'player.startTimeout' : 'player.starting')}
+            </p>
+            {startChrome === 'timeout' ? (
+              <button
+                className="player-start__retry"
+                data-testid="player-start-retry"
+                type="button"
+                onClick={() => {
+                  startRef.current?.reset();
+                  onStartTimeoutRef.current?.();
                 }}
               >
                 {translate('state.retry')}

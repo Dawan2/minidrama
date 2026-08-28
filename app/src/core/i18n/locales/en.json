@@ -145,6 +145,8 @@
   "player.lastEpisode": "That was the last episode.",
   "player.liked": "Added to favourites",
   "player.stalled": "Playback is taking longer than usual.",
+  "player.starting": "Loading…",
+  "player.startTimeout": "This episode did not start. Try again.",
   "player.locked": "Locked",
   "picker.title": "Episodes",
   "picker.open": "Episodes",

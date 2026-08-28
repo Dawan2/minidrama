@@ -9,6 +9,7 @@ import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from '../player/mock-veplayer';
 import { PlayPage, nextCatalogEpisode, previousCatalogEpisode } from './PlayPage';
 import type { StallPacing } from '../player/player-stall';
+import type { StartPacing } from '../player/player-start';
 import { ROUTES } from './routes';
 import { apiFailure } from '../data/failure';
 import {
@@ -65,6 +66,7 @@ function renderPlayer(options: {
   readonly progressApi?: ProgressApi;
   readonly favoritesApi?: FavoritesApi;
   readonly stallPacing?: StallPacing;
+  readonly startPacing?: StartPacing;
 }) {
   const episodeId = options.episodeId ?? 'ep_test_0001';
   return renderSurface(
@@ -75,6 +77,7 @@ function renderPlayer(options: {
           <PlayPage
             bridge={options.bridge}
             {...(options.stallPacing === undefined ? {} : { stallPacing: options.stallPacing })}
+            {...(options.startPacing === undefined ? {} : { startPacing: options.startPacing })}
           />
         }
       />
@@ -871,6 +874,65 @@ describe('S7 stall retry remints the route episode (AC-PL-7)', () => {
   it('does not invent 倍速, axe-core, a subscription path, or postgres', () => {
     const source = readFileSync(join(process.cwd(), 'src/routes/PlayPage.tsx'), 'utf8');
     expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|#\/recharge|postgres:/);
+  });
+});
+
+describe('CN-10 start timeout remints the route episode and does not skip', () => {
+  function startClock() {
+    let nowMs = 0;
+    let tick: () => void = () => {};
+    return {
+      pacing: {
+        now: () => nowMs,
+        schedule: (fn: () => void) => {
+          tick = fn;
+          return () => {
+            tick = () => {};
+          };
+        },
+      },
+      advance(ms: number) {
+        nowMs += ms;
+        act(() => {
+          tick();
+        });
+      },
+    };
+  }
+
+  it('keeps the last frame, remints once the user retries, and does not skip', async () => {
+    MockVePlayer.holdPlay = true;
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId, callIndex) =>
+        ok(
+          playbackDescriptor({
+            episodeId,
+            playAuthToken: callIndex === 0 ? 'token-old' : 'token-new',
+          }),
+        ),
+    });
+    const pacing = startClock();
+    renderPlayer({
+      bridge: await readyBridge(),
+      playbackApi,
+      startPacing: pacing.pacing,
+    });
+    const instance = await player();
+    expect(playbackApi.createCalls).toEqual(['ep_test_0001']);
+    pacing.advance(15_000);
+
+    expect(screen.getByTestId('player-start-retry')).toBeDefined();
+    fireEvent.click(screen.getByTestId('player-start-retry'));
+
+    await waitFor(() => {
+      expect(playbackApi.createCalls).toEqual(['ep_test_0001', 'ep_test_0001']);
+    });
+    expect(instance.destroyed).toBe(false);
+    expect(instance.playNextCount).toBe(0);
+    expect(instance.currentEpisodeId).toBe('ep_test_0001');
+    expect(instance.currentPlayAuthToken).toBe('token-new');
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect('playbackRate' in instance.config).toBe(false);
   });
 });
 
