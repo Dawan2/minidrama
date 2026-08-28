@@ -2,9 +2,9 @@
 
 > **Slot:** W16, work slot (`bc-264077b7`). One leftover item, no pull request.
 > **Branch:** `cursor/w16-work-c5-after-like-72c4`, cut from `origin/main` at **`764fa8e`**
-> (double-tap 点赞 on main). Merged forward onto **`7ce8620`** (G1.9 tracker-id and
-> QA-011 a11y *adjudication* landed while this slot ran; the axe-core job was not this
-> slice).
+> (double-tap 点赞 on main). Merged forward onto **`0846582`** (G1.9 tracker-id, QA-011 a11y
+> *adjudication*, and W17's `docs/verify/cycle-5-report.md` landed while this slot ran;
+> the axe-core job was not this slice). The report still lists PLY-012 as open.
 > **Item:** **PLY-012** — 播放令牌过期静默换发与续播. VePlayer `error` re-mints
 > `POST /v1/playback/sessions` once for the route episode and applies the fresh descriptor
 > on the retained instance. A failed mint overlays retry copy on the last frame.
@@ -25,6 +25,7 @@ C4-03, and C4-07, and after in-flight / landed C5 slices:
 | Double-tap 点赞 (`PUT favorite`) | **On `main`** at `764fa8e` (`bc-8416a6dd`). Not retaken |
 | G1.9 Conventional Commits | **RUNNING** at pick (`bc-89fef1d3`, `bc-72e30448`). Left. **Landed** `a8e1c63` while this slot ran |
 | QA-011 a11y adjudication | **Landed** `7ce8620` while this slot ran. Docs + a scan, not an axe-core job. Not retaken |
+| W17 cycle-5 report | **Landed** `0846582` / `db56472` while this slot ran. Snapshot still lists PLY-012 open. Not rewritten |
 | C5-01 / D-20 G1.10 | **On `main`**. G1.7 dated as G2.5 |
 | C5-02 / D-18 wallet transactions | **On `main`** |
 | C4-03 T14/T16/T15 | Do not fake. Skipped |
@@ -106,6 +107,7 @@ expected [ 'ep_test_0001', 'ep_test_0001', 'ep_test_0001' ] to have a length of 
 | `bc-8416a6dd` leftover C5 / double-tap | **Idle. Landed** `764fa8e`. Gesture files kept; this slot adds `error` / `reissue` next to them |
 | `bc-89fef1d3` / `bc-72e30448` G1.9 | **Idle. Landed** `a8e1c63`. `ci.yml` / `commits.ts` not edited here. This slot's unique commit is `feat(ply-012):` so the new gate stays green |
 | QA-011 a11y adjudication (`7ce8620`) | **Idle. Landed.** `docs/14-test-plan.md` / quality scan. Player files not edited there. The axe-core *job* is still QA-010 |
+| W17 cycle-5 report (`0846582`) | **Idle. Landed.** `docs/verify/cycle-5-report.md` still says PLY-012 is open. Not rewritten here |
 | Playback UX siblings | **Idle. Landed.** Swipe / autoplay / cross-end / drama-detail Continue kept |
 
 `git diff origin/main -- .github/ packages/quality/` is empty of this slot's work.
@@ -115,6 +117,7 @@ expected [ 'ep_test_0001', 'ep_test_0001', 'ep_test_0001' ] to have a length of 
 ## 5. Verify
 
 `pnpm verify` exited 0 on this branch after absorbing `origin/main` (`7ce8620`).
+Re-run after absorbing **`0846582`** (W17 report only; player files unchanged).
 L1 sequence is now format → lint → typecheck → **check:commits** → check:skips →
 test:coverage → check:coverage → build → guardrails.
 
@@ -128,7 +131,7 @@ test:coverage → check:coverage → build → guardrails.
 | **Total** | **3,444** |
 
 ```
-commits passed (2 new commits vs origin/main, 0 prose, 0 missing-id)
+commits passed vs origin/main (`feat(ply-012)` + handoff docs; 0 prose, 0 missing-id)
 skip-check passed (229 test files, 0 skips, 0 empty)
 coverage global lines 94.18% (16857/17899), branches 90.99%, core lines 95.70%, diff lines 86.89% (159/183)
 coverage gate passed
