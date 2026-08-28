@@ -145,6 +145,8 @@
   "player.lastEpisode": "كانت تلك الحلقة الأخيرة.",
   "player.liked": "تمت الإضافة إلى المفضلة",
   "player.stalled": "التشغيل يستغرق وقتًا أطول من المعتاد.",
+  "player.starting": "جارٍ التحميل…",
+  "player.startTimeout": "لم تبدأ هذه الحلقة. حاول مرة أخرى.",
   "player.locked": "مقفلة",
   "picker.title": "الحلقات",
   "picker.open": "الحلقات",

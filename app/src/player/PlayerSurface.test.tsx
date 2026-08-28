@@ -644,3 +644,133 @@ describe('S7 stall chrome (AC-PL-7)', () => {
     expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|postgres:/);
   });
 });
+
+function startClock() {
+  let nowMs = 0;
+  let tick: () => void = () => {};
+  return {
+    pacing: {
+      now: () => nowMs,
+      schedule: (fn: () => void) => {
+        tick = fn;
+        return () => {
+          tick = () => {};
+        };
+      },
+    },
+    advance(ms: number) {
+      nowMs += ms;
+      act(() => {
+        tick();
+      });
+    },
+  };
+}
+
+describe('CN-10 start / switch first-frame timeout', () => {
+  it('keeps the last frame and shows the indicator after 300 ms without PLAY', async () => {
+    MockVePlayer.holdPlay = true;
+    const pacing = startClock();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface bridge={bridge} episodeId="ep_1" playlist={playlist} start={pacing.pacing} />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    expect(screen.queryByTestId('player-start')).toBeNull();
+    pacing.advance(300);
+    expect(screen.getByTestId('player-start').getAttribute('data-phase')).toBe('indicator');
+    expect(screen.getByTestId('player-start-indicator')).toBeDefined();
+    expect(screen.queryByTestId('player-start-retry')).toBeNull();
+    expect(MockVePlayer.instances[0]?.destroyed).toBe(false);
+    expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect(forbiddenElements()).toEqual([]);
+  });
+
+  it('offers retry at 15 s without skipping or changing definition', async () => {
+    MockVePlayer.holdPlay = true;
+    const onStartTimeout = vi.fn();
+    const pacing = startClock();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onStartTimeout={onStartTimeout}
+        playlist={playlist}
+        start={pacing.pacing}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    pacing.advance(15_000);
+
+    expect(screen.getByTestId('player-start').getAttribute('data-phase')).toBe('timeout');
+    fireEvent.click(screen.getByTestId('player-start-retry'));
+    expect(onStartTimeout).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('player-start')).toBeNull();
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances[0]?.destroyed).toBe(false);
+    expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+    expect(MockVePlayer.instances[0]?.currentEpisodeId).toBe('ep_1');
+    expect(screen.getByTestId('player-container')).toBeDefined();
+  });
+
+  it('clears the overlay when PLAY arrives and does not time out a started episode', async () => {
+    MockVePlayer.holdPlay = true;
+    const pacing = startClock();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface bridge={bridge} episodeId="ep_1" playlist={playlist} start={pacing.pacing} />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const instance = MockVePlayer.instances[0]!;
+    pacing.advance(300);
+    expect(screen.getByTestId('player-start')).toBeDefined();
+    act(() => {
+      instance.play();
+    });
+    expect(screen.queryByTestId('player-start')).toBeNull();
+    pacing.advance(15_000);
+    expect(screen.queryByTestId('player-start')).toBeNull();
+    expect(instance.destroyed).toBe(false);
+    expect(instance.playNextCount).toBe(0);
+  });
+
+  it('re-arms on an entitled switch and does not skip when that PLAY never arrives', async () => {
+    const pacing = startClock();
+    const bridge = await readyBridge();
+    const { rerender } = render(
+      <PlayerSurface bridge={bridge} episodeId="ep_1" playlist={playlist} start={pacing.pacing} />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const instance = MockVePlayer.instances[0]!;
+    expect(screen.queryByTestId('player-start')).toBeNull();
+
+    MockVePlayer.holdPlay = true;
+    rerender(
+      <PlayerSurface bridge={bridge} episodeId="ep_2" playlist={playlist} start={pacing.pacing} />,
+    );
+    await waitFor(() => {
+      expect(instance.playNextCount).toBe(1);
+    });
+    pacing.advance(15_000);
+    expect(screen.getByTestId('player-start').getAttribute('data-phase')).toBe('timeout');
+    expect(instance.playNextCount).toBe(1);
+    expect(instance.currentEpisodeId).toBe('ep_2');
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(instance.destroyed).toBe(false);
+  });
+});
+
