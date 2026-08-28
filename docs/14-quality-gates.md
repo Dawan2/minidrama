@@ -80,6 +80,8 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 
 **2026-08-28 (W18 INF-004 / S-C1).** CI self-audit is `pnpm check:audit`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. It scans committed GitHub workflow files. `continue-on-error: true`, `if: false`, `allow_failure: true`, and a `|| true` swallowed exit are red. A comment that names those keys is not this gate. A scan that saw no workflow files is red. S-C3 echo-only steps, S-C4 required-checks vs branch protection, and a job-count ratchet are further slices. `workflow_dispatch:` as an event is not a bypass.
 
+**2026-08-28 (W18 INF-004 / S-C3).** The same `pnpm check:audit` job now fails on an echo-only / `true` / `exit 0` `run` step. A `run` that echoes and then invokes a real command is not this gate. A comment that names `echo` is not this gate. S-C4 required-checks vs GitHub branch protection stay a further slice.
+
 **2026-08-27 (W16 QA-011 / C-12 / X-12 / X-04 / X-05).** a11y is a release blocker: `docs/14-test-plan.md` §6.4 now matches `docs/plan/definition-of-done.md` §6 rather than "P2, 不阻断首个上架版本". The L3 host matrix is TikTok WebView (`§6.2`). Native APK/iOS size and crash/ANR are N/A; §5.4 and G3.8 use the Minis ZIP / first-screen JS / JS-error budgets from `docs/03-nonfunctional.md` §2. `QA-010` (axe-core in CI) is not this writeback.
 
 ---

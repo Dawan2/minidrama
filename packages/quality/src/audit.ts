@@ -2,16 +2,18 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 
 /**
- * INF-004 (`docs/plan/definition-of-done.md` §7.1 S-C1 / S-C2): CI self-audit of
- * committed GitHub workflow files. A `continue-on-error: true` key, an `if: false`
- * job/step, `allow_failure: true`, or a `|| true` swallowed exit in a `run` line
- * fails. A comment that forbids those is not this gate. A tree with no workflow
- * files fails — the same fail-open G1.10 uses when it saw no tests.
+ * INF-004 (`docs/plan/definition-of-done.md` §7.1 S-C1 / S-C2 / S-C3): CI
+ * self-audit of committed GitHub workflow files. A `continue-on-error: true`
+ * key, an `if: false` job/step, `allow_failure: true`, a `|| true` swallowed
+ * exit, or an echo-only / `true` / `exit 0` `run` step fails. A comment that
+ * forbids those is not this gate. A tree with no workflow files fails — the
+ * same fail-open G1.10 uses when it saw no tests.
  *
- * Smallest slice: S-C1 plus the named `if: false` reverse path from INF-004.
- * S-C3 echo-only steps, S-C4 required-checks vs branch protection, and a job-count
- * ratchet against a previous release are further slices. `workflow_dispatch:` as an
- * event is not a bypass (C4-01); do not fail on it.
+ * S-C1 plus `if: false` landed first. This slice is S-C3: a step whose `run`
+ * is only `echo`, `true`, `:`, or `exit 0` is a placeholder. A `run` that
+ * echoes and then invokes a real command is not. S-C4 required-checks vs
+ * branch protection, and a job-count ratchet, stay further slices.
+ * `workflow_dispatch:` as an event is not a bypass (C4-01); do not fail on it.
  *
  * Folded into `pnpm verify`: there is no extra binary. L1 CI also runs it as a
  * named step so a missing check cannot hide behind the verify script.
@@ -32,6 +34,9 @@ export const ALLOW_FAILURE_KEY = marker(['allow', '_', 'failure']);
 export const SOFT_FAIL_KEY = marker(['soft', '_', 'fail']);
 export const IF_KEY = 'if';
 export const OR_TRUE = marker(['|', '|', ' true']);
+export const ECHO_CMD = marker(['ec', 'ho']);
+export const EXIT_ZERO = marker(['exit', ' 0']);
+export const RUN_KEY = 'run';
 
 export interface AuditCheckArgs {
   readonly root: string;
@@ -50,7 +55,7 @@ export interface AuditCheckOutput {
 }
 
 export type AuditHitKind =
-  'continue-on-error' | 'allow-failure' | 'soft-fail' | 'if-false' | 'or-true';
+  'continue-on-error' | 'allow-failure' | 'soft-fail' | 'if-false' | 'or-true' | 'echo-only';
 
 export interface AuditHit {
   readonly file: string;
@@ -176,6 +181,75 @@ function isFalseYaml(value: string): boolean {
   return /^false$/i.test(value);
 }
 
+const BLOCK_SCALAR = /^\|[-+]?$|^>[-+]?$/;
+
+export function isBlockScalar(value: string): boolean {
+  return BLOCK_SCALAR.test(value.trim());
+}
+
+export function parseRunLine(
+  code: string,
+): { readonly indent: number; readonly value: string } | null {
+  const match = /^(\s*)(?:-\s+)?run\s*:\s*(.*?)\s*$/.exec(code);
+  if (match === null) return null;
+  return { indent: match[1]?.length ?? 0, value: match[2] ?? '' };
+}
+
+function unquoteScalar(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2)
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+export function splitRunStatements(script: string): string[] {
+  const out: string[] = [];
+  for (const line of script.split('\n')) {
+    const code = codePortion(line).trim();
+    if (code === '') continue;
+    for (const part of code.split(/&&|;/)) {
+      const statement = part.trim();
+      if (statement !== '') out.push(statement);
+    }
+  }
+  return out;
+}
+
+export function isPlaceholderStatement(statement: string): boolean {
+  const unquoted = unquoteScalar(statement);
+  if (unquoted === ':' || unquoted === 'true' || unquoted === EXIT_ZERO) return true;
+  return unquoted === ECHO_CMD || unquoted.startsWith(`${ECHO_CMD} `);
+}
+
+export function isPlaceholderScript(script: string): boolean {
+  const statements = splitRunStatements(script);
+  if (statements.length === 0) return true;
+  return statements.every(isPlaceholderStatement);
+}
+
+function collectBlockScript(
+  lines: readonly string[],
+  startIndex: number,
+  parentIndent: number,
+): string {
+  const body: string[] = [];
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const raw = lines[index] ?? '';
+    if (raw.trim() === '') {
+      body.push('');
+      continue;
+    }
+    const indent = raw.length - raw.trimStart().length;
+    if (indent <= parentIndent) break;
+    body.push(raw.trimStart());
+  }
+  return body.join('\n');
+}
+
 const KEY_LINE = /^(\s*)([A-Za-z0-9_-]+)\s*:\s*(?:['"]([^'"]*)['"]|(\S+))?\s*$/;
 
 export function scanWorkflowText(text: string, file: string): AuditHit[] {
@@ -218,6 +292,21 @@ export function scanWorkflowText(text: string, file: string): AuditHit[] {
         kind: 'or-true',
         excerpt: excerptAt(text, offset + orMatch.index),
       });
+    }
+
+    const run = parseRunLine(code);
+    if (run !== null) {
+      const script = isBlockScalar(run.value)
+        ? collectBlockScript(lines, lineIndex + 1, run.indent)
+        : unquoteScalar(run.value);
+      if (isPlaceholderScript(script)) {
+        hits.push({
+          file,
+          line: lineIndex + 1,
+          kind: 'echo-only',
+          excerpt: excerptAt(text, offset + (raw.length - raw.trimStart().length)),
+        });
+      }
     }
 
     offset += raw.length + 1;
@@ -267,14 +356,14 @@ export function runAuditCheck(args: AuditCheckArgs): AuditCheckOutput {
   if (hits.length > 0) {
     const listed = hits.map((hit) => `  ${formatHit(hit)}`).join('\n');
     return fail(
-      `audit failed (${String(hits.length)}): continue-on-error / if: false / swallowed exits are INF-004 red\n${listed}`,
+      `audit failed (${String(hits.length)}): continue-on-error / if: false / swallowed exits / echo-only steps are INF-004 red\n${listed}`,
     );
   }
 
   return {
     ok: true,
     exitCode: 0,
-    stdout: `audit passed (${String(files.length)} workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits)\n`,
+    stdout: `audit passed (${String(files.length)} workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits, 0 echo-only)\n`,
     stderr: '',
   };
 }
