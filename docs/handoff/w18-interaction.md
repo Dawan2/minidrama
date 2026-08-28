@@ -104,17 +104,23 @@ expected [ 'ep_test_0001' ] to deeply equal [ 'ep_test_0001', 'ep_test_0001' ]
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`3e8bdb2`: QA-010
-axe-core L1 and the cycle-6 plan). L1 sequence is now format → lint → typecheck →
+`pnpm verify` exited 0 after absorbing `origin/main` (`3e8bdb2`: QA-010 axe-core L1
+and the cycle-6 plan). L1 sequence is now format → lint → typecheck →
 check:commits → check:skips → **check:a11y** → test:coverage → check:coverage → build →
 guardrails.
+
+- skip-check: 232 files, 0 skips
+- a11y: 1 screen, 0 critical, 0 serious
+- app tests: 1213 passed
+- coverage: diff lines 98.33% (177/180)
+- build: `index-o9suSD8K.js` 362.88 kB
 
 ---
 
 ## 6. What is still open
 
 - **倍速 / scrub / tap pause.** Plugin-owned or VePlayer-owned. Do not add competing controls.
-- **QA-010** a11y gate. In flight. Do not add axe-core as a leftover.
+- **QA-010** a11y gate. Landed `3e8bdb2`. Do not retake axe-core.
 - **PLY-011 remainder** (S6 cover+lock chrome; 充值 option on PNL-02). Not this slice.
 - **`POST /v1/playback/sessions/{id}/failures`.** Report path. No invented endpoint.
 - **D-17.** Billing. Local verify is not CI.
