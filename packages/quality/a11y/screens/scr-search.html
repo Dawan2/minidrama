@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Search</title>
+    <style>
+      html,
+      body {
+        background: #0b0b0f;
+        color: #f4f4f7;
+      }
+      a {
+        color: #f4f4f7;
+      }
+    </style>
+  </head>
+  <body>
+    <main data-testid="search-page" data-query-state="EMPTY">
+      <a href="#/home">Back</a>
+      <h1>Search</h1>
+      <form class="search-form" role="search">
+        <input
+          class="search-form__input"
+          data-testid="search-input"
+          type="search"
+          name="q"
+          maxlength="64"
+          placeholder="Title or tag"
+          aria-label="Search dramas by title or tag"
+        />
+        <button class="search-form__submit" type="submit" data-testid="search-submit">
+          Search
+        </button>
+      </form>
+      <p class="search-prompt" data-testid="search-idle">
+        Type a title or a tag to find a drama.
+      </p>
+    </main>
+  </body>
+</html>
