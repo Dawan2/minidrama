@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Me</title>
+    <style>
+      html,
+      body {
+        background: #0b0b0f;
+        color: #f4f4f7;
+      }
+      a {
+        color: #f4f4f7;
+      }
+    </style>
+  </head>
+  <body>
+    <main data-testid="profile-page">
+      <h1>Me</h1>
+      <section data-testid="profile-identity" data-me="guest">
+        <p data-testid="profile-identity-name">Guest</p>
+        <p>You are browsing as a guest.</p>
+      </section>
+      <div data-testid="profile-sign-in">
+        <p>Sign in to save your progress across devices.</p>
+        <button type="button" data-testid="sign-in">Sign in</button>
+      </div>
+      <nav data-testid="profile-entries">
+        <a href="#/history" data-testid="history-entry">Continue watching</a>
+        <a href="#/favorites" data-testid="favorites-entry">Favourites</a>
+        <a href="#/wallet" data-testid="wallet-entry">Wallet</a>
+        <a href="#/settings" data-testid="settings-entry">Settings</a>
+      </nav>
+    </main>
+  </body>
+</html>

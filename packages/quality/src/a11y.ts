@@ -7,9 +7,9 @@ import { basename, join, relative } from 'node:path';
  * implemented-screen HTML, plus a WCAG contrast check on declared CSS colors.
  *
  * Smallest job scanned SCR-13 only. Later remainders added SCR-02 (home),
- * SCR-03 (browse / theatre), SCR-04 (drama detail), and SCR-05 (player).
- * This remainder adds SCR-07 (history / continue watching), the second
- * unblocked C7 screen after skipping play at pick time. Deleting any
+ * SCR-03 (browse / theatre), SCR-04 (drama detail), SCR-05 (player), and
+ * SCR-06 (profile / `#/me`). This remainder adds SCR-07 (history /
+ * continue watching), the second unblocked C7 screen. Deleting any
  * required stem is red. Remaining SCR/PNL fixtures are later remainders.
  *
  * This module invokes axe-core. A TypeScript comment that names WCAG is not
@@ -35,6 +35,7 @@ export const REQUIRED_SCREEN_STEMS = [
   'scr-03-browse',
   'scr-04-drama',
   'scr-05-play',
+  'scr-06-profile',
   'scr-07-history',
   'scr-13-fallback',
 ] as const;
