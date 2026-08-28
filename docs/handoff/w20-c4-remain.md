@@ -148,3 +148,18 @@ this slice plus the absorbed QA-010 remainder).
 
 This slice does **not** claim protocol-C4 exit 1 closed. It is the named CN-10
 start / switch timeout remainder.
+
+---
+
+## 7. Post-merge
+
+Absorbed `origin/main` **`c46bbf5`** (W20 QA-010 SCR-03 browse remainder) after
+the first verify. `pnpm verify` exited 0 again:
+
+- skips: 237 files, 0 skips
+- a11y: **3 screens** (SCR-13 + SCR-02 + SCR-03)
+- tests: **3,574 passing** — shared 63, quality 431, config 45, server 1,785, app 1,250
+- coverage: global lines 94.36% (17866/18934), diff lines 92.95% (145/156)
+- build: `index-B2g09p35.js` 366.74 kB / 112.08 kB gzip
+
+Player files were not retaken. Protocol-C4 exit 1 is still not 全过.
