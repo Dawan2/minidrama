@@ -107,6 +107,20 @@ const PASSING_DRAMA_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+const PASSING_PLAY_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>Player</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="play-page">
+    <h1>Player</h1>
+    <a href="#/home">Back</a>
+  </main>
+</body>
+</html>
+`;
+
 function writeRequiredStems(
   root: string,
   bodies: {
@@ -114,6 +128,7 @@ function writeRequiredStems(
     readonly home?: string;
     readonly browse?: string;
     readonly drama?: string;
+    readonly play?: string;
   } = {},
 ): void {
   mkdirSync(join(root, 'screens'), { recursive: true });
@@ -121,6 +136,7 @@ function writeRequiredStems(
   writeFileSync(join(root, 'screens', 'scr-02-home.html'), bodies.home ?? PASSING_HOME_HTML);
   writeFileSync(join(root, 'screens', 'scr-03-browse.html'), bodies.browse ?? PASSING_BROWSE_HTML);
   writeFileSync(join(root, 'screens', 'scr-04-drama.html'), bodies.drama ?? PASSING_DRAMA_HTML);
+  writeFileSync(join(root, 'screens', 'scr-05-play.html'), bodies.play ?? PASSING_PLAY_HTML);
 }
 
 describe('check-a11y CLI', () => {
@@ -183,7 +199,7 @@ describe('check-a11y CLI', () => {
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('a11y passed');
-    expect(result.stdout).toContain('4 screens');
+    expect(result.stdout).toContain('5 screens');
     expect(result.stdout).toContain('not TikTok WebView');
     expect(result.stdout).not.toMatch(/in TikTok WebView/);
   });
@@ -193,6 +209,7 @@ describe('check-a11y CLI', () => {
     mkdirSync(join(root, 'screens'));
     writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
     writeFileSync(join(root, 'screens', 'scr-04-drama.html'), PASSING_DRAMA_HTML);
+    writeFileSync(join(root, 'screens', 'scr-05-play.html'), PASSING_PLAY_HTML);
     writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(1);
@@ -205,6 +222,7 @@ describe('check-a11y CLI', () => {
     mkdirSync(join(root, 'screens'));
     writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
     writeFileSync(join(root, 'screens', 'scr-04-drama.html'), PASSING_DRAMA_HTML);
+    writeFileSync(join(root, 'screens', 'scr-05-play.html'), PASSING_PLAY_HTML);
     writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(1);
@@ -217,10 +235,24 @@ describe('check-a11y CLI', () => {
     mkdirSync(join(root, 'screens'));
     writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
     writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-05-play.html'), PASSING_PLAY_HTML);
     writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('scr-04-drama');
+    expect(result.stdout).not.toContain('a11y passed');
+  });
+
+  it('exits non-zero when the required SCR-05 fixture is missing', () => {
+    const root = tempDir('cli-a11y-noplay-');
+    mkdirSync(join(root, 'screens'));
+    writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
+    writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-04-drama.html'), PASSING_DRAMA_HTML);
+    writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
+    const result = run(['--root', root, '--source', join(root, 'screens')]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('scr-05-play');
     expect(result.stdout).not.toContain('a11y passed');
   });
 });

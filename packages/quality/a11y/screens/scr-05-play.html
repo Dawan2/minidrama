@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Player</title>
+    <style>
+      html,
+      body {
+        background: #0b0b0f;
+        color: #f4f4f7;
+      }
+      a {
+        color: #f4f4f7;
+      }
+    </style>
+  </head>
+  <body>
+    <main data-testid="play-page" data-episode-id="ep_test_0001" data-state="playing">
+      <a href="#/home">Back</a>
+      <h1>Player</h1>
+      <section data-testid="player-surface" data-state="playing" data-episode-id="ep_test_0001">
+        <div data-testid="player-container"></div>
+      </section>
+      <p data-testid="player-episode-label">Episode 1</p>
+      <button type="button" data-testid="player-next">Next episode</button>
+      <button type="button" data-testid="episode-picker-open">Episodes</button>
+    </main>
+  </body>
+</html>
