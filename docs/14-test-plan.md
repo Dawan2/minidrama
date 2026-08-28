@@ -208,6 +208,8 @@
 
 **2026-08-28 (W20 QA-010 remainder, SCR-07).** 扫描现在同时要求 SCR-07(追剧·历史 / `#/history`)与 SCR-02、SCR-03、SCR-04、SCR-05、SCR-06、SCR-13。删掉任一 stem 为红。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
 
+**2026-08-28 (W20 QA-010 remainder, SCR-08).** 扫描现在同时要求 SCR-08(我的收藏 / `#/favorites`)与 SCR-02、SCR-03、SCR-04、SCR-05、SCR-06、SCR-13。删掉任一 stem 为红。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
+
 WCAG 2.2 Level AA 中适用于 TikTok WebView 内竖屏 H5 的子集。明确 N/A:物理键盘导航与焦点顺序降级为"不得存在焦点陷阱";页面级 landmark 按移动端简化。阻断项与 DoD §6.2 S-A1…S-A10 一致:
 
 - 自动化扫描(axe-core 或等价)在 `docs/02-screen-inventory.md` 已实现屏上 critical + serious = 0,扫描进 CI 且失败即失败。接线是 `QA-010`(W19)。**本节不把 axe-core job 当作本裁决的落地** — 那是第三协议出场,不作为 C5 leftover 添加;
