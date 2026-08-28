@@ -140,6 +140,7 @@
   "player.notFound": "We could not find this episode.",
   "player.offline": "This episode is no longer available.",
   "player.rejected": "We could not start playback.",
+  "player.blocked": "This episode is unavailable right now.",
   "player.nextEpisode": "Next episode",
   "player.lastEpisode": "That was the last episode.",
   "player.liked": "Added to favourites",
