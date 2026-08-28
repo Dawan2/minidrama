@@ -4,6 +4,7 @@ import type {
   VePlayerInstance,
   VePlayerPlaylistItem,
 } from './veplayer-types';
+import { ignoresPlaybackratePlugin } from './veplayer-plugins';
 
 /**
  * A stand-in for the platform player, used by `MockBridge` in browser development and tests.
@@ -36,6 +37,11 @@ export class MockVePlayer implements VePlayerInstance {
 
     this.#surface = config.el.ownerDocument.createElement('div');
     this.#surface.dataset['mockVeplayer'] = 'true';
+    // 倍速 is a kept VePlayer plugin, not a control we draw. The mock records that the
+    // constructor left it on; it never creates <video> or a rate <select>.
+    this.#surface.dataset['veplayerPlaybackrate'] = ignoresPlaybackratePlugin(config.ignores)
+      ? 'ignored'
+      : 'kept';
     this.#render(config.albumId, config.episodeId, config.vid);
     config.el.appendChild(this.#surface);
 

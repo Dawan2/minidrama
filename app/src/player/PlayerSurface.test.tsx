@@ -548,4 +548,27 @@ describe('S7 stall chrome (AC-PL-7)', () => {
     const source = readFileSync(join(process.cwd(), 'src/player/PlayerSurface.tsx'), 'utf8');
     expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|postgres:/);
   });
+
+  it('keeps the playbackrate plugin and does not render a competing 倍速 panel', async () => {
+    const bridge = await readyBridge();
+    render(<PlayerSurface bridge={bridge} episodeId="ep_1" playlist={playlist} />);
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const instance = MockVePlayer.instances[0]!;
+    expect(instance.config.ignores).not.toContain('playbackrate');
+    expect(instance.config.ignores.join(',')).not.toMatch(/playbackrate/i);
+    expect('playbackRate' in instance.config).toBe(false);
+    expect(
+      screen.getByTestId('player-container').querySelector('[data-veplayer-playbackrate="kept"]'),
+    ).not.toBeNull();
+    expect(screen.queryByTestId('playback-rate')).toBeNull();
+    expect(screen.queryByTestId('pnl-05')).toBeNull();
+    expect(
+      screen.getByTestId('player-container').querySelector('input, video, select, [role="slider"]'),
+    ).toBeNull();
+    expect(forbiddenElements()).toEqual([]);
+    expect(instance.config.vid).not.toMatch(/vid_demo_/);
+  });
 });

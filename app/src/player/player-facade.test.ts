@@ -66,6 +66,30 @@ describe('createPlayerFacade', () => {
     expect(MockVePlayer.instances[0]?.config.lang).toBe('en');
   });
 
+  it('keeps the playbackrate plugin and does not invent a client rate ladder', async () => {
+    const bridge = await readyBridge();
+    await createPlayerFacade(bridge, { container, descriptor });
+
+    const config = MockVePlayer.instances[0]?.config;
+    expect(config?.ignores).toEqual([
+      'moreButtonPlugin',
+      'enter',
+      'fullscreen',
+      'volume',
+      'play',
+      'pip',
+      'replay',
+      'sdkDefinitionPlugin',
+    ]);
+    expect(config?.ignores).not.toContain('playbackrate');
+    expect(config?.ignores.join(',')).not.toMatch(/playbackrate/i);
+    expect(config?.closeVideoClick).toBe(false);
+    expect(config?.closeVideoDblclick).toBe(true);
+    expect('playbackRate' in (config ?? {})).toBe(false);
+    expect(container.querySelector('input, video, select, [role="slider"]')).toBeNull();
+    expect(container.querySelector('[data-veplayer-playbackrate="kept"]')).not.toBeNull();
+  });
+
   it('starts at 0 when the session resume is 0, not at a guessed duration', async () => {
     const bridge = await readyBridge();
     await createPlayerFacade(bridge, {
