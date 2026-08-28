@@ -3,10 +3,13 @@
 > **Slot:** W20, work slot (`bc-a6639f6d`). One leftover item, no pull request.
 > **Branch:** `cursor/w20-work-a11y-profile-72c4`, cut from `origin/main` at **`b34ef5b`**
 > (QA-010 remainder already requires SCR-05 play next to drama).
+> **Not merged.** C7-first (`bc-22d4f29b` / `cursor/w20-work-c7-first-72c4`)
+> landed the same remainder on `main` at **`a49ebd7`** while this slot verified.
+> This branch is a twin and is left. Host stays jsdom, not TikTok WebView.
 > **Item:** **QA-010 remainder** — S-A1 on the next listing-critical implemented
 > screen. After SCR-13, SCR-02, SCR-03, SCR-04, and SCR-05, the inventory ranks
 > **SCR-06** (`#/me`, profile / 我的) next. Deleting any of the six required
-> stems is red. Host stays jsdom, not TikTok WebView.
+> stems is red.
 > **Not in scope:** D-17 billing, C4-03 Postgres, C4-07 VIP, C7-first
 > (`bc-22d4f29b`), C7-second (`bc-1ed8782f`), remaining SCR/PNL fixtures
 > (history, …), S-C4, protocol-C4 exit 3. No pull request.
@@ -87,7 +90,7 @@ comment that names WCAG is not this gate.
 
 | Who | Overlap |
 | --- | --- |
-| `bc-22d4f29b` C7-first | **Left.** Files not guessed |
+| `bc-22d4f29b` C7-first | **Idle. Landed** `a49ebd7` / `docs/handoff/w20-c7-first.md` (SCR-06) while this slot verified. **Twin. Not merged.** Unique commit `3fd393d`. Do not retake `scr-06-profile.html` |
 | `bc-1ed8782f` C7-second | **Left.** Files not guessed |
 | `bc-f6e4b6a7` play a11y | **Idle. Landed** `b34ef5b` / `docs/handoff/w20-a11y-play.md` (SCR-05). Play fixture not edited here beyond requiring it |
 
@@ -139,6 +142,7 @@ that is incomplete, not a skip.
 - **C5-03 / D-19.** P3 writeback of `wave-protocol.md` §6.2.
 - **`docs/plan/cycle-6-backlog.md` / `cycle-7-backlog.md`.** Plan-slot files.
 
-This slice does **not** claim protocol-C4 exit 3 closed. It is the named
-QA-010 remainder that requires SCR-06 profile next to SCR-02, SCR-03, SCR-04,
-SCR-05, and SCR-13.
+This slice does **not** claim protocol-C4 exit 3 closed. The named
+QA-010 remainder that requires SCR-06 profile is already on `main` at
+`a49ebd7` via C7-first. This branch is the twin that lost the race and is
+not merged.
