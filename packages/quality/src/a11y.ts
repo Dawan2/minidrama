@@ -8,11 +8,12 @@ import { basename, join, relative } from 'node:path';
  *
  * Smallest job scanned SCR-13 only. Later remainders added SCR-02 (home),
  * SCR-03 (browse / theatre), SCR-04 (drama detail), SCR-05 (player),
- * SCR-06 (profile), SCR-07 (history / continue watching), and SCR-08
- * (favourites). This remainder adds search (`#/search`, SCR-03's search
- * half — a named hash screen with no SCR number of its own) next after
- * favourites/history. Deleting any required stem is red. Remaining
- * SCR/PNL fixtures (wallet, settings, panels) are later remainders.
+ * SCR-06 (profile), SCR-07 (history / continue watching), SCR-08
+ * (favourites), and search (`#/search`). This remainder adds SCR-09
+ * (wallet / `#/wallet`), the next unblocked implemented numbered hash
+ * screen after favorites. History and search landed on `main` while this
+ * slot wrote and are absorbed, not retaken. Deleting any required stem is
+ * red. Remaining SCR/PNL fixtures are later remainders.
  *
  * This module invokes axe-core. A TypeScript comment that names WCAG is not
  * QA-010. jsdom is the host: color-contrast stays incomplete without canvas, so
@@ -40,6 +41,7 @@ export const REQUIRED_SCREEN_STEMS = [
   'scr-06-profile',
   'scr-07-history',
   'scr-08-favorites',
+  'scr-09-wallet',
   'scr-search',
   'scr-13-fallback',
 ] as const;
