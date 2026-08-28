@@ -34,6 +34,7 @@ import type { TranslationKey } from '../core/i18n';
 import type { UnlockPacing } from '../unlock/coin-unlock';
 import type { AdPlacement } from '../data/unlock-api';
 import type { StallPacing } from '../player/player-stall';
+import type { StartPacing } from '../player/player-start';
 
 /**
  * SCR-05, the player screen.
@@ -71,6 +72,11 @@ import type { StallPacing } from '../player/player-stall';
  * VePlayer does not document. Indicator at 1.5 s, retry at 8 s, last frame stays. Retry
  * remints the route episode. Definition is never changed (`AC-PL-6`).
  *
+ * Start / switch first-frame wait (`CN-10`, J12-2 / J12-7): construction or an
+ * entitled switch with no `PLAY` yet shows an indicator at 300 ms and a retry
+ * at 15 s. The last frame stays. The episode is never skipped. Retry remints
+ * the route episode. Definition is never changed.
+ *
  * S6 locked (`PLY-011` remainder): cover + lock mark under PNL-02. The empty
  * `player-locked` stub is not that chrome. VePlayer stays unmounted. Recharge stays
  * off. 倍速 / scrub stay plugin-owned (X-26).
@@ -98,9 +104,16 @@ export interface PlayPageProps {
   readonly unlockPacing?: UnlockPacing;
   /** Passed through to the stall watchdog. Present so a test can drive S7 without a wall clock. */
   readonly stallPacing?: StallPacing;
+  /** Passed through to the start/switch watchdog. Present so a test can drive CN-10 without a wall clock. */
+  readonly startPacing?: StartPacing;
 }
 
-export function PlayPage({ bridge, unlockPacing, stallPacing }: PlayPageProps): React.JSX.Element {
+export function PlayPage({
+  bridge,
+  unlockPacing,
+  stallPacing,
+  startPacing,
+}: PlayPageProps): React.JSX.Element {
   const { episodeId = '' } = useParams();
   const navigate = useNavigate();
   const playbackApi = usePlaybackApi();
@@ -317,6 +330,11 @@ export function PlayPage({ bridge, unlockPacing, stallPacing }: PlayPageProps): 
           setFatalOverlay(null);
           void requestReissue();
         }}
+        onStartTimeout={() => {
+          fatalAttemptsRef.current = 0;
+          setFatalOverlay(null);
+          void requestReissue();
+        }}
         onRetry={() => {
           session.reload();
           catalog.reload();
@@ -330,6 +348,7 @@ export function PlayPage({ bridge, unlockPacing, stallPacing }: PlayPageProps): 
         session={session.resource}
         surfaceRef={surfaceRef}
         {...(stallPacing === undefined ? {} : { stall: stallPacing })}
+        {...(startPacing === undefined ? {} : { start: startPacing })}
         {...(next === undefined || gesturesBlocked
           ? {}
           : {
@@ -530,6 +549,7 @@ function Attempt({
   onEnded,
   onPlayerFatal,
   onStallRetry,
+  onStartTimeout,
   onRetry,
   onSwipeNext,
   onSwipePrevious,
@@ -539,6 +559,7 @@ function Attempt({
   routeEpisodeId,
   session,
   stall,
+  start,
   surfaceRef,
 }: {
   readonly bridge: PlatformBridge;
@@ -549,6 +570,7 @@ function Attempt({
   readonly onEnded: () => void;
   readonly onPlayerFatal?: () => void;
   readonly onStallRetry?: () => void;
+  readonly onStartTimeout?: () => void;
   readonly onRetry: () => void;
   readonly onSwipeNext?: () => void;
   readonly onSwipePrevious?: () => void;
@@ -560,6 +582,7 @@ function Attempt({
   readonly routeEpisodeId: string;
   readonly session: Resource<PlaybackDescriptor>;
   readonly stall?: StallPacing;
+  readonly start?: StartPacing;
   readonly surfaceRef: React.Ref<PlayerSurfaceHandle>;
 }): React.JSX.Element {
   if (locked) {
@@ -593,7 +616,9 @@ function Attempt({
         progress={progress}
         {...(onPlayerFatal === undefined ? {} : { onPlayerFatal })}
         {...(onStallRetry === undefined ? {} : { onStallRetry })}
+        {...(onStartTimeout === undefined ? {} : { onStartTimeout })}
         {...(stall === undefined ? {} : { stall })}
+        {...(start === undefined ? {} : { start })}
         {...(onSwipeNext === undefined ? {} : { onSwipeNext })}
         {...(onSwipePrevious === undefined ? {} : { onSwipePrevious })}
         {...(onDoubleTap === undefined ? {} : { onDoubleTap })}
