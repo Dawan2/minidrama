@@ -79,13 +79,32 @@ const PASSING_HOME_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+const PASSING_BROWSE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>Theatre</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="browse-page">
+    <h1>Theatre</h1>
+    <a href="#/home">Home</a>
+  </main>
+</body>
+</html>
+`;
+
 function writeRequiredStems(
   root: string,
-  bodies: { readonly fallback?: string; readonly home?: string } = {},
+  bodies: {
+    readonly fallback?: string;
+    readonly home?: string;
+    readonly browse?: string;
+  } = {},
 ): void {
   mkdirSync(join(root, 'screens'), { recursive: true });
   writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), bodies.fallback ?? PASSING_HTML);
   writeFileSync(join(root, 'screens', 'scr-02-home.html'), bodies.home ?? PASSING_HOME_HTML);
+  writeFileSync(join(root, 'screens', 'scr-03-browse.html'), bodies.browse ?? PASSING_BROWSE_HTML);
 }
 
 describe('check-a11y CLI', () => {
@@ -148,7 +167,7 @@ describe('check-a11y CLI', () => {
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('a11y passed');
-    expect(result.stdout).toContain('2 screens');
+    expect(result.stdout).toContain('3 screens');
     expect(result.stdout).toContain('not TikTok WebView');
     expect(result.stdout).not.toMatch(/in TikTok WebView/);
   });
@@ -156,10 +175,22 @@ describe('check-a11y CLI', () => {
   it('exits non-zero when the required SCR-02 fixture is missing', () => {
     const root = tempDir('cli-a11y-nohome-');
     mkdirSync(join(root, 'screens'));
+    writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
     writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('scr-02-home');
+    expect(result.stdout).not.toContain('a11y passed');
+  });
+
+  it('exits non-zero when the required SCR-03 fixture is missing', () => {
+    const root = tempDir('cli-a11y-nobrowse-');
+    mkdirSync(join(root, 'screens'));
+    writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
+    writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
+    const result = run(['--root', root, '--source', join(root, 'screens')]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('scr-03-browse');
     expect(result.stdout).not.toContain('a11y passed');
   });
 });
