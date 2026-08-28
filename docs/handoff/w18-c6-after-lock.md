@@ -111,14 +111,14 @@ check:coverage → build → guardrails.
 | Format / lint / types | pass |
 | G1.9 commits | pass — merge commits skipped; unique commits carry `QA-010` |
 | G1.10 skips | `236 test files, 0 skips, 0 empty` |
-| INF-004 audit | `audit passed (2 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits)` |
+| INF-004 audit | `audit passed (2 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits, 0 echo-only)` |
 | QA-010 a11y | `a11y passed (2 screens, 0 critical, 0 serious, host=jsdom, not TikTok WebView)` |
-| Tests + coverage | **3,552 passing** — shared 63, quality 423, config 45, server 1,785, app 1,236. Coverage: global lines 94.36% (17649/18704), branches 90.97%, core 95.70%, **diff lines 100.00% (1/1)** |
+| Tests + coverage | **3,557 passing** — shared 63, quality 428, config 45, server 1,785, app 1,236. Coverage: global lines 94.37% (17725/18782), branches 90.88%, core 95.70%, **diff lines 100.00% (1/1)** |
 | Build | pass — `index-C3L6HYpZ.js` 364.54 kB / 111.58 kB gzip (PLY-011's client; this slot did not edit product UI) |
 | Guardrails | `platform guardrails passed (artifact: /workspace/app/dist)` |
 
-Native `<video>` remains absent. Test count did not fall (3,548 on `main` after
-PLY-011 → 3,552 here; the extra tests are this remainder). jsdom still prints
+Native `<video>` remains absent. Test count did not fall (3,553 on `main` after
+S-C3 → 3,557 here; the extra tests are this remainder). jsdom still prints
 `HTMLCanvasElement's getContext()` while axe attempts `color-contrast`; that
 is incomplete, not a skip.
 
