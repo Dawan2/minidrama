@@ -2,8 +2,9 @@
 
 > **Slot:** W16, work slot (`bc-264077b7`). One leftover item, no pull request.
 > **Branch:** `cursor/w16-work-c5-after-like-72c4`, cut from `origin/main` at **`764fa8e`**
-> (double-tap 点赞 on main). Merged forward onto **`a8e1c63`** (G1.9 tracker-id half
-> landed while this slot ran).
+> (double-tap 点赞 on main). Merged forward onto **`7ce8620`** (G1.9 tracker-id and
+> QA-011 a11y *adjudication* landed while this slot ran; the axe-core job was not this
+> slice).
 > **Item:** **PLY-012** — 播放令牌过期静默换发与续播. VePlayer `error` re-mints
 > `POST /v1/playback/sessions` once for the route episode and applies the fresh descriptor
 > on the retained instance. A failed mint overlays retry copy on the last frame.
@@ -23,6 +24,7 @@ C4-03, and C4-07, and after in-flight / landed C5 slices:
 | D-17 GitHub Actions billing | Rank 1. **Not a branch.** Skipped |
 | Double-tap 点赞 (`PUT favorite`) | **On `main`** at `764fa8e` (`bc-8416a6dd`). Not retaken |
 | G1.9 Conventional Commits | **RUNNING** at pick (`bc-89fef1d3`, `bc-72e30448`). Left. **Landed** `a8e1c63` while this slot ran |
+| QA-011 a11y adjudication | **Landed** `7ce8620` while this slot ran. Docs + a scan, not an axe-core job. Not retaken |
 | C5-01 / D-20 G1.10 | **On `main`**. G1.7 dated as G2.5 |
 | C5-02 / D-18 wallet transactions | **On `main`** |
 | C4-03 T14/T16/T15 | Do not fake. Skipped |
@@ -103,6 +105,7 @@ expected [ 'ep_test_0001', 'ep_test_0001', 'ep_test_0001' ] to have a length of 
 | --- | --- |
 | `bc-8416a6dd` leftover C5 / double-tap | **Idle. Landed** `764fa8e`. Gesture files kept; this slot adds `error` / `reissue` next to them |
 | `bc-89fef1d3` / `bc-72e30448` G1.9 | **Idle. Landed** `a8e1c63`. `ci.yml` / `commits.ts` not edited here. This slot's unique commit is `feat(ply-012):` so the new gate stays green |
+| QA-011 a11y adjudication (`7ce8620`) | **Idle. Landed.** `docs/14-test-plan.md` / quality scan. Player files not edited there. The axe-core *job* is still QA-010 |
 | Playback UX siblings | **Idle. Landed.** Swipe / autoplay / cross-end / drama-detail Continue kept |
 
 `git diff origin/main -- .github/ packages/quality/` is empty of this slot's work.
@@ -111,31 +114,31 @@ expected [ 'ep_test_0001', 'ep_test_0001', 'ep_test_0001' ] to have a length of 
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this branch at `271408f` after absorbing `origin/main` (`a8e1c63`).
+`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`7ce8620`).
 L1 sequence is now format → lint → typecheck → **check:commits** → check:skips →
 test:coverage → check:coverage → build → guardrails.
 
 | Package | Tests |
 | --- | ---: |
 | shared | 63 |
-| quality | 347 |
+| quality | 355 |
 | config | 45 |
 | server | 1,785 |
 | app | 1,196 |
-| **Total** | **3,436** |
+| **Total** | **3,444** |
 
 ```
-commits passed (1 new commits vs origin/main, 0 prose, 0 missing-id)
-skip-check passed (227 test files, 0 skips, 0 empty)
-coverage global lines 94.19% (16835/17873), branches 91.02%, core lines 95.70%, diff lines 86.89% (159/183)
+commits passed (2 new commits vs origin/main, 0 prose, 0 missing-id)
+skip-check passed (229 test files, 0 skips, 0 empty)
+coverage global lines 94.18% (16857/17899), branches 90.99%, core lines 95.70%, diff lines 86.89% (159/183)
 coverage gate passed
 ```
 
 Guardrails passed against `app/dist` (`index-CUut56eC.js` 360.61 kB / 110.26 kB gzip).
 
 Native `<video>` remains absent. No demo album identifiers in product source. Test count
-did not fall (3,382 on `main` after double-tap + G1.9 quality tests → 3,436 here; the extra
-app tests are the re-issue slice).
+did not fall (3,382 on `main` after double-tap; G1.9 and QA-011 added quality tests;
+the extra app tests here are the re-issue slice).
 
 The unique commit was restaged as `feat(ply-012):` after G1.9 landed. History on `main`
 was not rewritten.
@@ -144,7 +147,9 @@ was not rewritten.
 
 ## 6. What is still open
 
-- **QA-011 / QA-010** a11y. Still not started. Do not add axe-core as a leftover.
+- **QA-010** a11y gate. QA-011 adjudication landed at `7ce8620` while this slot ran (a11y is a
+  listing blocker; native APK budgets are N/A). The axe-core *job* is still not started. Do not
+  add it as a leftover.
 - **Tap pause / scrub / 倍速.** Plugin-owned or VePlayer-owned. Do not add competing controls.
 - **`POST /v1/playback/sessions/{id}/failures`.** The report path in the playback contract.
   Not this slice; no invented endpoint.
