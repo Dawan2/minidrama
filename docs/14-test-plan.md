@@ -212,7 +212,9 @@
 
 **2026-08-28 (W20 QA-010 remainder, search).** 扫描现在同时要求搜索(`#/search`,SCR-03 的搜索半屏)与 SCR-02、SCR-03、SCR-04、SCR-05、SCR-06、SCR-07、SCR-08、SCR-13。删掉任一 stem 为红。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
 
-**2026-08-28 (W21 QA-010 remainder, SCR-12).** 扫描现在同时要求 SCR-12(设置·关于 / `#/settings`)与 SCR-02、SCR-03、SCR-04、SCR-05、SCR-06、SCR-07、SCR-08、搜索、SCR-13。删掉任一 stem 为红。其余已实现 SCR/PNL(钱包、面板)仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
+**2026-08-28 (W20 QA-010 remainder, SCR-09).** 扫描现在同时要求 SCR-09(钱包 / `#/wallet`)与 SCR-02、SCR-03、SCR-04、SCR-05、SCR-06、SCR-07、SCR-08、search、SCR-13。删掉任一 stem 为红。历史与 search 在本槽写作期间落到 `main`,本切片吸收而非重做。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
+
+**2026-08-28 (W21 QA-010 remainder, SCR-12).** 扫描现在同时要求 SCR-12(设置·关于 / `#/settings`)与 SCR-02、SCR-03、SCR-04、SCR-05、SCR-06、SCR-07、SCR-08、SCR-09、搜索、SCR-13。删掉任一 stem 为红。钱包在本槽写作期间落到 `main`,本切片吸收而非重做。其余已实现 SCR/PNL(面板)仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
 
 WCAG 2.2 Level AA 中适用于 TikTok WebView 内竖屏 H5 的子集。明确 N/A:物理键盘导航与焦点顺序降级为"不得存在焦点陷阱";页面级 landmark 按移动端简化。阻断项与 DoD §6.2 S-A1…S-A10 一致:
 
