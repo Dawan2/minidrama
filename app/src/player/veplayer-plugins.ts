@@ -23,7 +23,11 @@ export const VEPLAYER_IGNORED_PLUGINS = [
 
 export type VePlayerIgnoredPlugin = (typeof VEPLAYER_IGNORED_PLUGINS)[number];
 
-/** Tap-to-pause stays VePlayer's. Double-click is ours (点赞), so the player must ignore it. */
+/**
+ * Tap-to-pause stays VePlayer's (`false` = do not close video click). Double-click is
+ * ours (点赞), so the player must ignore it. Product source must not `preventDefault`
+ * a single tap and must not draw a competing play/pause control (`AC-PL-6`).
+ */
 export const VEPLAYER_CLOSE_VIDEO_CLICK = false;
 export const VEPLAYER_CLOSE_VIDEO_DBLCLICK = true;
 

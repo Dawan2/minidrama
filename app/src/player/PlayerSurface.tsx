@@ -41,8 +41,10 @@ export interface PlayerSurfaceProps {
   /** Finger-down 切集. `playNext` cannot go backwards; PlayPage rebuilds. */
   readonly onSwipePrevious?: () => void;
   /**
-   * Double-tap 点赞. A single tap is still VePlayer's (`AC-PL-6`). PlayPage owns the write
-   * (idempotent follow). Ignored when omitted.
+   * Double-tap 点赞. A single tap is still VePlayer's pause/resume (`AC-PL-6`,
+   * `closeVideoClick: false`). This surface does not `preventDefault` it and does not
+   * call `pause()` / `play()` itself. PlayPage owns the write (idempotent follow).
+   * Ignored when omitted.
    */
   readonly onDoubleTap?: () => void;
   /**
