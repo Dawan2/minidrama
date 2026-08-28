@@ -222,7 +222,7 @@ pnpm check:contract       # G1.6; oasdiff breaking vs the committed baseline; a 
 pnpm check:commits        # G1.9; Conventional Commits on merge-base(origin/main)..HEAD; prose fails
 pnpm check:skips          # G1.10; skip/only/todo/empty tests; a committed skip fails
 pnpm check:audit          # INF-004; continue-on-error / if: false in workflows fail
-pnpm check:a11y            # QA-010; axe-core in jsdom; SCR-02 + SCR-03 + SCR-13 required; contrast < 4.5:1 fails; not TikTok WebView
+pnpm check:a11y            # QA-010; axe-core in jsdom; SCR-02 + SCR-03 + SCR-04 + SCR-13 required; contrast < 4.5:1 fails; not TikTok WebView
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
