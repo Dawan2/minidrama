@@ -121,6 +121,12 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.2.4
         version: 3.2.7(vitest@3.2.7(@types/node@22.20.1)(jsdom@27.4.0)(tsx@4.23.12))
+      axe-core:
+        specifier: ^4.13.0
+        version: 4.13.0
+      jsdom:
+        specifier: ^27.4.0
+        version: 27.4.0
       tsx:
         specifier: ^4.20.6
         version: 4.23.12
@@ -971,6 +977,10 @@ packages:
 
   avvio@9.3.0:
     resolution: {integrity: sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A==}
+
+  axe-core@4.13.0:
+    resolution: {integrity: sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==}
+    engines: {node: '>=4'}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -2709,6 +2719,8 @@ snapshots:
     dependencies:
       '@fastify/error': 4.2.0
       fastq: 1.20.1
+
+  axe-core@4.13.0: {}
 
   balanced-match@1.0.2: {}
 

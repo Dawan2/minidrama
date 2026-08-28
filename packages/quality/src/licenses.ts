@@ -38,7 +38,19 @@ export const ALLOWED_LICENSE_IDS: ReadonlySet<string> = new Set([
  * LGPL and MPL are "逐案评审" there, so they are *not* on the allow-list and fail as unknown
  * rather than as this family — a case-by-case license has to be named here to pass, not merely
  * survive a blacklist.
+ *
+ * QA-010 names `axe-core` (MPL-2.0) as that case: the engine lives in `@minidrama/quality`
+ * and does not enter the frontend bundle. A *different* MPL-2.0 package still fails.
  */
+export const CASE_BY_CASE_PACKAGES: Readonly<Record<string, string>> = {
+  'axe-core': 'MPL-2.0',
+};
+
+export function isCaseByCaseAllowed(pkg: InstalledPackage): boolean {
+  const allowed = CASE_BY_CASE_PACKAGES[pkg.name];
+  return allowed !== undefined && pkg.license?.trim() === allowed;
+}
+
 export const FORBIDDEN_LICENSE_IDS: ReadonlySet<string> = new Set([
   'GPL-2.0',
   'GPL-2.0-only',
@@ -131,6 +143,7 @@ export function scanPnpmStore(storeDir: string): readonly InstalledPackage[] {
 export function violationsFor(packages: readonly InstalledPackage[]): readonly LicenseViolation[] {
   const violations: LicenseViolation[] = [];
   for (const pkg of packages) {
+    if (isCaseByCaseAllowed(pkg)) continue;
     const result = evaluateLicense(pkg.license);
     if (!result.ok) {
       violations.push({

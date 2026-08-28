@@ -4,7 +4,13 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { evaluateLicense, formatViolation, scanPnpmStore, violationsFor } from './licenses.js';
+import {
+  evaluateLicense,
+  formatViolation,
+  isCaseByCaseAllowed,
+  scanPnpmStore,
+  violationsFor,
+} from './licenses.js';
 import { repoRoot } from './paths.js';
 
 const fixtures: string[] = [];
@@ -176,6 +182,32 @@ describe('violationsFor', () => {
     expect(violations).toHaveLength(1);
     expect(formatViolation(violations[0]!)).toContain('copyleft@2.0.0');
     expect(formatViolation(violations[0]!)).toContain('GPL-3.0');
+  });
+
+  it('allows axe-core MPL-2.0 as the QA-010 case and still refuses a different MPL package', () => {
+    const store = storeWith([
+      { name: 'axe-core', version: '4.13.0', license: 'MPL-2.0' },
+      { name: 'other-mpl', version: '1.0.0', license: 'MPL-2.0' },
+    ]);
+    const violations = violationsFor(scanPnpmStore(store));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.name).toBe('other-mpl');
+    expect(
+      isCaseByCaseAllowed({
+        name: 'axe-core',
+        version: '4.13.0',
+        license: 'MPL-2.0',
+        path: 'x',
+      }),
+    ).toBe(true);
+    expect(
+      isCaseByCaseAllowed({
+        name: 'axe-core',
+        version: '4.13.0',
+        license: undefined,
+        path: 'x',
+      }),
+    ).toBe(false);
   });
 });
 

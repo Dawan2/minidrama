@@ -1,0 +1,369 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { repoRoot } from './paths.js';
+import {
+  A11Y_HOST,
+  A11Y_HOST_DISCLAIMER,
+  A11Y_TAGS,
+  BLOCKING_IMPACTS,
+  CONTRAST_MIN,
+  REQUIRED_SCREEN_STEMS,
+  USAGE,
+  blockingViolations,
+  contrastRatio,
+  defaultSource,
+  formatHit,
+  isBlockingImpact,
+  isScreenFileName,
+  listScreenFiles,
+  missingRequiredScreenStems,
+  parseA11yArgs,
+  parseCssHex,
+  relativeLuminance,
+  runA11yCheck,
+  scanContrastViolations,
+  toRepoFile,
+  type AxeViolation,
+} from './a11y.js';
+
+const fixtures: string[] = [];
+
+afterEach(() => {
+  while (fixtures.length > 0) {
+    rmSync(fixtures.pop() ?? '', { recursive: true, force: true });
+  }
+});
+
+function tempDir(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  fixtures.push(root);
+  return root;
+}
+
+function writeSource(root: string, relative: string, body: string): string {
+  const path = join(root, relative);
+  mkdirSync(join(path, '..'), { recursive: true });
+  writeFileSync(path, body);
+  return path;
+}
+
+const PASSING_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>Something went wrong</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="fallback-page">
+    <h1>Something went wrong</h1>
+    <p>This page does not exist.</p>
+    <a href="#/">Back to home</a>
+  </main>
+</body>
+</html>
+`;
+
+const CONTRAST_FAIL_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>Contrast fail</title>
+<style>p { color: #ffffff; background: #ffffff; }</style>
+</head>
+<body>
+  <main>
+    <h1>Home</h1>
+    <p>secret text</p>
+  </main>
+</body>
+</html>
+`;
+
+function silentAxe(_html: string): Promise<readonly AxeViolation[]> {
+  return Promise.resolve([]);
+}
+
+describe('parseA11yArgs', () => {
+  it('defaults the source to packages/quality/a11y/screens under the named root', () => {
+    const parsed = parseA11yArgs([], '/repo');
+    expect(parsed).toEqual({
+      ok: true,
+      args: { root: '/repo', source: defaultSource('/repo') },
+    });
+    expect(defaultSource('/repo')).toBe('/repo/packages/quality/a11y/screens');
+  });
+
+  it('accepts --root and --source', () => {
+    const parsed = parseA11yArgs(['--root', '/app', '--source', '/app/screens'], '/repo');
+    expect(parsed).toEqual({
+      ok: true,
+      args: { root: '/app', source: '/app/screens' },
+    });
+  });
+
+  it('rejects an unknown argument rather than ignoring it', () => {
+    expect(parseA11yArgs(['--allow-unknown'], '/repo')).toEqual({
+      ok: false,
+      message: 'unknown argument: --allow-unknown',
+    });
+  });
+
+  it('rejects a flag that is missing its value', () => {
+    expect(parseA11yArgs(['--root'], '/repo')).toEqual({
+      ok: false,
+      message: '--root requires a directory',
+    });
+    expect(parseA11yArgs(['--source', '--root', '/x'], '/repo')).toEqual({
+      ok: false,
+      message: '--source requires a path',
+    });
+  });
+
+  it('names the flags in USAGE', () => {
+    expect(USAGE).toContain('--root');
+    expect(USAGE).toContain('--source');
+  });
+});
+
+describe('isScreenFileName / listScreenFiles', () => {
+  it('accepts HTML screens and ignores other files', () => {
+    expect(isScreenFileName('scr-13-fallback.html')).toBe(true);
+    expect(isScreenFileName('scr-13-fallback.htm')).toBe(false);
+    expect(isScreenFileName('a11y.ts')).toBe(false);
+  });
+
+  it('walks nested HTML and skips node_modules / dist / coverage', () => {
+    const root = tempDir('a11y-walk-');
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    writeSource(root, 'screens/notes.md', '# no');
+    writeSource(root, 'node_modules/pkg/x.html', PASSING_HTML);
+    writeSource(root, 'dist/x.html', PASSING_HTML);
+    writeSource(root, 'coverage/x.html', PASSING_HTML);
+    const files = listScreenFiles(root);
+    expect(files).toEqual([join(root, 'screens/scr-13-fallback.html')]);
+  });
+
+  it('returns no files when the source cannot be read', () => {
+    expect(listScreenFiles(join(tempDir('a11y-gone-'), 'missing'))).toEqual([]);
+  });
+});
+
+describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
+  it('requires the SCR-13 fixture so deleting it is red', () => {
+    expect(REQUIRED_SCREEN_STEMS).toEqual(['scr-13-fallback']);
+    expect(missingRequiredScreenStems(['scr-13-fallback.html'])).toEqual([]);
+    expect(missingRequiredScreenStems([])).toEqual(['scr-13-fallback']);
+  });
+
+  it('formats a hit with a repo-relative path', () => {
+    expect(toRepoFile('/repo/packages/quality/a11y/screens/a.html', '/repo')).toBe(
+      'packages/quality/a11y/screens/a.html',
+    );
+    expect(toRepoFile('/elsewhere/a.html', '/repo')).toBe('/elsewhere/a.html');
+    expect(
+      formatHit({
+        file: 'a.html',
+        kind: 'contrast',
+        id: 'color-contrast',
+        excerpt: 'p 1.00:1',
+      }),
+    ).toContain('contrast a.html color-contrast');
+  });
+});
+
+describe('blockingViolations', () => {
+  it('keeps critical and serious and drops moderate', () => {
+    expect(BLOCKING_IMPACTS).toEqual(['critical', 'serious']);
+    expect(isBlockingImpact('critical')).toBe(true);
+    expect(isBlockingImpact('serious')).toBe(true);
+    expect(isBlockingImpact('moderate')).toBe(false);
+    expect(isBlockingImpact(null)).toBe(false);
+    const listed = blockingViolations([
+      { id: 'html-has-lang', impact: 'serious', help: 'lang', nodes: [] },
+      { id: 'region', impact: 'moderate', help: 'region', nodes: [{ html: '<div>' }] },
+    ]);
+    expect(listed.map((item) => item.id)).toEqual(['html-has-lang']);
+  });
+});
+
+describe('parseCssHex / contrastRatio', () => {
+  it('reads 3-digit and 6-digit hex and rejects junk', () => {
+    expect(parseCssHex('#fff')).toEqual([255, 255, 255]);
+    expect(parseCssHex('#0b0b0f')).toEqual([11, 11, 15]);
+    expect(parseCssHex('  #F4F4F7 ')).toEqual([244, 244, 247]);
+    expect(parseCssHex('#ggg')).toBeNull();
+    expect(parseCssHex('red')).toBeNull();
+  });
+
+  it('computes WCAG 2 relative luminance and contrast', () => {
+    expect(relativeLuminance([255, 255, 255])).toBeCloseTo(1, 5);
+    expect(relativeLuminance([0, 0, 0])).toBeCloseTo(0, 5);
+    expect(contrastRatio([255, 255, 255], [255, 255, 255])).toBe(1);
+    expect(contrastRatio([244, 244, 247], [11, 11, 15])).toBeGreaterThan(CONTRAST_MIN);
+    expect(contrastRatio([255, 255, 255], [254, 44, 85])).toBeLessThan(CONTRAST_MIN);
+  });
+});
+
+describe('scanContrastViolations', () => {
+  it('flags white-on-white in a style block', () => {
+    const hits = scanContrastViolations(CONTRAST_FAIL_HTML, 'blocked.html');
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.kind).toBe('contrast');
+    expect(hits[0]?.id).toBe('color-contrast');
+    expect(hits[0]?.excerpt).toContain('1.00:1');
+  });
+
+  it('flags an inline style pair', () => {
+    const html = '<p style="color:#fff; background:#fff">secret</p>';
+    const hits = scanContrastViolations(html, 'inline.html');
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.kind).toBe('contrast');
+  });
+
+  it('flags background-color the same as background', () => {
+    const html = '<style>p { color: #ffffff; background-color: #ffffff; }</style>';
+    expect(scanContrastViolations(html, 'bgc.html')).toHaveLength(1);
+  });
+
+  it('does not flag a passing pair or a color without a background', () => {
+    expect(scanContrastViolations(PASSING_HTML, 'ok.html')).toEqual([]);
+    expect(scanContrastViolations('<style>a { color: #f4f4f7; }</style>', 'link.html')).toEqual([]);
+  });
+
+  it('ignores a declaration that has no colon', () => {
+    expect(scanContrastViolations('<style>p { color }</style>', 'nocolon.html')).toEqual([]);
+  });
+});
+
+describe('runA11yCheck', () => {
+  it('fails when the root is missing', async () => {
+    const output = await runA11yCheck(
+      { root: join(tempDir('a11y-noroot-'), 'nope'), source: '/tmp' },
+      silentAxe,
+    );
+    expect(output.ok).toBe(false);
+    expect(output.exitCode).toBe(1);
+    expect(output.stderr).toContain('scan root is required');
+  });
+
+  it('fails when the source is missing', async () => {
+    const root = tempDir('a11y-nosource-');
+    const output = await runA11yCheck({ root, source: join(root, 'missing') }, silentAxe);
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('scan source is required');
+  });
+
+  it('fails when the source has no HTML screens', async () => {
+    const root = tempDir('a11y-empty-');
+    writeSource(root, 'screens/notes.md', '# no');
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('saw no screens');
+    expect(output.stdout).not.toContain('a11y passed');
+  });
+
+  it('fails when the required SCR-13 fixture is missing', async () => {
+    const root = tempDir('a11y-nostem-');
+    writeSource(root, 'screens/other.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('scr-13-fallback');
+    expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
+  });
+
+  it('fails when an injected contrast violation is present', async () => {
+    const root = tempDir('a11y-contrast-');
+    writeSource(root, 'screens/scr-13-fallback.html', CONTRAST_FAIL_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
+    expect(output.ok).toBe(false);
+    expect(output.exitCode).toBe(1);
+    expect(output.stderr).toContain('QA-010 red');
+    expect(output.stderr).toContain('color-contrast');
+    expect(output.stderr).toContain(A11Y_HOST);
+    expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
+  });
+
+  it('fails when axe-core reports a serious violation', async () => {
+    const root = tempDir('a11y-axe-');
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, async () => [
+      {
+        id: 'html-has-lang',
+        impact: 'serious',
+        help: 'html lang',
+        nodes: [{ html: '<html>' }],
+      },
+    ]);
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('html-has-lang');
+    expect(output.stderr).toContain('<html>');
+  });
+
+  it('fails when axe-core throws rather than treating that as a skip', async () => {
+    const root = tempDir('a11y-throw-');
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, async () => {
+      throw new Error('axe-core is required: a scan that did not run axe-core is not QA-010');
+    });
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('did not run axe-core');
+    expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
+  });
+
+  it('fails when axe-core throws a non-Error', async () => {
+    const root = tempDir('a11y-throw-raw-');
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, async () => {
+      throw 'nope';
+    });
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('axe-core failed');
+  });
+
+  it('passes a tree whose screens have no blocking axe hit and passing contrast', async () => {
+    const root = tempDir('a11y-clean-');
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
+    expect(output.ok).toBe(true);
+    expect(output.exitCode).toBe(0);
+    expect(output.stdout).toContain('a11y passed');
+    expect(output.stdout).toContain(`host=${A11Y_HOST}`);
+    expect(output.stdout).toContain(A11Y_HOST_DISCLAIMER);
+    expect(output.stdout).not.toMatch(/in TikTok WebView/);
+  });
+
+  it('the committed SCR-13 fixture passes the real axe-core run in jsdom', async () => {
+    const output = await runA11yCheck({
+      root: repoRoot,
+      source: defaultSource(repoRoot),
+    });
+    expect(output.ok).toBe(true);
+    expect(output.exitCode).toBe(0);
+    expect(output.stdout).toContain('a11y passed');
+    expect(output.stdout).toContain(A11Y_HOST_DISCLAIMER);
+  });
+});
+
+describe('QA-010 does not skip the engine or claim TikTok WebView', () => {
+  it('keeps wcag2aa tags and does not disable color-contrast', () => {
+    expect(A11Y_TAGS).toEqual(['wcag2a', 'wcag2aa', 'wcag22aa']);
+    const source = readFileSync(join(repoRoot, 'packages/quality/src/a11y.ts'), 'utf8');
+    expect(source).not.toMatch(/color-contrast['"]\s*:\s*\{\s*enabled\s*:\s*false/);
+    expect(source).toContain('axe-core');
+    expect(source).toContain(A11Y_HOST_DISCLAIMER);
+  });
+
+  it('the SCR-13 fixture still matches FallbackPage structure', () => {
+    const page = readFileSync(join(repoRoot, 'app/src/routes/FallbackPage.tsx'), 'utf8');
+    expect(page).toMatch(/data-testid="fallback-page"/);
+    expect(page).toMatch(/<main/);
+    expect(page).toMatch(/<h1/);
+    const fixture = readFileSync(
+      join(repoRoot, 'packages/quality/a11y/screens/scr-13-fallback.html'),
+      'utf8',
+    );
+    expect(fixture).toContain('data-testid="fallback-page"');
+    expect(fixture).toContain('<html lang="en">');
+  });
+});

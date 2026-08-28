@@ -86,6 +86,11 @@ jobs:
       - name: G1.10 skip/empty tests
         run: pnpm run check:skips
 
+      # axe-core critical/serious or contrast < 4.5:1 exits 1. Host is jsdom, not
+      # TikTok WebView. There is no continue-on-error: a skipped scan is not QA-010.
+      - name: QA-010 a11y
+        run: pnpm run check:a11y
+
       - name: Test
         run: pnpm run test:coverage
 

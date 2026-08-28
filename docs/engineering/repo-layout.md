@@ -62,11 +62,11 @@ minidrama/
 ├── packages/
 │   ├── shared/                 # Result, error codes, playback descriptor — client and server
 │   ├── config/                 # trusted-domain registry + minis.config.json generator
-│   └── quality/                # G2.8 licenses, G1.5 coverage, G1.9 Conventional Commits, G1.10 skip/empty tests, G1.8 Gitleaks, G1.6 oasdiff, G2.4 Semgrep + CodeQL, G2.5 Trivy, G2.3 Playwright; not bundled
+│   └── quality/                # G2.8 licenses, G1.5 coverage, G1.9 Conventional Commits, G1.10 skip/empty tests, QA-010 axe-core a11y, G1.8 Gitleaks, G1.6 oasdiff, G2.4 Semgrep + CodeQL, G2.5 Trivy, G2.3 Playwright; not bundled
 ├── contracts/openapi.yaml      # OpenAPI 3.1 — the HTTP surface's source of truth
 ├── contracts/oasdiff-baseline.yaml # G1.6 snapshot; additive paths do not require updating it
 ├── docs/                       # architecture, design, plan, engineering (this file)
-├── .github/workflows/ci.yml    # L1: G1.8 Gitleaks, G1.6 oasdiff, format, lint, types, G1.9 Conventional Commits, G1.10 skip/empty tests, tests+coverage, build, guardrails
+├── .github/workflows/ci.yml    # L1: G1.8 Gitleaks, G1.6 oasdiff, format, lint, types, G1.9 Conventional Commits, G1.10 skip/empty tests, QA-010 a11y, tests+coverage, build, guardrails
 └── .github/workflows/l2.yml    # L2: G2.8 + G2.7 + G2.2 + G2.6 + G2.4 Semgrep + CodeQL + G2.5 Trivy + G2.3 Playwright; does not skip L1
 ```
 
@@ -197,7 +197,7 @@ dropped in a config refactor fails a test instead of silently ceasing to enforce
 
 ```bash
 pnpm install              # Node >= 22, pnpm 10
-pnpm verify               # format:check + lint + typecheck + test:coverage + check:coverage + build + guardrails
+pnpm verify               # format:check + lint + typecheck + check:commits + check:skips + check:a11y + test:coverage + check:coverage + build + guardrails
 
 pnpm dev                  # not defined at the root; run per package:
 pnpm --filter @minidrama/app dev      # Vite dev server, MockBridge active automatically
@@ -221,14 +221,15 @@ pnpm check:secrets        # G1.8; Gitleaks dir scan; a missing binary or a findi
 pnpm check:contract       # G1.6; oasdiff breaking vs the committed baseline; a missing binary fails
 pnpm check:commits        # G1.9; Conventional Commits on merge-base(origin/main)..HEAD; prose fails
 pnpm check:skips          # G1.10; skip/only/todo/empty tests; a committed skip fails
+pnpm check:a11y            # QA-010; axe-core in jsdom; contrast < 4.5:1 fails; not TikTok WebView
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
-`pnpm verify` is the L1 suite minus G1.8 and G1.6, plus G1.9 and G1.10. L1 CI installs Gitleaks
+`pnpm verify` is the L1 suite minus G1.8 and G1.6, plus G1.9, G1.10, and QA-010. L1 CI installs Gitleaks
 and oasdiff, runs `check:secrets`, then `check:contract`, then format/lint/types, then
-`check:commits`, then `check:skips`, then tests+coverage, then `gen:minis-config`. G1.8 and
+`check:commits`, then `check:skips`, then `check:a11y`, then tests+coverage, then `gen:minis-config`. G1.8 and
 G1.6 are not folded into `verify` because they need the binaries; a missing binary is red in
-CI, not a skip. G1.9 and G1.10 are folded into `verify` because they have no extra binary.
+CI, not a skip. G1.9, G1.10, and QA-010 are folded into `verify` because they have no extra binary.
 History on `main` is not rewritten. L2 (`check:licenses`, `check:migrate`,
 `check:integration`, `check:artifact`, `check:sast`, `check:codeql`, `check:sca`,
 `check:smoke`) is a second workflow and is not folded into `verify`, so adding it cannot

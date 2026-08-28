@@ -133,3 +133,21 @@ export {
   scanTestFile,
 } from './skips.js';
 export type { SkipCheckArgs, SkipHit } from './skips.js';
+
+export {
+  A11Y_HOST,
+  A11Y_HOST_DISCLAIMER,
+  A11Y_TAGS,
+  BLOCKING_IMPACTS,
+  CONTRAST_MIN,
+  REQUIRED_SCREEN_STEMS,
+  USAGE as A11Y_USAGE,
+  blockingViolations,
+  contrastRatio,
+  defaultSource as defaultA11ySource,
+  formatHit as formatA11yHit,
+  parseA11yArgs,
+  runA11yCheck,
+  scanContrastViolations,
+} from './a11y.js';
+export type { A11yCheckArgs, A11yHit, AxeViolation } from './a11y.js';
