@@ -4,6 +4,8 @@
 > **Branch:** `cursor/w20-work-c7-second-72c4`, cut from `origin/main` at **`ac8ff4d`**
 > (QA-010 remainder already requires SCR-02 home, SCR-03 browse, SCR-04 drama,
 > and SCR-13).
+> Merged forward onto **`b34ef5b`** (W20 QA-010 SCR-05 play remainder landed
+> while this slot ran).
 > **Item:** **QA-010 remainder** — S-A1 on the **second** unblocked C7 screen.
 > After SCR-04, inventory order is SCR-05 play (in flight, owns `check:a11y`
 > until it lands), then SCR-06 profile (first C7, `bc-22d4f29b`), then
@@ -98,7 +100,7 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 
 | Who | Overlap |
 | --- | --- |
-| `bc-f6e4b6a7` play-screen a11y | **RUNNING.** Play fixture not edited here. `REQUIRED_SCREEN_STEMS` does not add `scr-05-play` |
+| `bc-f6e4b6a7` play-screen a11y | **Idle. Landed** `b34ef5b` / `docs/handoff/w20-a11y-play.md` while this slot absorbed. Play fixture not authored here |
 | `bc-22d4f29b` first C7 | **RUNNING.** Profile fixture not edited here. `REQUIRED_SCREEN_STEMS` does not add `scr-06-me` |
 | `bc-afae2991` drama a11y | **Idle. Landed** `ac8ff4d` / `docs/handoff/w20-a11y-drama.md` before this cut |
 
@@ -151,3 +153,22 @@ is incomplete, not a skip.
 This slice does **not** claim protocol-C4 exit 3 closed. It is the named
 QA-010 remainder that requires SCR-07 history next to SCR-02, SCR-03,
 SCR-04, and SCR-13.
+
+---
+
+## 7. Post-merge
+
+Absorbed `origin/main` **`b34ef5b`** (W20 QA-010 SCR-05 play remainder,
+`bc-f6e4b6a7`) after the first verify. Required stems are now home, browse,
+drama, play, history, and fallback. `pnpm verify` exited 0 again:
+
+- commits: `3 new commits vs origin/main, 0 prose, 0 missing-id` (merge skipped)
+- skips: 237 files, 0 skips
+- a11y: **6 screens** (SCR-13 + SCR-02 + SCR-03 + SCR-04 + SCR-05 + SCR-07)
+- tests: **3,583 passing** — shared 63, quality 440, config 45, server 1,785, app 1,250
+- coverage: global lines 94.36% (17873/18941), diff lines 100.00% (1/1)
+- build: `index-B2g09p35.js` 366.74 kB / 112.08 kB gzip
+
+Play files were not retaken beyond combining `REQUIRED_SCREEN_STEMS`. First C7
+(`bc-22d4f29b`, SCR-06 profile) was still not on `main` at this absorb.
+Protocol-C4 exit 3 is still not closed.
