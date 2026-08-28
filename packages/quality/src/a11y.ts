@@ -3,8 +3,12 @@ import { createRequire } from 'node:module';
 import { basename, join, relative } from 'node:path';
 
 /**
- * QA-010: smallest a11y scan. axe-core critical + serious = 0 on committed
+ * QA-010: a11y scan. axe-core critical + serious = 0 on committed
  * implemented-screen HTML, plus a WCAG contrast check on declared CSS colors.
+ *
+ * Smallest job scanned SCR-13 only. This remainder adds SCR-02 (home), the
+ * first implemented numbered screen after the overlay splash. Deleting either
+ * required stem is red. Remaining SCR/PNL fixtures are later remainders.
  *
  * This module invokes axe-core. A TypeScript comment that names WCAG is not
  * QA-010. jsdom is the host: color-contrast stays incomplete without canvas, so
@@ -24,7 +28,7 @@ export const BLOCKING_IMPACTS = ['critical', 'serious'] as const;
 
 export const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag22aa'] as const;
 
-export const REQUIRED_SCREEN_STEMS = ['scr-13-fallback'] as const;
+export const REQUIRED_SCREEN_STEMS = ['scr-02-home', 'scr-13-fallback'] as const;
 
 export const CONTRAST_MIN = 4.5;
 

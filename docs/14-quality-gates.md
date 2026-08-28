@@ -76,7 +76,11 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 
 **2026-08-28 (W16 QA-010).** Smallest axe-core scan is `pnpm check:a11y`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. It runs axe-core in **jsdom** over committed implemented-screen HTML (`packages/quality/a11y/screens`, SCR-13 first). critical + serious = 0 fails the job. jsdom cannot complete axe's `color-contrast` (no canvas); the equivalent checker on declared CSS colors is the S-A2 reverse path — an injected white-on-white fixture is red. Tests are not skipped. This is **not** a TikTok WebView measurement (X-04 / PLY-002 still unmeasured) and does **not** close protocol-C4 exit 3 / S-A1 on every SCR/PNL. A comment that names WCAG is not this gate.
 
+**2026-08-28 (W18 QA-010 remainder).** The scan now requires SCR-02 (home) next to SCR-13. Deleting either stem is red. Remaining implemented SCR/PNL fixtures are later remainders. Host is still jsdom, not TikTok WebView. This still does **not** close protocol-C4 exit 3 / S-A1 on every screen.
+
 **2026-08-28 (W18 INF-004 / S-C1).** CI self-audit is `pnpm check:audit`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. It scans committed GitHub workflow files. `continue-on-error: true`, `if: false`, `allow_failure: true`, and a `|| true` swallowed exit are red. A comment that names those keys is not this gate. A scan that saw no workflow files is red. S-C3 echo-only steps, S-C4 required-checks vs branch protection, and a job-count ratchet are further slices. `workflow_dispatch:` as an event is not a bypass.
+
+**2026-08-28 (W18 INF-004 / S-C3).** The same `pnpm check:audit` job now fails on an echo-only / `true` / `exit 0` `run` step. A `run` that echoes and then invokes a real command is not this gate. A comment that names `echo` is not this gate. S-C4 required-checks vs GitHub branch protection stay a further slice.
 
 **2026-08-27 (W16 QA-011 / C-12 / X-12 / X-04 / X-05).** a11y is a release blocker: `docs/14-test-plan.md` §6.4 now matches `docs/plan/definition-of-done.md` §6 rather than "P2, 不阻断首个上架版本". The L3 host matrix is TikTok WebView (`§6.2`). Native APK/iOS size and crash/ANR are N/A; §5.4 and G3.8 use the Minis ZIP / first-screen JS / JS-error budgets from `docs/03-nonfunctional.md` §2. `QA-010` (axe-core in CI) is not this writeback.
 
