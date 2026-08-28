@@ -12,6 +12,7 @@ import type { StallPacing } from '../player/player-stall';
 import { ROUTES } from './routes';
 import { apiFailure } from '../data/failure';
 import {
+  dramaDetail,
   episodeItem,
   httpFailure,
   lockedEpisodeItem,
@@ -52,6 +53,7 @@ function playCatalog(episodes: readonly EpisodeItem[]): CatalogApi {
       return found === undefined ? err(httpFailure(404)) : ok(found);
     },
     episodes: () => ok(page([...episodes])),
+    drama: (dramaId) => ok(dramaDetail({ id: dramaId })),
   });
 }
 
@@ -189,10 +191,49 @@ describe('locked episodes are intercepted at every entry', () => {
 
     expect(await screen.findByTestId('unlock-panel')).toBeDefined();
     expect(screen.getByTestId('play-page').dataset['state']).toBe('locked');
+    expect(screen.getByTestId('player-locked')).toBeDefined();
+    expect(screen.getByTestId('player-locked-mark').textContent).toBe('Locked');
+    expect(await screen.findByTestId('cover-image')).toBeDefined();
     expect(screen.queryByTestId('player-container')).toBeNull();
     expect(MockVePlayer.instances).toHaveLength(0);
     expect(MockVePlayer.instances.map((instance) => instance.config.startTime)).toEqual([]);
     expect(playbackApi.createCalls).toEqual(['ep_test_0004']);
+  });
+
+  it('keeps the lock chrome when the drama poster cannot be read', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: () => err(lockedPlaybackFailure()),
+    });
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: 'ep_test_0004',
+      api: stubCatalogApi({
+        episode: () => ok(lockedEpisodeItem()),
+        episodes: () => ok(page([lockedEpisodeItem()])),
+      }),
+      playbackApi,
+    });
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('player-locked-mark').textContent).toBe('Locked');
+    expect(screen.getByTestId('cover-placeholder')).toBeDefined();
+    expect(screen.queryByTestId('cover-image')).toBeNull();
+    expect(MockVePlayer.instances).toHaveLength(0);
+  });
+
+  it('does not invent a recharge route or a competing player on S6', async () => {
+    renderPlayer({
+      bridge: await readyBridge(),
+      episodeId: 'ep_test_0004',
+      api: playCatalog([lockedEpisodeItem()]),
+      playbackApi: stubPlaybackApi({
+        create: () => err(lockedPlaybackFailure()),
+      }),
+    });
+
+    expect(await screen.findByTestId('player-locked')).toBeDefined();
+    expect(screen.queryByTestId('player-container')).toBeNull();
+    expect(screen.getByTestId('play-page').innerHTML).not.toMatch(/#\/recharge|#\/vip/);
   });
 
   it('opens the VIP overlay, not the coin one, when the session answers EPISODE_VIP_REQUIRED', async () => {
@@ -829,7 +870,7 @@ describe('S7 stall retry remints the route episode (AC-PL-7)', () => {
 
   it('does not invent 倍速, axe-core, a subscription path, or postgres', () => {
     const source = readFileSync(join(process.cwd(), 'src/routes/PlayPage.tsx'), 'utf8');
-    expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|postgres:/);
+    expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|#\/recharge|postgres:/);
   });
 });
 

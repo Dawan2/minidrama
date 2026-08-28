@@ -4,6 +4,12 @@ import { ok } from '@minidrama/shared';
 import type { EpisodeItem, Page, PlaybackDescriptor } from '@minidrama/shared';
 
 import { EpisodePicker } from '../picker/EpisodePicker';
+import {
+  EMPTY_LOCKED_POSTER,
+  LockedChrome,
+  posterFromDrama,
+  type LockedPoster,
+} from '../player/locked-chrome';
 import { PlayerSurface } from '../player/PlayerSurface';
 import { RetryableError, Skeleton, TerminalError } from '../components/states';
 import { gateAdvance } from './advance-gate';
@@ -64,6 +70,10 @@ import type { StallPacing } from '../player/player-stall';
  * S7 stall (`AC-PL-7`) is inferred from a `timeupdate` gap, not from a buffering event
  * VePlayer does not document. Indicator at 1.5 s, retry at 8 s, last frame stays. Retry
  * remints the route episode. Definition is never changed (`AC-PL-6`).
+ *
+ * S6 locked (`PLY-011` remainder): cover + lock mark under PNL-02. The empty
+ * `player-locked` stub is not that chrome. VePlayer stays unmounted. Recharge stays
+ * off. 倍速 / scrub stay plugin-owned (X-26).
  */
 
 const EMPTY_EPISODES: Page<EpisodeItem> = {
@@ -134,6 +144,16 @@ export function PlayPage({ bridge, unlockPacing, stallPacing }: PlayPageProps): 
   );
 
   const dramaId = catalog.resource.status === 'ready' ? catalog.resource.data.dramaId : '';
+  const locked =
+    session.resource.status === 'failed' && isPlaybackLock(session.resource.error.failure);
+  const posterKey =
+    locked && dramaId !== '' ? `play-poster:${dramaId}` : `play-poster:idle:${episodeId}`;
+  const poster = useResource(() => {
+    if (!locked || dramaId === '') {
+      return Promise.resolve(ok(EMPTY_LOCKED_POSTER));
+    }
+    return catalogApi.fetchDrama(dramaId).then((result) => ok(posterFromDrama(result)));
+  }, posterKey);
   const episodes = useResource(
     () =>
       dramaId === ''
@@ -150,8 +170,6 @@ export function PlayPage({ bridge, unlockPacing, stallPacing }: PlayPageProps): 
   const playlist = playlistForRoute(album, episodeId, session.resource);
 
   const catalogEpisode = catalog.resource.status === 'ready' ? catalog.resource.data : null;
-  const locked =
-    session.resource.status === 'failed' && isPlaybackLock(session.resource.error.failure);
   const next =
     catalogEpisode !== null && episodes.resource.status === 'ready'
       ? nextCatalogEpisode(catalogEpisode, episodes.resource.data.items)
@@ -289,6 +307,7 @@ export function PlayPage({ bridge, unlockPacing, stallPacing }: PlayPageProps): 
         bridge={bridge}
         catalog={catalog.resource}
         locked={locked}
+        poster={poster.resource}
         onEnded={onEnded}
         onPlayerFatal={() => {
           void requestReissue();
@@ -515,6 +534,7 @@ function Attempt({
   onSwipeNext,
   onSwipePrevious,
   playlist,
+  poster,
   progress,
   routeEpisodeId,
   session,
@@ -524,6 +544,7 @@ function Attempt({
   readonly bridge: PlatformBridge;
   readonly catalog: Resource<EpisodeItem>;
   readonly locked: boolean;
+  readonly poster: Resource<LockedPoster>;
   readonly onDoubleTap?: () => void;
   readonly onEnded: () => void;
   readonly onPlayerFatal?: () => void;
@@ -556,7 +577,9 @@ function Attempt({
         />
       );
     }
-    return <div data-testid="player-locked" />;
+    const coverUrl = poster.status === 'ready' ? poster.data.coverUrl : null;
+    const title = poster.status === 'ready' ? poster.data.title : '';
+    return <LockedChrome coverUrl={coverUrl} title={title} />;
   }
 
   if (playlist.length > 0) {

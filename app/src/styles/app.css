@@ -885,6 +885,49 @@ a {
   }
 }
 
+.player-locked {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  width: 100%;
+  overflow: hidden;
+  background: #000000;
+  border-radius: var(--radius);
+}
+
+.player-locked__cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+}
+
+.player-locked .cover--missing {
+  width: 100%;
+  height: 100%;
+  background: #111111;
+  color: rgb(255 255 255 / 70%);
+}
+
+.player-locked__mark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  min-height: 56px;
+  padding: 8px 14px;
+  color: #ffffff;
+  background: rgb(0 0 0 / 55%);
+  border: 2px solid rgb(255 255 255 / 80%);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
 .player-next {
   display: inline-block;
   margin-top: 12px;
