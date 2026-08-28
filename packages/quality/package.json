@@ -22,6 +22,7 @@
     "check:contract": "tsx src/cli/check-contract.ts",
     "check:commits": "tsx src/cli/check-commits.ts",
     "check:skips": "tsx src/cli/check-skips.ts",
+    "check:audit": "tsx src/cli/check-audit.ts",
     "check:a11y": "tsx src/cli/check-a11y.ts"
   },
   "devDependencies": {

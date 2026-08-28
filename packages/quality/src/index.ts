@@ -135,6 +135,17 @@ export {
 export type { SkipCheckArgs, SkipHit } from './skips.js';
 
 export {
+  CONTINUE_ON_ERROR_KEY,
+  USAGE as AUDIT_USAGE,
+  defaultSource as defaultAuditSource,
+  formatHit as formatAuditHit,
+  parseAuditArgs,
+  runAuditCheck,
+  scanWorkflowText,
+} from './audit.js';
+export type { AuditCheckArgs, AuditHit } from './audit.js';
+
+export {
   A11Y_HOST,
   A11Y_HOST_DISCLAIMER,
   A11Y_TAGS,

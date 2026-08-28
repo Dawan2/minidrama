@@ -79,15 +79,16 @@ describe('createPlayerFacade', () => {
       'play',
       'pip',
       'replay',
-      'playbackrate',
       'sdkDefinitionPlugin',
     ]);
     expect(config?.ignores.join(',')).not.toMatch(/progress/i);
     expect(config?.closeVideoClick).toBe(false);
     expect(config?.closeVideoDblclick).toBe(true);
-    expect(config?.ignores).toContain('playbackrate');
-    expect(container.querySelector('input, video, [role="slider"]')).toBeNull();
+    expect(config?.ignores).not.toContain('playbackrate');
+    expect('playbackRate' in (config ?? {})).toBe(false);
+    expect(container.querySelector('input, video, select, [role="slider"]')).toBeNull();
     expect(container.querySelector('[data-veplayer-progress="kept"]')).not.toBeNull();
+    expect(container.querySelector('[data-veplayer-playbackrate="kept"]')).not.toBeNull();
   });
 
   it('starts at 0 when the session resume is 0, not at a guessed duration', async () => {

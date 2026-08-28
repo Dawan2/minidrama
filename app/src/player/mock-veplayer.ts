@@ -4,7 +4,7 @@ import type {
   VePlayerInstance,
   VePlayerPlaylistItem,
 } from './veplayer-types';
-import { ignoresProgressPlugin } from './veplayer-plugins';
+import { ignoresPlaybackratePlugin, ignoresProgressPlugin } from './veplayer-plugins';
 
 /**
  * A stand-in for the platform player, used by `MockBridge` in browser development and tests.
@@ -37,9 +37,13 @@ export class MockVePlayer implements VePlayerInstance {
 
     this.#surface = config.el.ownerDocument.createElement('div');
     this.#surface.dataset['mockVeplayer'] = 'true';
-    // Progress is a kept VePlayer plugin, not a control we draw. The mock records that the
-    // constructor left it on; it never creates <video> or <input type="range">.
+    // Progress and 倍速 are kept VePlayer plugins, not controls we draw. The mock records
+    // that the constructor left them on; it never creates <video>, <input type="range">,
+    // or a rate <select>.
     this.#surface.dataset['veplayerProgress'] = ignoresProgressPlugin(config.ignores)
+      ? 'ignored'
+      : 'kept';
+    this.#surface.dataset['veplayerPlaybackrate'] = ignoresPlaybackratePlugin(config.ignores)
       ? 'ignored'
       : 'kept';
     this.#render(config.albumId, config.episodeId, config.vid);

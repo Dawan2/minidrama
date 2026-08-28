@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  ignoresPlaybackratePlugin,
   ignoresProgressPlugin,
   VEPLAYER_CLOSE_VIDEO_CLICK,
   VEPLAYER_CLOSE_VIDEO_DBLCLICK,
@@ -16,8 +17,21 @@ describe('VEPLAYER_IGNORED_PLUGINS', () => {
     expect(VEPLAYER_IGNORED_PLUGINS.join(',')).not.toMatch(/progress/i);
   });
 
-  it('still ignores playbackrate, so this slice does not pick X-26 倍速', () => {
-    expect(VEPLAYER_IGNORED_PLUGINS).toContain('playbackrate');
+  it('keeps playbackrate by not listing it, so 倍速 stays plugin-owned', () => {
+    expect(ignoresPlaybackratePlugin(VEPLAYER_IGNORED_PLUGINS)).toBe(false);
+    expect(VEPLAYER_IGNORED_PLUGINS).not.toContain('playbackrate');
+    expect(VEPLAYER_IGNORED_PLUGINS.join(',')).not.toMatch(/playbackrate/i);
+  });
+
+  it('treats a listed progress plugin as hidden, which this slice must not ship', () => {
+    expect(ignoresProgressPlugin(['progress'])).toBe(true);
+    expect(ignoresProgressPlugin(['play'])).toBe(false);
+  });
+
+  it('treats a listed rate plugin as hidden, which this slice must not ship', () => {
+    expect(ignoresPlaybackratePlugin(['playbackrate'])).toBe(true);
+    expect(ignoresPlaybackratePlugin(['play', 'PlaybackRate'])).toBe(true);
+    expect(ignoresPlaybackratePlugin(['play'])).toBe(false);
   });
 
   it('matches the immersive sample for chrome that is wrong on a vertical drama', () => {
@@ -29,7 +43,6 @@ describe('VEPLAYER_IGNORED_PLUGINS', () => {
       'play',
       'pip',
       'replay',
-      'playbackrate',
       'sdkDefinitionPlugin',
     ]);
   });

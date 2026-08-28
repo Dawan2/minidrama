@@ -815,7 +815,7 @@ a {
   overflow: hidden;
   background: #000000;
   border-radius: var(--radius);
-  /* Vertical 切集 is ours; VePlayer owns tap-to-pause and the kept progress plugin (AC-PL-6). */
+  /* Vertical 切集 is ours; VePlayer owns tap-to-pause, progress, and playbackrate (AC-PL-6). */
   touch-action: none;
 }
 

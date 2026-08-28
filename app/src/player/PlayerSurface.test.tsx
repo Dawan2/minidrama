@@ -469,6 +469,29 @@ describe('PlayerSurface', () => {
     expect(report).not.toHaveBeenCalled();
   });
 
+  it('keeps the playbackrate plugin and does not render a competing 倍速 panel', async () => {
+    const bridge = await readyBridge();
+    render(<PlayerSurface bridge={bridge} episodeId="ep_1" playlist={playlist} />);
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const instance = MockVePlayer.instances[0]!;
+    expect(instance.config.ignores).not.toContain('playbackrate');
+    expect(instance.config.ignores.join(',')).not.toMatch(/playbackrate/i);
+    expect('playbackRate' in instance.config).toBe(false);
+    expect(
+      screen.getByTestId('player-container').querySelector('[data-veplayer-playbackrate="kept"]'),
+    ).not.toBeNull();
+    expect(screen.queryByTestId('playback-rate')).toBeNull();
+    expect(screen.queryByTestId('pnl-05')).toBeNull();
+    expect(
+      screen.getByTestId('player-container').querySelector('input, video, select, [role="slider"]'),
+    ).toBeNull();
+    expect(forbiddenElements()).toEqual([]);
+    expect(instance.config.vid).not.toMatch(/vid_demo_/);
+  });
+
   it('flushes a plugin scrub without building a second instance or a native video', async () => {
     const reports: WatchProgressReport[] = [];
     const bridge = await readyBridge();
@@ -502,7 +525,7 @@ describe('PlayerSurface', () => {
     expect(reports[0]).toMatchObject({ positionSec: 40, durationSec: 90 });
     expect(MockVePlayer.instances).toHaveLength(1);
     expect(forbiddenElements()).toEqual([]);
-    expect(player.config.ignores).toContain('playbackrate');
+    expect(player.config.ignores).not.toContain('playbackrate');
     expect(player.config.vid).not.toMatch(/vid_demo_/);
   });
 });

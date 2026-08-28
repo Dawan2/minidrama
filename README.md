@@ -77,12 +77,13 @@ pnpm check:secrets       # G1.8 Gitleaks; a missing binary or a finding fails
 pnpm check:contract      # G1.6 oasdiff breaking; a missing binary or an ERR-level break fails
 pnpm check:commits       # G1.9 Conventional Commits; a prose subject on the merge-base range fails
 pnpm check:skips         # G1.10 skip/empty tests; a committed skip or empty it() fails
+pnpm check:audit         # INF-004; continue-on-error / if: false in workflows fail
 pnpm check:a11y           # QA-010; axe-core in jsdom; contrast < 4.5:1 fails; not TikTok WebView
 pnpm gen:minis-config    # regenerate app/minis.config.json from the domain registry
 ```
 
 L1 CI (`.github/workflows/ci.yml`) runs G1.8 Gitleaks, then G1.6 oasdiff, then format, lint,
-types, G1.9 Conventional Commits, G1.10 skip/empty-test detection, QA-010 a11y, tests+coverage, build, and
+types, G1.9 Conventional Commits, G1.10 skip/empty-test detection, INF-004 CI self-audit, QA-010 a11y, tests+coverage, build, and
 guardrails, on every pull request, every push to `main` or a `cursor/**` branch, and on
 `workflow_dispatch`. L2 CI (`.github/workflows/l2.yml`) runs the G2.8 license whitelist, the
 G2.7 migrate check, the G2.2 sqlite integration check, the G2.6 artifact budget, the G2.4
@@ -90,5 +91,5 @@ Semgrep + CodeQL SAST checks, the G2.5 Trivy SCA check, and the G2.3 Playwright 
 same events; it does not skip, filter, or `continue-on-error` the L1 suite.
 `check:migrate`, `check:integration`, `check:artifact`, `check:sast`, `check:codeql`,
 `check:sca`, `check:smoke`, `check:secrets`, and `check:contract` are not folded into `verify`.
-`check:commits`, `check:skips`, and `check:a11y` are folded into `verify` — they have no extra binary.
-Rewriting history is not G1.9. A comment that forbids skips is not G1.10. A comment that names WCAG is not QA-010.
+`check:commits`, `check:skips`, `check:audit`, and `check:a11y` are folded into `verify` — they have no extra binary.
+Rewriting history is not G1.9. A comment that forbids skips is not G1.10. A comment that forbids `continue-on-error` is not INF-004. A comment that names WCAG is not QA-010.

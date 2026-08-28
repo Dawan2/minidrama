@@ -86,6 +86,11 @@ jobs:
       - name: G1.10 skip/empty tests
         run: pnpm run check:skips
 
+      # A continue-on-error: true or if: false in a committed workflow exits 1.
+      # There is no continue-on-error: a comment that forbids bypasses is not INF-004.
+      - name: INF-004 CI self-audit
+        run: pnpm run check:audit
+
       # axe-core critical/serious or contrast < 4.5:1 exits 1. Host is jsdom, not
       # TikTok WebView. There is no continue-on-error: a skipped scan is not QA-010.
       - name: QA-010 a11y

@@ -26,8 +26,8 @@ export interface VePlayerConfig {
   readonly lang: string;
   readonly autoSubtitle: boolean;
   /**
-   * Plugin policy (`docs/product/sitemap-and-ia.md` §4.1). Progress is kept by *not* listing it.
-   * `playbackrate` stays listed until X-26 is adjudicated — this slice does not un-ignore 倍速.
+   * Plugin policy (`docs/product/sitemap-and-ia.md` §4.1). Progress and `playbackrate` are
+   * kept by *not* listing them. The rate plugin owns the ladder — no client rate field.
    */
   readonly ignores: readonly string[];
   /** `false`: tap-to-pause stays VePlayer's (`AC-PL-6`). */
