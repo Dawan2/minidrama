@@ -6,10 +6,11 @@ import { MockVePlayer } from './mock-veplayer';
 import type { VePlayerConfig } from './veplayer-types';
 
 function config(overrides: Partial<VePlayerConfig> = {}): VePlayerConfig {
-  const el = document.createElement('div');
-  document.body.appendChild(el);
+  const el = overrides.el ?? document.createElement('div');
+  if (el.parentNode === null) {
+    document.body.appendChild(el);
+  }
   return {
-    el,
     albumId: 'album_1',
     episodeId: 'ep_1',
     vid: 'vid_1',
@@ -22,7 +23,7 @@ function config(overrides: Partial<VePlayerConfig> = {}): VePlayerConfig {
     closeVideoClick: false,
     closeVideoDblclick: true,
     ...overrides,
-    el: overrides.el ?? el,
+    el,
   };
 }
 
