@@ -114,7 +114,7 @@ build → guardrails.
 | Gate | Result |
 |---|---|
 | Format / lint / types | pass |
-| G1.9 commits | `1 new commits vs origin/main, 0 prose, 0 missing-id` (merge commits skipped; unique commit carries `QA-010` / `SCR-05`) |
+| G1.9 commits | `2 new commits vs origin/main, 0 prose, 0 missing-id` (merge commits skipped; unique commits carry `QA-010` / `SCR-05`) |
 | G1.10 skips | `237 test files, 0 skips, 0 empty` |
 | INF-004 audit | `audit passed (2 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits, 0 echo-only)` |
 | QA-010 a11y | `a11y passed (5 screens, 0 critical, 0 serious, host=jsdom, not TikTok WebView)` |
