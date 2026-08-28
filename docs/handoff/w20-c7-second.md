@@ -4,15 +4,15 @@
 > **Branch:** `cursor/w20-work-c7-second-72c4`, cut from `origin/main` at **`ac8ff4d`**
 > (QA-010 remainder already requires SCR-02 home, SCR-03 browse, SCR-04 drama,
 > and SCR-13).
-> Merged forward onto **`b34ef5b`** (W20 QA-010 SCR-05 play remainder) then
-> **`a49ebd7`** (W20 QA-010 SCR-06 profile remainder, first C7).
+> Merged forward onto **`b34ef5b`** (SCR-05 play), **`a49ebd7`** (SCR-06
+> profile), then **`c2f9700`** (SCR-08 favorites + PLY-010 tap-pause).
 > **Item:** **QA-010 remainder** — S-A1 on the **second** unblocked C7 screen.
 > After SCR-04, inventory order is SCR-05 play, SCR-06 profile (first C7,
 > `bc-22d4f29b`), then **SCR-07** (`#/history`, continue watching). Combined
-> required stems are seven. Host stays jsdom, not TikTok WebView.
+> required stems are eight. Host stays jsdom, not TikTok WebView.
 > **Not in scope:** D-17 billing, C4-03 Postgres, C4-07 VIP, first C7
 > `bc-22d4f29b`, play a11y `bc-f6e4b6a7`, remaining SCR/PNL fixtures
-> (profile, favorites, wallet, settings, panels), S-C4, protocol-C4 exit 3.
+> (wallet, settings, panels), S-C4, protocol-C4 exit 3.
 > No pull request.
 
 ---
@@ -92,7 +92,8 @@ a11y failed (1): axe-core critical/serious or contrast < 4.5:1 are QA-010 red (h
 ```
 
 Exit 1. A comment that names WCAG is not this gate. Stdout on green after
-absorbing play and profile says `7 screens` and `host=jsdom, not TikTok WebView`.
+absorbing play, profile, and favorites says `8 screens` and
+`host=jsdom, not TikTok WebView`.
 
 ---
 
@@ -100,9 +101,11 @@ absorbing play and profile says `7 screens` and `host=jsdom, not TikTok WebView`
 
 | Who | Overlap |
 | --- | --- |
-| `bc-f6e4b6a7` play-screen a11y | **Idle. Landed** `b34ef5b` / `docs/handoff/w20-a11y-play.md` while this slot absorbed. Play fixture not authored here |
-| `bc-22d4f29b` first C7 | **Idle. Landed** `a49ebd7` / `docs/handoff/w20-c7-first.md` while this slot absorbed. Profile fixture not authored here |
+| `bc-f6e4b6a7` play-screen a11y | **Idle. Landed** `b34ef5b` / `docs/handoff/w20-a11y-play.md`. Play fixture not authored here |
+| `bc-22d4f29b` first C7 | **Idle. Landed** `a49ebd7` / `docs/handoff/w20-c7-first.md`. Profile fixture not authored here |
+| C7 follow SCR-08 | **Idle. Landed** `9d43445` / `docs/handoff/w20-c7-follow.md` while this slot absorbed. Favorites fixture not authored here |
 | `bc-afae2991` drama a11y | **Idle. Landed** `ac8ff4d` / `docs/handoff/w20-a11y-drama.md` before this cut |
+| tap-pause PLY-010 | **Idle. Landed** `e0765ab` / `docs/handoff/w20-tap-pause.md`. Player files not authored here |
 
 `git diff origin/main -- app/ server/ .github/` is empty of this slot's work.
 
@@ -135,9 +138,9 @@ is incomplete, not a skip.
 ## 6. What is still open
 
 - **S-A1 on every remaining SCR/PNL.** This slice adds SCR-07 only. SCR-05
-  play and SCR-06 profile landed on `main` while this slot absorbed. SCR-08,
-  SCR-09, SCR-12, and panels are later remainders. Do not retake play or
-  profile fixtures.
+  play, SCR-06 profile, and SCR-08 favorites landed on `main` while this
+  slot absorbed. SCR-09, SCR-12, and panels are later remainders. Do not
+  retake play, profile, or favorites fixtures.
 - **S-A2 on live `app.css`.** `--accent` (#fe2c55) under white label text is
   below 4.5:1. Not remediated here; fixtures use passing body colors.
 - **TikTok WebView.** Not claimed. PLY-002 still `unmeasured`.
@@ -151,7 +154,7 @@ is incomplete, not a skip.
 - **`docs/plan/cycle-7-backlog.md`.** Plan-slot file.
 
 This slice does **not** claim protocol-C4 exit 3 closed. Combined stems after
-absorb are SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, and SCR-13.
+absorb are SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08, and SCR-13.
 
 ---
 
@@ -183,4 +186,17 @@ profile, history, and fallback. `pnpm verify` exited 0:
 - build: `index-B2g09p35.js` 366.74 kB / 112.08 kB gzip
 
 Profile files were not retaken beyond combining `REQUIRED_SCREEN_STEMS`.
-Protocol-C4 exit 3 is still not closed.
+
+Absorbed `origin/main` **`c2f9700`** (SCR-08 favorites remainder + PLY-010
+tap-pause) next. Required stems are now home, browse, drama, play, profile,
+history, favorites, and fallback. `pnpm verify` exited 0:
+
+- commits: `5 new commits vs origin/main, 0 prose, 0 missing-id` (merges skipped)
+- skips: 238 files, 0 skips
+- a11y: **8 screens** (SCR-13 + SCR-02 + SCR-03 + SCR-04 + SCR-05 + SCR-06 + SCR-07 + SCR-08)
+- tests: **3,596 passing** — shared 63, quality 446, config 45, server 1,785, app 1,257
+- coverage: global lines 94.37% (17890/18958), diff lines 100.00% (1/1)
+- build: `index-DGRevdWg.js` 367.05 kB / 112.17 kB gzip (PLY-010's client; this slot did not edit product UI)
+
+Favorites and tap-pause files were not retaken beyond combining
+`REQUIRED_SCREEN_STEMS`. Protocol-C4 exit 3 is still not closed.
