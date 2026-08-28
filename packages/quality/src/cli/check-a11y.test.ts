@@ -136,7 +136,10 @@ function writeRequiredStems(
   writeFileSync(join(root, 'screens', 'scr-02-home.html'), bodies.home ?? PASSING_HOME_HTML);
   writeFileSync(join(root, 'screens', 'scr-03-browse.html'), bodies.browse ?? PASSING_BROWSE_HTML);
   writeFileSync(join(root, 'screens', 'scr-04-drama.html'), bodies.drama ?? PASSING_DRAMA_HTML);
-  writeFileSync(join(root, 'screens', 'scr-07-history.html'), bodies.history ?? PASSING_HISTORY_HTML);
+  writeFileSync(
+    join(root, 'screens', 'scr-07-history.html'),
+    bodies.history ?? PASSING_HISTORY_HTML,
+  );
 }
 
 describe('check-a11y CLI', () => {
