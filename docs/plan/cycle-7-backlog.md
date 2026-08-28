@@ -79,6 +79,7 @@ Partner answers are **unknown**. None is invented. The questions stay in
 | `origin/cursor/w18-work-c6-follow-72c4` | **Ancestor.** Landed PLY-011 at `9b563b0` / `533433f` | Do not retake `locked-chrome.tsx` / `PlayPage.tsx` |
 | `origin/cursor/w18-work-c6-left-72c4` | **Ancestor.** Landed INF-004 S-C3 | Do not retake |
 | `origin/cursor/w18-work-c6-after-lock-72c4` | **Ancestor.** Landed QA-010 SCR-02 | Do not retake |
+| `origin/cursor/w20-work-a11y-next-72c4` | **Ancestor.** Landed QA-010 SCR-03 | Do not retake |
 
 ---
 
