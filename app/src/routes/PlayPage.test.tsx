@@ -653,6 +653,115 @@ describe('double-tap 点赞 follows the current drama', () => {
   });
 });
 
+describe('PLAYER_FATAL silent re-issue (PLY-012)', () => {
+  it('re-mints the route episode and keeps the instance, without a like API or a demo album', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId, callIndex) =>
+        ok(
+          playbackDescriptor({
+            episodeId,
+            playAuthToken: callIndex === 0 ? 'token-old' : 'token-new',
+            resumePositionSec: callIndex === 0 ? 40 : 8,
+          }),
+        ),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+    const instance = await player();
+    expect(instance.currentPlayAuthToken).toBe('token-old');
+    expect(playbackApi.createCalls).toEqual(['ep_test_0001']);
+
+    instance.emitForTest('error', { playAuthToken: 'token-must-not-leak' });
+
+    await waitFor(() => {
+      expect(playbackApi.createCalls).toEqual(['ep_test_0001', 'ep_test_0001']);
+    });
+    expect(MockVePlayer.instances.filter((item) => !item.destroyed)).toHaveLength(1);
+    expect(instance.destroyed).toBe(false);
+    expect(instance.playNextCount).toBe(0);
+    expect(instance.currentPlayAuthToken).toBe('token-new');
+    expect(instance.config.startTime).toBe(40);
+    expect(screen.queryByTestId('player-fatal')).toBeNull();
+    expect(screen.queryByTestId('retryable-error')).toBeNull();
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect(document.body.textContent ?? '').not.toMatch(/token-must-not-leak|token-old|token-new/);
+  });
+
+  it('keeps the last frame and shows retry when the silent mint fails', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId, callIndex) =>
+        callIndex === 0
+          ? ok(playbackDescriptor({ episodeId, playAuthToken: 'token-old' }))
+          : err(playbackHttpFailure(503, 'EPISODE_ASSET_UNAVAILABLE')),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+    const instance = await player();
+    instance.emitForTest('error');
+
+    expect(await screen.findByTestId('player-fatal')).toBeDefined();
+    expect(screen.getByTestId('retryable-error')).toBeDefined();
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect(instance.destroyed).toBe(false);
+    expect(screen.queryByTestId('unlock-panel')).toBeNull();
+  });
+
+  it('does not mint a third session after the silent attempt was already used', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId) => ok(playbackDescriptor({ episodeId, playAuthToken: 'token-new' })),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+    const instance = await player();
+    instance.emitForTest('error');
+    await waitFor(() => {
+      expect(playbackApi.createCalls).toHaveLength(2);
+    });
+    instance.emitForTest('error');
+    await waitFor(() => {
+      expect(screen.getByTestId('player-fatal')).toBeDefined();
+    });
+    expect(playbackApi.createCalls).toHaveLength(2);
+    expect(screen.getByTestId('retryable-error')).toBeDefined();
+    expect(instance.destroyed).toBe(false);
+  });
+
+  it('opens the unlock overlay on a commercial lock without tearing the frame down', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId, callIndex) =>
+        callIndex === 0 ? ok(playbackDescriptor({ episodeId })) : err(lockedPlaybackFailure()),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+    const instance = await player();
+    instance.emitForTest('error');
+
+    expect(await screen.findByTestId('unlock-panel')).toBeDefined();
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect(instance.destroyed).toBe(false);
+    expect(screen.queryByTestId('player-fatal')).toBeNull();
+  });
+
+  it('treats a 409 as blocked: last frame, no retry, no price', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId, callIndex) =>
+        callIndex === 0 ? ok(playbackDescriptor({ episodeId })) : err(playbackHttpFailure(409)),
+    });
+    renderPlayer({ bridge: await readyBridge(), playbackApi });
+    const instance = await player();
+    instance.emitForTest('error');
+
+    expect(await screen.findByTestId('player-fatal')).toBeDefined();
+    expect(screen.getByTestId('terminal-error').getAttribute('data-reason')).toBe('OFFLINE');
+    expect(screen.getByTestId('terminal-error').textContent).toMatch(/unavailable right now/i);
+    expect(screen.queryByTestId('retryable-error')).toBeNull();
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect(instance.destroyed).toBe(false);
+    expect(screen.queryByTestId('unlock-panel')).toBeNull();
+  });
+
+  it('does not invent 倍速, axe-core, a subscription path, or postgres', () => {
+    const source = readFileSync(join(process.cwd(), 'src/routes/PlayPage.tsx'), 'utf8');
+    expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|postgres:/);
+  });
+});
+
 describe('PNL-01 on the player', () => {
   it('looks the route episode up for the queue, and does not open the picker by itself', async () => {
     const api = stubCatalogApi({

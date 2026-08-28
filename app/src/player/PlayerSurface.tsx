@@ -41,6 +41,11 @@ export interface PlayerSurfaceProps {
    * (idempotent follow). Ignored when omitted.
    */
   readonly onDoubleTap?: () => void;
+  /**
+   * VePlayer `error`. PlayPage owns the silent re-issue (`PLY-012`). The payload is not
+   * classified here: it is undocumented and must not decide locked vs blocked vs transport.
+   */
+  readonly onPlayerFatal?: () => void;
 }
 
 export interface PlayerSurfaceHandle {
@@ -49,6 +54,11 @@ export interface PlayerSurfaceHandle {
    * player exists; the create effect applies a pending descriptor before reconciling the route.
    */
   enqueueNext(descriptor: PlaybackDescriptor): void;
+  /**
+   * Hand a freshly minted descriptor to the live instance for the episode already on screen.
+   * No-ops until the player exists. A pending re-issue is applied when construction finishes.
+   */
+  reissue(descriptor: PlaybackDescriptor): void;
 }
 
 type SurfaceState = 'loading' | 'playing' | 'unavailable';
@@ -67,7 +77,17 @@ type SurfaceState = 'loading' | 'playing' | 'unavailable';
  */
 export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>(
   function PlayerSurface(
-    { bridge, playlist, episodeId, progress, onEnded, onSwipeNext, onSwipePrevious, onDoubleTap },
+    {
+      bridge,
+      playlist,
+      episodeId,
+      progress,
+      onEnded,
+      onSwipeNext,
+      onSwipePrevious,
+      onDoubleTap,
+      onPlayerFatal,
+    },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -83,11 +103,14 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
     onSwipePreviousRef.current = onSwipePrevious;
     const onDoubleTapRef = useRef(onDoubleTap);
     onDoubleTapRef.current = onDoubleTap;
+    const onPlayerFatalRef = useRef(onPlayerFatal);
+    onPlayerFatalRef.current = onPlayerFatal;
     const pointerOrigin = useRef<{ x: number; y: number } | null>(null);
     const lastTap = useRef<TapPoint | null>(null);
     const playlistRef = useRef(playlist);
     playlistRef.current = playlist;
     const pendingNextRef = useRef<PlaybackDescriptor | null>(null);
+    const pendingReissueRef = useRef<PlaybackDescriptor | null>(null);
     /** The episode the route wants, readable from the create effect without becoming a dependency. */
     const wantedEpisodeRef = useRef(episodeId);
     const [state, setState] = useState<SurfaceState>('loading');
@@ -101,6 +124,14 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
           return;
         }
         facade.enqueueNext(descriptor);
+      },
+      reissue(descriptor: PlaybackDescriptor): void {
+        const facade = facadeRef.current;
+        if (facade === null) {
+          pendingReissueRef.current = descriptor;
+          return;
+        }
+        facade.reissue(descriptor);
       },
     }));
 
@@ -167,6 +198,11 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
           if (event === 'ended') {
             onEndedRef.current?.();
           }
+          if (event === 'error') {
+            // Do not inspect `payload`. VePlayer ERROR is undocumented; classification is the
+            // re-issued session (`docs/design/playback-contract.md` §5.2).
+            onPlayerFatalRef.current?.();
+          }
         },
       }).then((result) => {
         if (cancelled) {
@@ -188,6 +224,11 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         if (pending !== null) {
           result.value.enqueueNext(pending);
           pendingNextRef.current = null;
+        }
+        const pendingReissue = pendingReissueRef.current;
+        if (pendingReissue !== null) {
+          result.value.reissue(pendingReissue);
+          pendingReissueRef.current = null;
         }
         setState('playing');
         // The route can move while the player is being built, and the switch effect below found no

@@ -4,6 +4,7 @@ import { ok, type PlaybackDescriptor, type WatchProgressReport } from '@minidram
 
 import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from './mock-veplayer';
+import type { PlayerSurfaceHandle } from './PlayerSurface';
 import { PlayerSurface } from './PlayerSurface';
 
 function episode(episodeNumber: number): PlaybackDescriptor {
@@ -114,6 +115,58 @@ describe('PlayerSurface', () => {
 
     expect(onEnded).toHaveBeenCalledTimes(1);
     expect(MockVePlayer.instances).toHaveLength(1);
+  });
+
+  it('notifies PLAYER_FATAL without tearing the instance down or inspecting the payload', async () => {
+    const onPlayerFatal = vi.fn();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onPlayerFatal={onPlayerFatal}
+        playlist={playlist}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    MockVePlayer.instances[0]!.emitForTest('error', { playAuthToken: 'token-must-not-decide' });
+
+    expect(onPlayerFatal).toHaveBeenCalledTimes(1);
+    expect(onPlayerFatal.mock.calls[0]).toEqual([]);
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances[0]?.destroyed).toBe(false);
+    expect(screen.getByTestId('player-surface').dataset['state']).toBe('playing');
+    expect(screen.queryByTestId('player-unavailable')).toBeNull();
+  });
+
+  it('applies a reissued descriptor on the live instance', async () => {
+    const bridge = await readyBridge();
+    const surfaceRef = { current: null as PlayerSurfaceHandle | null };
+    render(
+      <PlayerSurface
+        ref={surfaceRef}
+        bridge={bridge}
+        episodeId="ep_1"
+        playlist={[{ ...descriptor, playAuthToken: 'token-old' }]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    surfaceRef.current?.reissue({
+      ...descriptor,
+      playAuthToken: 'token-new',
+      resumePositionSec: 9,
+    });
+
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+    expect(MockVePlayer.instances[0]?.currentPlayAuthToken).toBe('token-new');
+    expect(MockVePlayer.instances[0]?.config.startTime).toBe(0);
   });
 
   it('treats an upward flick as next and a tap as nothing', async () => {

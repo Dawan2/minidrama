@@ -140,6 +140,7 @@
   "player.notFound": "لم نتمكن من العثور على هذه الحلقة.",
   "player.offline": "هذه الحلقة لم تعد متاحة.",
   "player.rejected": "لم نتمكن من بدء التشغيل.",
+  "player.blocked": "هذه الحلقة غير متاحة الآن.",
   "player.nextEpisode": "الحلقة التالية",
   "player.lastEpisode": "كانت تلك الحلقة الأخيرة.",
   "player.liked": "تمت الإضافة إلى المفضلة",
