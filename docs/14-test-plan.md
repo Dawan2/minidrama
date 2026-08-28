@@ -177,20 +177,31 @@
 - 服务端:核心接口(登录、feed、取播放地址、下单、回调)压测,场景含"热剧上线"峰值模型;SLO:可用性 99.9%,核心接口 P95 ≤ 300ms;
 - 压测脚本入库,每次大版本前重跑。
 
-### 6.2 兼容性矩阵(上架级,云真机)
+### 6.2 兼容性矩阵(上架级,TikTok WebView)
 
-- **iOS**:当前大版本 + 前两个大版本;机型覆盖刘海/灵动岛/小屏,含一台低端机;
-- **Android**:市场占有率前列的 OEM(华为/荣耀/小米/OPPO/vivo/三星)各至少 1 台,系统覆盖最近 4 个大版本,含 1 台低端机(2GB–4GB RAM);
-- **H5**:微信内置 WebView(iOS/Android)、Safari、Chrome;**小程序**:iOS/Android 微信最近两个版本;
+宿主是 TikTok App 内的 WebView,不是微信小程序,也不是独立 Safari/Chrome 作为上架矩阵(`X-04` / `QA-011`, 2026-08-27)。
+
+- **TikTok iOS**:当前大版本 + 前两个大版本;WKWebView;机型覆盖刘海/灵动岛/小屏,含一台低端机(iPhone SE2);
+- **TikTok Android**:Chromium WebView;市场占有率前列的 OEM(华为/荣耀/小米/OPPO/vivo/三星)各至少 1 台,系统覆盖最近 4 个大版本,含 1 台低端机(4GB RAM 中端基线);
+- **最低支持 SDK**:与 Portal 配置一致。Safari / Chrome / 微信 WebView 不是本产品的上架宿主,不进入本矩阵。
 - 矩阵项跑 P0 冒烟;矩阵清单随市场数据每半年修订(修订=收紧或平移,放宽走豁免)。
 
 ### 6.3 安全测试
 
 规则来源见 [14-security.md](./14-security.md):SAST/DAST/依赖扫描在门禁中自动化;E2E 安全样本(E-26/E-27/E-31)随发布全量跑;渗透测试按安全规范 §9 执行。
 
-### 6.4 可用性与无障碍(P2,不阻断首个上架版本)
+### 6.4 可用性与无障碍(上架阻断)
 
-- 字体缩放、深色模式不破版;iOS VoiceOver / Android TalkBack 关键路径可走通 —— 列为观测项,后续 Wave 升级为门禁。
+**2026-08-27 (W16 QA-011 / C-12 / X-12).** 采纳 `docs/plan/definition-of-done.md` §6:a11y 是可上架阻断项,不是 P2 观测。`docs/product/acceptance-criteria.md` 没有 a11y 分组,阻断条只活在 DoD §6 与本节。P1 会签仍待计划槽回写 `docs/plan/backlog.md`;本槽不改写 P1 或 P3 的文件。
+
+WCAG 2.2 Level AA 中适用于 TikTok WebView 内竖屏 H5 的子集。明确 N/A:物理键盘导航与焦点顺序降级为"不得存在焦点陷阱";页面级 landmark 按移动端简化。阻断项与 DoD §6.2 S-A1…S-A10 一致:
+
+- 自动化扫描(axe-core 或等价)在 `docs/02-screen-inventory.md` 已实现屏上 critical + serious = 0,扫描进 CI 且失败即失败。接线是 `QA-010`(W19)。**本节不把 axe-core job 当作本裁决的落地** — 那是第三协议出场,不作为 C5 leftover 添加;
+- 文本对比度、触达区域、图标可访问名称、字幕、非单一感官通道、`prefers-reduced-motion`、无焦点陷阱、VoiceOver/TalkBack 抽查、文字缩放 200% — 判据见 DoD §6.2,不在此另写一套更松的条。
+
+S-A1 / S-A8 扫描 SCR-01…SCR-13 与 PNL-01…PNL-05。PNL-05(清晰度/倍速)仍在 `docs/02-screen-inventory.md`;`VF-12`(PNL-05 已删)对本树不成立,因此本槽不改写 P3 的 DoD。
+
+观测项(完整 landmark/heading 层级、复杂手势替代操作全集、音频描述轨)仍不阻断首发,见 DoD §6.3。
 
 ---
 
