@@ -3,6 +3,7 @@ import type { Result, WatchProgressReport } from '@minidrama/shared';
 import { asRecord } from '../data/narrow';
 import type { ApiFailure } from '../data/failure';
 import type { VePlayerEventName } from './veplayer-types';
+import { isSeekDiscontinuity, type SeekObservation } from './seek-inference';
 
 /**
  * The progress heartbeat (`docs/design/player-state-machine.md` §5.3, `AC-PL-8`).
@@ -21,7 +22,10 @@ import type { VePlayerEventName } from './veplayer-types';
  *   - a `timeupdate` before the player has seeked to session `resumePositionSec` is not a watch.
  *     Reporting it would give that device a *newer* `clientUpdatedAt` at position 0, and the
  *     server's last-write-wins merge would treat the jump as a deliberate rewind (it is larger
- *     than `backwardJitterToleranceSec`) and wipe the other device's position (`PRG-001`).
+ *     than `backwardJitterToleranceSec`) and wipe the other device's position (`PRG-001`);
+ *   - a scrub inferred from a `timeupdate` discontinuity (`docs/design/player-state-machine.md`
+ *     §4.3) flushes the new position and suppresses the interval beat. The plugin owns the bar;
+ *     we do not call a seek API and we do not emit a second play.
  */
 
 export interface ProgressHeartbeatReport {
@@ -86,6 +90,7 @@ export function createProgressHeartbeat(options: ProgressHeartbeatOptions): Prog
   let latest: Observation | null = null;
   let lastBeatAt: number | null = null;
   let playStartedAt: number | null = null;
+  let lastObserved: SeekObservation | null = null;
 
   const unsubscribeHidden = options.subscribeHidden?.(() => {
     flush();
@@ -120,11 +125,22 @@ export function createProgressHeartbeat(options: ProgressHeartbeatOptions): Prog
     if (observation === null || !acceptObservation(observation)) {
       return;
     }
+
+    const t = now();
+    const nextObserved: SeekObservation = { positionSec: observation.positionSec, atMs: t };
+    const scrub = lastObserved !== null && isSeekDiscontinuity(lastObserved, nextObserved);
+    lastObserved = nextObserved;
+
+    if (scrub) {
+      // Plugin-owned progress drag. Flush the landing and do not beat until time is advancing.
+      flush();
+      return;
+    }
+
     if (!playing || playStartedAt === null) {
       return;
     }
 
-    const t = now();
     const elapsed = t - (lastBeatAt ?? playStartedAt);
     if (elapsed >= intervalMs) {
       void send();
@@ -152,6 +168,7 @@ export function createProgressHeartbeat(options: ProgressHeartbeatOptions): Prog
     landed = !isPreResumeObservation(0, resumePositionSec);
     latest = null;
     lastBeatAt = null;
+    lastObserved = null;
     playStartedAt = playing ? now() : null;
   }
 

@@ -3,6 +3,11 @@ import type { BridgeError, PlaybackDescriptor, Result } from '@minidrama/shared'
 
 import type { PlatformBridge } from '../platform/types';
 import type { VePlayerEventName, VePlayerInstance, VePlayerPlaylistItem } from './veplayer-types';
+import {
+  VEPLAYER_CLOSE_VIDEO_CLICK,
+  VEPLAYER_CLOSE_VIDEO_DBLCLICK,
+  VEPLAYER_IGNORED_PLUGINS,
+} from './veplayer-plugins';
 
 /**
  * The player facade.
@@ -127,6 +132,10 @@ export async function createPlayerFacade(
       startTime: descriptor.resumePositionSec,
       lang: options.lang ?? 'en',
       autoSubtitle: true,
+      // Immersive plugin policy. Progress is kept (scrub); playbackrate stays ignored (X-26).
+      ignores: VEPLAYER_IGNORED_PLUGINS,
+      closeVideoClick: VEPLAYER_CLOSE_VIDEO_CLICK,
+      closeVideoDblclick: VEPLAYER_CLOSE_VIDEO_DBLCLICK,
     });
     // The player's own copy of the order. Without it `playNext()` is a request to advance through
     // a playlist the player was never given.

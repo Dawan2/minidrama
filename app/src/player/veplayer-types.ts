@@ -25,6 +25,15 @@ export interface VePlayerConfig {
   /** Documented values: 'en' | 'zh-cn' | 'jp'. English is the fallback. */
   readonly lang: string;
   readonly autoSubtitle: boolean;
+  /**
+   * Plugin policy (`docs/product/sitemap-and-ia.md` §4.1). Progress is kept by *not* listing it.
+   * `playbackrate` stays listed until X-26 is adjudicated — this slice does not un-ignore 倍速.
+   */
+  readonly ignores: readonly string[];
+  /** `false`: tap-to-pause stays VePlayer's (`AC-PL-6`). */
+  readonly closeVideoClick: boolean;
+  /** `true`: double-click is our 点赞, not the player's like. */
+  readonly closeVideoDblclick: boolean;
 }
 
 /**
