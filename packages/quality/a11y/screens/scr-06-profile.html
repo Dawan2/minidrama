@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Me</title>
+    <style>
+      html,
+      body {
+        background: #0b0b0f;
+        color: #f4f4f7;
+      }
+      a {
+        color: #f4f4f7;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page page--profile" data-testid="profile-page" data-session="ANONYMOUS">
+      <h1 class="page__heading">Me</h1>
+      <section class="profile-identity" data-testid="profile-identity" data-me="guest">
+        <div class="profile-identity__avatar" aria-hidden="true"></div>
+        <div>
+          <p class="profile-identity__name" data-testid="profile-identity-name">Guest</p>
+          <p class="profile-identity__hint">You are browsing as a guest.</p>
+        </div>
+      </section>
+      <div class="state state--sign-in" data-testid="profile-sign-in" data-prompt-state="IDLE">
+        <p class="state__message">Sign in to save your progress across devices.</p>
+        <button class="state__action" type="button" data-testid="sign-in">Sign in</button>
+      </div>
+      <nav class="profile-entries" data-testid="profile-entries">
+        <a class="profile-entry" data-testid="history-entry" href="#/history">Continue watching</a>
+        <a class="profile-entry" data-testid="favorites-entry" href="#/favorites">Favourites</a>
+        <a class="profile-entry" data-testid="wallet-entry" href="#/wallet">Wallet</a>
+        <a class="profile-entry" data-testid="settings-entry" href="#/settings">Settings</a>
+      </nav>
+    </main>
+  </body>
+</html>
