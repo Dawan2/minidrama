@@ -6,12 +6,11 @@ import { basename, join, relative } from 'node:path';
  * QA-010: a11y scan. axe-core critical + serious = 0 on committed
  * implemented-screen HTML, plus a WCAG contrast check on declared CSS colors.
  *
- * Smallest job scanned SCR-13 only. Later remainders added SCR-02 (home) and
- * SCR-03 (browse / theatre). This remainder adds SCR-06 (profile / `#/me`),
- * the next unblocked implemented numbered hash screen after browse: drama
- * (SCR-04) and play (SCR-05) were in-flight a11y scans and are not this
- * slice. Deleting any required stem is red. Remaining SCR/PNL fixtures are
- * later remainders.
+ * Smallest job scanned SCR-13 only. Later remainders added SCR-02 (home),
+ * SCR-03 (browse / theatre), SCR-04 (drama detail), and SCR-05 (player).
+ * This remainder adds SCR-06 (profile / `#/me`), the next implemented
+ * numbered hash screen after play. Deleting any required stem is red.
+ * Remaining SCR/PNL fixtures are later remainders.
  *
  * This module invokes axe-core. A TypeScript comment that names WCAG is not
  * QA-010. jsdom is the host: color-contrast stays incomplete without canvas, so
@@ -34,6 +33,8 @@ export const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag22aa'] as const;
 export const REQUIRED_SCREEN_STEMS = [
   'scr-02-home',
   'scr-03-browse',
+  'scr-04-drama',
+  'scr-05-play',
   'scr-06-profile',
   'scr-13-fallback',
 ] as const;

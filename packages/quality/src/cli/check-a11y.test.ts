@@ -93,6 +93,34 @@ const PASSING_BROWSE_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+const PASSING_DRAMA_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>The Heiress Returns</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="drama-page">
+    <h1>The Heiress Returns</h1>
+    <a href="#/home">Back</a>
+  </main>
+</body>
+</html>
+`;
+
+const PASSING_PLAY_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>Player</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="play-page">
+    <h1>Player</h1>
+    <a href="#/home">Back</a>
+  </main>
+</body>
+</html>
+`;
+
 const PASSING_PROFILE_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head><title>Me</title>
@@ -113,6 +141,8 @@ function writeRequiredStems(
     readonly fallback?: string;
     readonly home?: string;
     readonly browse?: string;
+    readonly drama?: string;
+    readonly play?: string;
     readonly profile?: string;
   } = {},
 ): void {
@@ -120,6 +150,8 @@ function writeRequiredStems(
   writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), bodies.fallback ?? PASSING_HTML);
   writeFileSync(join(root, 'screens', 'scr-02-home.html'), bodies.home ?? PASSING_HOME_HTML);
   writeFileSync(join(root, 'screens', 'scr-03-browse.html'), bodies.browse ?? PASSING_BROWSE_HTML);
+  writeFileSync(join(root, 'screens', 'scr-04-drama.html'), bodies.drama ?? PASSING_DRAMA_HTML);
+  writeFileSync(join(root, 'screens', 'scr-05-play.html'), bodies.play ?? PASSING_PLAY_HTML);
   writeFileSync(
     join(root, 'screens', 'scr-06-profile.html'),
     bodies.profile ?? PASSING_PROFILE_HTML,
@@ -186,7 +218,7 @@ describe('check-a11y CLI', () => {
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('a11y passed');
-    expect(result.stdout).toContain('4 screens');
+    expect(result.stdout).toContain('6 screens');
     expect(result.stdout).toContain('not TikTok WebView');
     expect(result.stdout).not.toMatch(/in TikTok WebView/);
   });
@@ -195,6 +227,8 @@ describe('check-a11y CLI', () => {
     const root = tempDir('cli-a11y-nohome-');
     mkdirSync(join(root, 'screens'));
     writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-04-drama.html'), PASSING_DRAMA_HTML);
+    writeFileSync(join(root, 'screens', 'scr-05-play.html'), PASSING_PLAY_HTML);
     writeFileSync(join(root, 'screens', 'scr-06-profile.html'), PASSING_PROFILE_HTML);
     writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
@@ -207,6 +241,8 @@ describe('check-a11y CLI', () => {
     const root = tempDir('cli-a11y-nobrowse-');
     mkdirSync(join(root, 'screens'));
     writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
+    writeFileSync(join(root, 'screens', 'scr-04-drama.html'), PASSING_DRAMA_HTML);
+    writeFileSync(join(root, 'screens', 'scr-05-play.html'), PASSING_PLAY_HTML);
     writeFileSync(join(root, 'screens', 'scr-06-profile.html'), PASSING_PROFILE_HTML);
     writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
@@ -215,11 +251,41 @@ describe('check-a11y CLI', () => {
     expect(result.stdout).not.toContain('a11y passed');
   });
 
+  it('exits non-zero when the required SCR-04 fixture is missing', () => {
+    const root = tempDir('cli-a11y-nodrama-');
+    mkdirSync(join(root, 'screens'));
+    writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
+    writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-05-play.html'), PASSING_PLAY_HTML);
+    writeFileSync(join(root, 'screens', 'scr-06-profile.html'), PASSING_PROFILE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
+    const result = run(['--root', root, '--source', join(root, 'screens')]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('scr-04-drama');
+    expect(result.stdout).not.toContain('a11y passed');
+  });
+
+  it('exits non-zero when the required SCR-05 fixture is missing', () => {
+    const root = tempDir('cli-a11y-noplay-');
+    mkdirSync(join(root, 'screens'));
+    writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
+    writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-04-drama.html'), PASSING_DRAMA_HTML);
+    writeFileSync(join(root, 'screens', 'scr-06-profile.html'), PASSING_PROFILE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
+    const result = run(['--root', root, '--source', join(root, 'screens')]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('scr-05-play');
+    expect(result.stdout).not.toContain('a11y passed');
+  });
+
   it('exits non-zero when the required SCR-06 fixture is missing', () => {
     const root = tempDir('cli-a11y-noprofile-');
     mkdirSync(join(root, 'screens'));
     writeFileSync(join(root, 'screens', 'scr-02-home.html'), PASSING_HOME_HTML);
     writeFileSync(join(root, 'screens', 'scr-03-browse.html'), PASSING_BROWSE_HTML);
+    writeFileSync(join(root, 'screens', 'scr-04-drama.html'), PASSING_DRAMA_HTML);
+    writeFileSync(join(root, 'screens', 'scr-05-play.html'), PASSING_PLAY_HTML);
     writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(1);
