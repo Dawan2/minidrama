@@ -2,16 +2,17 @@
 
 > **Slot:** W18, work slot (`bc-19bb7d97`). One backlog item, no pull request.
 > **Branch:** `cursor/w18-work-c6-next-72c4`, cut from `origin/main` at **`3e8bdb2`**
-> (QA-010 smallest axe-core scan already on main). Merged forward onto **`7ce0fd0`**
-> (PLY-010 S7 stall chrome landed while this slot ran).
+> (QA-010 smallest axe-core scan already on main). Merged forward onto **`079701b`**
+> (PLY-010 S7 stall chrome, then X-26 plugin-owned scrub, landed while this slot ran).
 > **Item:** `INF-004` — smallest CI self-audit. `continue-on-error: true` and `if: false`
 > in committed GitHub workflows are red. A comment that names those keys is not the
 > gate. A scan that saw no workflow files is red.
 > **Not in scope:** D-17 billing. C4-03 Postgres. C4-07 VIP. QA-010 (on main at
-> `3e8bdb2`, remaining screens not this slice). X-26 倍速 / scrub (`bc-c68b4e10`).
-> Interaction-sheet remainder (`bc-402f89a0`, landed as S7 stall at `7ce0fd0` while
-> this slot ran). C5-03 / D-19 P3 writeback of `wave-protocol.md` §6.2. S-C3 echo-only
-> steps, S-C4 required-checks vs branch protection. No pull request.
+> `3e8bdb2`, remaining screens not this slice). X-26 倍速 / scrub (`bc-c68b4e10`,
+> landed as plugin-owned scrub at `079701b` while this slot ran). Interaction-sheet
+> remainder (`bc-402f89a0`, landed as S7 stall at `7ce0fd0` while this slot ran).
+> C5-03 / D-19 P3 writeback of `wave-protocol.md` §6.2. S-C3 echo-only steps, S-C4
+> required-checks vs branch protection. No pull request.
 
 ---
 
@@ -26,7 +27,7 @@ remaining interaction sheet were already running. C4-03 and C4-07 stay skipped.
 | D-17 GitHub Actions billing | Rank 1. **Not a branch.** Skipped |
 | Protocol-C4 交互验收单 remainder | **RUNNING** (`bc-402f89a0`). Left. **Landed** as S7 stall (`7ce0fd0` / `docs/handoff/w18-interaction.md`) while this slot merged |
 | QA-010 axe-core L1 | **On `main`** at `3e8bdb2`. Remaining implemented screens are a later remainder. Not retaken |
-| X-26 倍速 / scrub | **RUNNING** (`bc-c68b4e10`). Forbidden leftover. Left |
+| X-26 倍速 / scrub | **RUNNING** at pick (`bc-c68b4e10`). Left. **Landed** as plugin-owned scrub (`079701b` / `docs/handoff/w18-x26.md`) while this slot merged |
 | C4-03 T14/T16/T15 | Do not fake. Skipped |
 | C4-07 SCR-11 / D8 | No contract. Skipped |
 | C5-03 / D-19 `wave-protocol.md` §6.2 | P3's file |
@@ -93,7 +94,7 @@ says `0 continue-on-error, 0 if: false, 0 swallowed exits`.
 | --- | --- |
 | `bc-b0108787` QA-010 | **Idle. Landed** `3e8bdb2` / `cursor/w16-work-qa010-72c4`. A11y files not edited |
 | `bc-402f89a0` interaction sheet | **Idle. Landed** `7ce0fd0` / `cursor/w18-work-interaction-72c4` while this slot merged. Player stall files not edited here |
-| `bc-c68b4e10` X-26 倍速 / scrub | **RUNNING.** Player rate/scrub files. Untouched |
+| `bc-c68b4e10` X-26 倍速 / scrub | **Idle. Landed** `079701b` / `cursor/w18-work-x26-72c4` while this slot merged. Player plugin/scrub files not edited here |
 
 `git diff origin/main -- app/ server/` is empty of this slot's work.
 
@@ -101,23 +102,23 @@ says `0 continue-on-error, 0 if: false, 0 swallowed exits`.
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this branch after merging `origin/main` (`7ce0fd0`,
-PLY-010 S7 stall).
+`pnpm verify` exited 0 on this branch after merging `origin/main` (`079701b`,
+PLY-010 S7 stall + X-26 plugin-owned scrub).
 
 | Gate | Result |
 |---|---|
 | Format / lint / types | pass |
-| G1.9 commits | `1 new commits vs origin/main, 0 prose, 0 missing-id` (merge commits skipped) |
-| G1.10 skips | `233 test files, 0 skips, 0 empty` |
+| G1.9 commits | `2 new commits vs origin/main, 0 prose, 0 missing-id` (merge commits skipped) |
+| G1.10 skips | `235 test files, 0 skips, 0 empty` |
 | INF-004 audit | `audit passed (2 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits)` |
 | QA-010 a11y | `a11y passed (1 screens, 0 critical, 0 serious, host=jsdom, not TikTok WebView)` |
-| Tests + coverage | **3,525 passing** — shared 63, quality 419, config 45, server 1,785, app 1,213. Coverage: global lines 94.34% (17550/18603), branches 90.96%, core 95.70%, **diff lines 98.99% (196/198)** |
-| Build | pass — `index-o9suSD8K.js` 362.88 kB / 111.05 kB gzip (S7 stall's client; this slot did not edit product UI) |
+| Tests + coverage | **3,539 passing** — shared 63, quality 419, config 45, server 1,785, app 1,227. Coverage: global lines 94.35% (17612/18666), branches 90.97%, core 95.70%, **diff lines 98.99% (196/198)** |
+| Build | pass — `index-Cks34mF5.js` 363.65 kB / 111.36 kB gzip (S7 stall + X-26's client; this slot did not edit product UI) |
 | Guardrails | `platform guardrails passed (artifact: /workspace/app/dist)` |
 
 Native `<video>` remains absent. Test count did not fall (3,480 on `main` after QA-010
-→ 3,525 here; the extra tests are this audit slice plus the stall chrome absorbed from
-`main`).
+→ 3,539 here; the extra tests are this audit slice plus stall chrome and plugin-owned
+scrub absorbed from `main`).
 
 ---
 
@@ -127,7 +128,7 @@ Native `<video>` remains absent. Test count did not fall (3,480 on `main` after 
   Further INF-004 slices. D-17 still falsifies GitHub reverse-verification.
 - **QA-010 remainder.** S-A1 on every implemented SCR/PNL. This slot did not add
   screen fixtures.
-- **X-26.** In flight. Do not invent `playbackRate`.
+- **X-26.** Plugin-owned scrub landed at `079701b`. Do not invent a client `playbackRate`.
 - **D-17.** Billing. Local verify is not CI.
 - **C4-03 / C4-07**, GATE-7 / GATE-8, Beans. Unchanged.
 - **C5-03 / D-19.** P3 writeback of `wave-protocol.md` §6.2.
