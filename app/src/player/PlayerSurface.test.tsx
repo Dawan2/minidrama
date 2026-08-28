@@ -773,4 +773,3 @@ describe('CN-10 start / switch first-frame timeout', () => {
     expect(instance.destroyed).toBe(false);
   });
 });
-
