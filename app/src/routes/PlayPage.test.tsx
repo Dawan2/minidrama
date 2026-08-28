@@ -3,11 +3,12 @@ import { join } from 'node:path';
 import { Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { err, ok } from '@minidrama/shared';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { MockBridge } from '../platform/mock-bridge';
 import { MockVePlayer } from '../player/mock-veplayer';
 import { PlayPage, nextCatalogEpisode, previousCatalogEpisode } from './PlayPage';
+import type { StallPacing } from '../player/player-stall';
 import { ROUTES } from './routes';
 import { apiFailure } from '../data/failure';
 import {
@@ -61,11 +62,20 @@ function renderPlayer(options: {
   readonly playbackApi?: PlaybackApi;
   readonly progressApi?: ProgressApi;
   readonly favoritesApi?: FavoritesApi;
+  readonly stallPacing?: StallPacing;
 }) {
   const episodeId = options.episodeId ?? 'ep_test_0001';
   return renderSurface(
     <Routes>
-      <Route path={ROUTES.play} element={<PlayPage bridge={options.bridge} />} />
+      <Route
+        path={ROUTES.play}
+        element={
+          <PlayPage
+            bridge={options.bridge}
+            {...(options.stallPacing === undefined ? {} : { stallPacing: options.stallPacing })}
+          />
+        }
+      />
     </Routes>,
     {
       api: options.api ?? playCatalog([episodeItem()]),
@@ -754,6 +764,67 @@ describe('PLAYER_FATAL silent re-issue (PLY-012)', () => {
     expect(screen.getByTestId('player-container')).toBeDefined();
     expect(instance.destroyed).toBe(false);
     expect(screen.queryByTestId('unlock-panel')).toBeNull();
+  });
+});
+
+describe('S7 stall retry remints the route episode (AC-PL-7)', () => {
+  function stallClock() {
+    let nowMs = 0;
+    let tick: () => void = () => {};
+    return {
+      pacing: {
+        now: () => nowMs,
+        schedule: (fn: () => void) => {
+          tick = fn;
+          return () => {
+            tick = () => {};
+          };
+        },
+      },
+      advance(ms: number) {
+        nowMs += ms;
+        act(() => {
+          tick();
+        });
+      },
+    };
+  }
+
+  it('keeps the last frame, remints once the user retries, and does not change definition', async () => {
+    const playbackApi = stubPlaybackApi({
+      create: (episodeId, callIndex) =>
+        ok(
+          playbackDescriptor({
+            episodeId,
+            playAuthToken: callIndex === 0 ? 'token-old' : 'token-new',
+          }),
+        ),
+    });
+    const pacing = stallClock();
+    renderPlayer({
+      bridge: await readyBridge(),
+      playbackApi,
+      stallPacing: pacing.pacing,
+    });
+    const instance = await player();
+    act(() => {
+      instance.emitForTest('play');
+    });
+    pacing.advance(2_000 + 8_000);
+
+    expect(screen.getByTestId('player-stall-retry')).toBeDefined();
+    expect(playbackApi.createCalls).toEqual(['ep_test_0001']);
+    fireEvent.click(screen.getByTestId('player-stall-retry'));
+
+    await waitFor(() => {
+      expect(playbackApi.createCalls).toEqual(['ep_test_0001', 'ep_test_0001']);
+    });
+    expect(instance.destroyed).toBe(false);
+    expect(instance.playNextCount).toBe(0);
+    expect(instance.currentPlayAuthToken).toBe('token-new');
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect(instance.config.startTime).toBe(0);
+    expect('playbackRate' in instance.config).toBe(false);
   });
 
   it('does not invent 倍速, axe-core, a subscription path, or postgres', () => {

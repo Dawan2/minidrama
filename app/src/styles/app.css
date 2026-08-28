@@ -840,6 +840,51 @@ a {
   margin-top: 12px;
 }
 
+.player-stall {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgb(0 0 0 / 45%);
+  color: #ffffff;
+  text-align: center;
+}
+
+.player-stall__indicator {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgb(255 255 255 / 35%);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: player-stall-spin 0.8s linear infinite;
+}
+
+.player-stall__copy {
+  margin: 0;
+  font-size: 14px;
+}
+
+.player-stall__retry {
+  padding: 10px 20px;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+@keyframes player-stall-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .player-next {
   display: inline-block;
   margin-top: 12px;
