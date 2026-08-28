@@ -2,7 +2,8 @@
 
 > **Slot:** W18, work slot (`bc-1a5a2455`). One leftover item, no pull request.
 > **Branch:** `cursor/w18-work-c6-after-lock-72c4`, cut from `origin/main` at **`9b563b0`**
-> (PLY-011 S6 cover + lock chrome already on main).
+> (PLY-011 S6 cover + lock chrome already on main). Merged forward onto **`e6926f2`**
+> (W19 cycle-6 verify report landed while this slot wrote).
 > **Item:** **QA-010 remainder** — S-A1 on one more implemented screen. The smallest
 > axe-core job scanned SCR-13 only. This slice requires **SCR-02** (`#/home`) as a
 > second stem. Deleting either fixture is red. Host stays jsdom, not TikTok WebView.
@@ -30,7 +31,7 @@ routes. SCR-02 is the first implemented numbered hash screen.
 | D-17 GitHub Actions billing | Rank 1. **Not a branch.** Skipped |
 | PLY-011 S6 cover + lock | **On `main`** at `9b563b0`. Not retaken |
 | Leftover C6 `bc-2c841f7a` | **RUNNING.** Twin of PLY-011 on `cursor/w18-work-c6-left-72c4`. Left |
-| Cycle-6 verify `bc-fffd4f10` | **RUNNING.** Docs left |
+| Cycle-6 verify `bc-fffd4f10` | **RUNNING** at pick. **Landed** `e6926f2` / `docs/verify/cycle-6-report.md` while this slot merged. Left |
 | C4-03 / C4-07 | Do not fake / no contract. Skipped |
 | 充值 on PNL-02 | C4-06. Recharge stays disabled |
 | INF-004 S-C3 / S-C4 | Further slices. Not this remainder |
@@ -91,7 +92,7 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 | --- | --- |
 | `bc-119dafb6` PLY-011 | **Idle. Landed** `9b563b0`. Player lock chrome not edited |
 | `bc-2c841f7a` leftover C6 | **RUNNING.** Twin S6 on `cursor/w18-work-c6-left-72c4`. Player files not edited here |
-| `bc-fffd4f10` cycle-6 verify | **RUNNING.** `docs/verify/` not written |
+| `bc-fffd4f10` cycle-6 verify | **Idle. Landed** `e6926f2`. `docs/verify/` not rewritten |
 
 `git diff origin/main -- app/ server/ .github/` is empty of this slot's work.
 
@@ -99,7 +100,10 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this branch at `9b563b0` + this slice.
+`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`e6926f2`,
+W19 cycle-6 report). L1 sequence is format → lint → typecheck → check:commits →
+check:skips → check:audit → check:a11y → test:coverage → check:coverage → build →
+guardrails.
 
 | Gate | Result |
 |---|---|
