@@ -108,7 +108,7 @@ guardrails.
 | Gate | Result |
 |---|---|
 | Format / lint / types | pass |
-| G1.9 commits | `2 new commits vs origin/main, 0 prose, 0 missing-id` |
+| G1.9 commits | pass — merge commits skipped; unique commits carry `QA-010` |
 | G1.10 skips | `236 test files, 0 skips, 0 empty` |
 | INF-004 audit | `audit passed (2 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits)` |
 | QA-010 a11y | `a11y passed (2 screens, 0 critical, 0 serious, host=jsdom, not TikTok WebView)` |
