@@ -2,7 +2,8 @@ import { repoRoot } from '../paths.js';
 import { USAGE, parseAuditArgs, runAuditCheck } from '../audit.js';
 
 /**
- * `pnpm --filter @minidrama/quality check:audit` — the INF-004 L1 job.
+ * `pnpm --filter @minidrama/quality check:audit` — the INF-004 L1 job
+ * (S-C1 / S-C2 `if: false` / S-C3 echo-only).
  *
  * Argument parsing and the scan live in `audit.ts` so Vitest coverage can see them.
  * This file is the process boundary L1 CI and `pnpm verify` actually exec.

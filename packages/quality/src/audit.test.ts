@@ -8,6 +8,8 @@ import { repoRoot } from './paths.js';
 import {
   ALLOW_FAILURE_KEY,
   CONTINUE_ON_ERROR_KEY,
+  ECHO_CMD,
+  EXIT_ZERO,
   IF_KEY,
   OR_TRUE,
   SOFT_FAIL_KEY,
@@ -64,6 +66,8 @@ describe('marker', () => {
     expect(ALLOW_FAILURE_KEY).toBe(marker(['allow', '_', 'failure']));
     expect(SOFT_FAIL_KEY).toBe(marker(['soft', '_', 'fail']));
     expect(OR_TRUE).toBe(marker(['|', '|', ' true']));
+    expect(ECHO_CMD).toBe(marker(['ec', 'ho']));
+    expect(EXIT_ZERO).toBe(marker(['exit', ' 0']));
   });
 });
 
@@ -199,6 +203,42 @@ describe('scanWorkflowText', () => {
     expect(scanWorkflowText(text, 'ci.yml').map((hit) => hit.kind)).toEqual(['or-true']);
   });
 
+  it('hits an echo-only run step', () => {
+    const text = `jobs:\n  verify:\n    steps:\n      - run: ${ECHO_CMD} ok\n`;
+    const hits = scanWorkflowText(text, 'ci.yml');
+    expect(hits.map((hit) => hit.kind)).toEqual(['echo-only']);
+    expect(hits[0]?.line).toBe(4);
+  });
+
+  it('hits a true / exit 0 placeholder run', () => {
+    expect(
+      scanWorkflowText('jobs:\n  a:\n    steps:\n      - run: true\n', 'ci.yml').map(
+        (hit) => hit.kind,
+      ),
+    ).toEqual(['echo-only']);
+    expect(
+      scanWorkflowText(`jobs:\n  a:\n    steps:\n      - run: ${EXIT_ZERO}\n`, 'ci.yml').map(
+        (hit) => hit.kind,
+      ),
+    ).toEqual(['echo-only']);
+  });
+
+  it('does not treat a run that echoes and then invokes a real command as a placeholder', () => {
+    const text = `jobs:\n  a:\n    steps:\n      - run: ${ECHO_CMD} start && pnpm verify\n`;
+    expect(scanWorkflowText(text, 'ci.yml')).toEqual([]);
+  });
+
+  it('hits a block-scalar echo-only run and ignores a comment that names echo', () => {
+    const text = `jobs:\n  a:\n    steps:\n      - run: |\n          ${ECHO_CMD} ok\n      - run: |\n          ${ECHO_CMD} start\n          pnpm verify\n`;
+    expect(scanWorkflowText(text, 'ci.yml').map((hit) => hit.kind)).toEqual(['echo-only']);
+    expect(
+      scanWorkflowText(
+        `# run: ${ECHO_CMD} ok\njobs:\n  a:\n    steps:\n      - run: pnpm verify\n`,
+        'ci.yml',
+      ),
+    ).toEqual([]);
+  });
+
   it('hits allow_failure and soft_fail truthy keys', () => {
     const text = `jobs:\n  a:\n    ${ALLOW_FAILURE_KEY}: true\n  b:\n    ${SOFT_FAIL_KEY}: yes\n`;
     expect(
@@ -267,6 +307,21 @@ describe('runAuditCheck', () => {
     expect(output.stderr).toContain('if-false');
   });
 
+  it('fails when a workflow contains an echo-only run', () => {
+    const root = tempDir('audit-echo-');
+    writeSource(
+      root,
+      '.github/workflows/blocked.yml',
+      `name: blocked\njobs:\n  verify:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${ECHO_CMD} ok\n`,
+    );
+    const output = runAuditCheck({ root, source: join(root, '.github', 'workflows') });
+    expect(output.ok).toBe(false);
+    expect(output.exitCode).toBe(1);
+    expect(output.stderr).toContain('INF-004 red');
+    expect(output.stderr).toContain('echo-only');
+    expect(output.stderr).toContain('blocked.yml');
+  });
+
   it('passes a tree whose workflows have no bypass keys', () => {
     const root = tempDir('audit-clean-');
     writeSource(root, '.github/workflows/ci.yml', CLEAN_WORKFLOW);
@@ -275,7 +330,7 @@ describe('runAuditCheck', () => {
     expect(output.exitCode).toBe(0);
     expect(output.stdout).toContain('audit passed');
     expect(output.stdout).toContain(
-      '1 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits',
+      '1 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits, 0 echo-only',
     );
   });
 
@@ -284,6 +339,8 @@ describe('runAuditCheck', () => {
     expect(output.ok).toBe(true);
     expect(output.exitCode).toBe(0);
     expect(output.stdout).toContain('audit passed');
-    expect(output.stdout).toContain('0 continue-on-error, 0 if: false, 0 swallowed exits');
+    expect(output.stdout).toContain(
+      '0 continue-on-error, 0 if: false, 0 swallowed exits, 0 echo-only',
+    );
   });
 });
