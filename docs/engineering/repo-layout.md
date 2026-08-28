@@ -197,7 +197,7 @@ dropped in a config refactor fails a test instead of silently ceasing to enforce
 
 ```bash
 pnpm install              # Node >= 22, pnpm 10
-pnpm verify               # format:check + lint + typecheck + check:commits + check:skips + check:a11y + test:coverage + check:coverage + build + guardrails
+pnpm verify               # format:check + lint + typecheck + check:commits + check:skips + check:audit + check:a11y + test:coverage + check:coverage + build + guardrails
 
 pnpm dev                  # not defined at the root; run per package:
 pnpm --filter @minidrama/app dev      # Vite dev server, MockBridge active automatically
@@ -221,15 +221,16 @@ pnpm check:secrets        # G1.8; Gitleaks dir scan; a missing binary or a findi
 pnpm check:contract       # G1.6; oasdiff breaking vs the committed baseline; a missing binary fails
 pnpm check:commits        # G1.9; Conventional Commits on merge-base(origin/main)..HEAD; prose fails
 pnpm check:skips          # G1.10; skip/only/todo/empty tests; a committed skip fails
+pnpm check:audit          # INF-004; continue-on-error / if: false in workflows fail
 pnpm check:a11y            # QA-010; axe-core in jsdom; contrast < 4.5:1 fails; not TikTok WebView
 pnpm gen:minis-config     # regenerate app/minis.config.json from the domain registry
 ```
 
-`pnpm verify` is the L1 suite minus G1.8 and G1.6, plus G1.9, G1.10, and QA-010. L1 CI installs Gitleaks
+`pnpm verify` is the L1 suite minus G1.8 and G1.6, plus G1.9, G1.10, INF-004, and QA-010. L1 CI installs Gitleaks
 and oasdiff, runs `check:secrets`, then `check:contract`, then format/lint/types, then
-`check:commits`, then `check:skips`, then `check:a11y`, then tests+coverage, then `gen:minis-config`. G1.8 and
+`check:commits`, then `check:skips`, then `check:audit`, then `check:a11y`, then tests+coverage, then `gen:minis-config`. G1.8 and
 G1.6 are not folded into `verify` because they need the binaries; a missing binary is red in
-CI, not a skip. G1.9, G1.10, and QA-010 are folded into `verify` because they have no extra binary.
+CI, not a skip. G1.9, G1.10, INF-004, and QA-010 are folded into `verify` because they have no extra binary.
 History on `main` is not rewritten. L2 (`check:licenses`, `check:migrate`,
 `check:integration`, `check:artifact`, `check:sast`, `check:codeql`, `check:sca`,
 `check:smoke`) is a second workflow and is not folded into `verify`, so adding it cannot
