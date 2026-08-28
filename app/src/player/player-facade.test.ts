@@ -89,6 +89,7 @@ describe('createPlayerFacade', () => {
     expect(container.querySelector('input, video, select, [role="slider"]')).toBeNull();
     expect(container.querySelector('[data-veplayer-progress="kept"]')).not.toBeNull();
     expect(container.querySelector('[data-veplayer-playbackrate="kept"]')).not.toBeNull();
+    expect(container.querySelector('[data-veplayer-tap-pause="kept"]')).not.toBeNull();
   });
 
   it('starts at 0 when the session resume is 0, not at a guessed duration', async () => {
@@ -438,6 +439,26 @@ describe('createPlayerFacade', () => {
       expect(result.value.reissue({ ...descriptor, playAuthToken: 'token-new' })).toBe(false);
       expect(MockVePlayer.instances[0]?.currentPlayAuthToken).toBe('token-old');
     });
+  });
+
+  it('pauses and resumes on click of the retained instance, without a product control', async () => {
+    const bridge = await readyBridge();
+    const result = await createPlayerFacade(bridge, { container, descriptor });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const instance = MockVePlayer.instances[0]!;
+    expect(instance.playing).toBe(true);
+    container.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(instance.playing).toBe(false);
+    expect(MockVePlayer.instances).toHaveLength(1);
+    container.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(instance.playing).toBe(true);
+    expect(instance.destroyed).toBe(false);
+    expect(container.querySelector('video, audio, iframe, button, [role="button"]')).toBeNull();
+    result.value.destroy();
   });
 
   it('is inert after destroy, because a resolved promise can still hold a reference', async () => {

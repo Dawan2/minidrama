@@ -38,6 +38,21 @@ export class MockVePlayer implements VePlayerInstance {
   readonly #surface: HTMLElement;
   #index = 0;
 
+  /**
+   * Immersive tap-to-pause (`closeVideoClick: false`). Bound so destroy can
+   * remove it from `config.el` — VePlayer owns that node, not a product button.
+   */
+  readonly #onVideoClick = (): void => {
+    if (this.destroyed || this.config.closeVideoClick) {
+      return;
+    }
+    if (this.playing) {
+      this.pause();
+    } else {
+      this.play();
+    }
+  };
+
   constructor(config: VePlayerConfig) {
     this.config = config;
     MockVePlayer.instances.push(this);
@@ -46,15 +61,20 @@ export class MockVePlayer implements VePlayerInstance {
     this.#surface.dataset['mockVeplayer'] = 'true';
     // Progress and 倍速 are kept VePlayer plugins, not controls we draw. The mock records
     // that the constructor left them on; it never creates <video>, <input type="range">,
-    // or a rate <select>.
+    // or a rate <select>. Tap-to-pause is the same class of ownership: closeVideoClick
+    // false keeps it; we never draw a competing play/pause control (AC-PL-6).
     this.#surface.dataset['veplayerProgress'] = ignoresProgressPlugin(config.ignores)
       ? 'ignored'
       : 'kept';
     this.#surface.dataset['veplayerPlaybackrate'] = ignoresPlaybackratePlugin(config.ignores)
       ? 'ignored'
       : 'kept';
+    this.#surface.dataset['veplayerTapPause'] = config.closeVideoClick ? 'closed' : 'kept';
     this.#render(config.albumId, config.episodeId, config.vid);
     config.el.appendChild(this.#surface);
+    if (!config.closeVideoClick) {
+      config.el.addEventListener('click', this.#onVideoClick);
+    }
 
     queueMicrotask(() => {
       if (!this.destroyed) {
@@ -132,6 +152,7 @@ export class MockVePlayer implements VePlayerInstance {
     this.destroyed = true;
     this.playing = false;
     this.#handlers.clear();
+    this.config.el.removeEventListener('click', this.#onVideoClick);
     this.#surface.remove();
   }
 

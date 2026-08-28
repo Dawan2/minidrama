@@ -51,6 +51,12 @@ describe('VEPLAYER_IGNORED_PLUGINS', () => {
     expect(VEPLAYER_CLOSE_VIDEO_CLICK).toBe(false);
     expect(VEPLAYER_CLOSE_VIDEO_DBLCLICK).toBe(true);
   });
+
+  it('does not close video click in product source, which would steal pause from VePlayer', () => {
+    const source = readFileSync(join(process.cwd(), 'src/player/veplayer-plugins.ts'), 'utf8');
+    expect(source).toMatch(/VEPLAYER_CLOSE_VIDEO_CLICK = false/);
+    expect(source).not.toMatch(/preventDefault\(/);
+  });
 });
 
 describe('this slice does not invent a competing 倍速 control', () => {

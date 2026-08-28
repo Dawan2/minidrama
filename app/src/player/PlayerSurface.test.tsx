@@ -237,7 +237,7 @@ describe('PlayerSurface', () => {
     expect(onSwipePrevious).not.toHaveBeenCalled();
   });
 
-  it('treats a double-tap as a like and a single tap as nothing', async () => {
+  it('treats a double-tap as a like and a single tap as not a like', async () => {
     const onDoubleTap = vi.fn();
     const onSwipeNext = vi.fn();
     const bridge = await readyBridge();
@@ -269,6 +269,51 @@ describe('PlayerSurface', () => {
     fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 42, clientY: 81 }] });
     expect(onDoubleTap).toHaveBeenCalledTimes(1);
     expect(onSwipeNext).not.toHaveBeenCalled();
+    expect(MockVePlayer.instances).toHaveLength(1);
+  });
+
+  it('pauses and resumes on a single tap of the retained VePlayer, not a like', async () => {
+    const onDoubleTap = vi.fn();
+    const onSwipeNext = vi.fn();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onDoubleTap={onDoubleTap}
+        onSwipeNext={onSwipeNext}
+        playlist={playlist}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const instance = MockVePlayer.instances[0]!;
+    await waitFor(() => {
+      expect(instance.playing).toBe(true);
+    });
+    expect(instance.config.closeVideoClick).toBe(false);
+    expect(
+      screen.getByTestId('player-container').querySelector('[data-veplayer-tap-pause="kept"]'),
+    ).not.toBeNull();
+    expect(screen.queryByTestId('player-pause')).toBeNull();
+    expect(screen.queryByRole('button', { name: /pause|play|resume/i })).toBeNull();
+
+    fireEvent.click(screen.getByTestId('player-container'));
+    expect(instance.playing).toBe(false);
+    expect(onDoubleTap).not.toHaveBeenCalled();
+    expect(onSwipeNext).not.toHaveBeenCalled();
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(instance.destroyed).toBe(false);
+    expect(instance.currentEpisodeId).toBe('ep_1');
+
+    fireEvent.click(screen.getByTestId('player-container'));
+    expect(instance.playing).toBe(true);
+    expect(onDoubleTap).not.toHaveBeenCalled();
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(instance).toBe(MockVePlayer.instances[0]);
+    expect(forbiddenElements()).toEqual([]);
   });
 
   it('does not treat a swipe as a like', async () => {
@@ -642,6 +687,8 @@ describe('S7 stall chrome (AC-PL-7)', () => {
   it('does not invent 倍速, axe-core, a subscription path, or postgres', () => {
     const source = readFileSync(join(process.cwd(), 'src/player/PlayerSurface.tsx'), 'utf8');
     expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|postgres:/);
+    expect(source).not.toMatch(/preventDefault\(/);
+    expect(source).not.toMatch(/facadeRef\.current\?\.pause|facadeRef\.current\?\.play\(/);
   });
 });
 
