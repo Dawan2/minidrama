@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Settings</title>
+    <style>
+      html,
+      body {
+        background: #0b0b0f;
+        color: #f4f4f7;
+      }
+      a {
+        color: #f4f4f7;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page page--settings" data-testid="settings-page">
+      <h1 class="page__heading">Settings</h1>
+      <section class="settings-block" data-testid="settings-version" data-version="0.0.0">
+        <h2 class="page__subheading">Version</h2>
+        <p class="settings-value">0.0.0</p>
+      </section>
+      <section class="settings-block" data-testid="settings-legal">
+        <h2 class="page__subheading">Legal</h2>
+        <p data-testid="settings-terms">
+          The official Terms of Service URL has not been published yet.
+        </p>
+        <p data-testid="settings-privacy">
+          The official Privacy Policy URL has not been published yet.
+        </p>
+      </section>
+      <section class="settings-block" data-testid="settings-support">
+        <h2 class="page__subheading">Support</h2>
+        <p>Use this address for complaints. It is a placeholder until the portal mailbox exists.</p>
+        <a
+          class="profile-entry"
+          data-testid="settings-support-mail"
+          href="mailto:support@example.invalid"
+        >
+          support@example.invalid
+        </a>
+      </section>
+      <section class="settings-block" data-testid="settings-cache">
+        <h2 class="page__subheading">On this device</h2>
+        <p>
+          The session is held in memory only. Closing the mini app drops it; there is no local cache
+          to clear.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

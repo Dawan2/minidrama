@@ -186,6 +186,21 @@ const PASSING_SEARCH_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+const PASSING_SETTINGS_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>Settings</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="settings-page">
+    <h1>Settings</h1>
+    <p>The official Terms of Service URL has not been published yet.</p>
+    <a href="mailto:support@example.invalid">support@example.invalid</a>
+  </main>
+</body>
+</html>
+`;
+
 function writeRequiredStems(
   root: string,
   bodies: {
@@ -198,6 +213,7 @@ function writeRequiredStems(
     readonly history?: string;
     readonly favorites?: string;
     readonly search?: string;
+    readonly settings?: string;
   } = {},
 ): void {
   writeSource(root, 'screens/scr-13-fallback.html', bodies.fallback ?? PASSING_HTML);
@@ -209,6 +225,7 @@ function writeRequiredStems(
   writeSource(root, 'screens/scr-07-history.html', bodies.history ?? PASSING_HISTORY_HTML);
   writeSource(root, 'screens/scr-08-favorites.html', bodies.favorites ?? PASSING_FAVORITES_HTML);
   writeSource(root, 'screens/scr-search.html', bodies.search ?? PASSING_SEARCH_HTML);
+  writeSource(root, 'screens/scr-12-settings.html', bodies.settings ?? PASSING_SETTINGS_HTML);
 }
 
 const CONTRAST_FAIL_HTML = `<!DOCTYPE html>
@@ -289,8 +306,8 @@ describe('isScreenFileName / listScreenFiles', () => {
     expect(files).toEqual([join(root, 'screens/scr-13-fallback.html')]);
   });
 
-  it('lists the search fixture next to history, favorites, profile, play, drama, browse, home and fallback when all nine are present', () => {
-    const root = tempDir('a11y-walk-search-');
+  it('lists the settings fixture next to search, history, favorites, profile, play, drama, browse, home and fallback when all ten are present', () => {
+    const root = tempDir('a11y-walk-settings-');
     writeSource(root, 'screens/scr-02-home.html', PASSING_HOME_HTML);
     writeSource(root, 'screens/scr-03-browse.html', PASSING_BROWSE_HTML);
     writeSource(root, 'screens/scr-04-drama.html', PASSING_DRAMA_HTML);
@@ -298,6 +315,7 @@ describe('isScreenFileName / listScreenFiles', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     expect(listScreenFiles(join(root, 'screens'))).toEqual([
@@ -308,6 +326,7 @@ describe('isScreenFileName / listScreenFiles', () => {
       join(root, 'screens/scr-06-profile.html'),
       join(root, 'screens/scr-07-history.html'),
       join(root, 'screens/scr-08-favorites.html'),
+      join(root, 'screens/scr-12-settings.html'),
       join(root, 'screens/scr-13-fallback.html'),
       join(root, 'screens/scr-search.html'),
     ]);
@@ -319,7 +338,7 @@ describe('isScreenFileName / listScreenFiles', () => {
 });
 
 describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
-  it('requires the SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08, search and SCR-13 fixtures so deleting any is red', () => {
+  it('requires the SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08, search, SCR-12 and SCR-13 fixtures so deleting any is red', () => {
     expect(REQUIRED_SCREEN_STEMS).toEqual([
       'scr-02-home',
       'scr-03-browse',
@@ -329,6 +348,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-07-history',
       'scr-08-favorites',
       'scr-search',
+      'scr-12-settings',
       'scr-13-fallback',
     ]);
     expect(
@@ -341,6 +361,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
         'scr-07-history.html',
         'scr-08-favorites.html',
         'scr-search.html',
+        'scr-12-settings.html',
         'scr-13-fallback.html',
       ]),
     ).toEqual([]);
@@ -353,9 +374,10 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
         'scr-06-profile.html',
         'scr-07-history.html',
         'scr-08-favorites.html',
+        'scr-search.html',
         'scr-13-fallback.html',
       ]),
-    ).toEqual(['scr-search']);
+    ).toEqual(['scr-12-settings']);
     expect(
       missingRequiredScreenStems([
         'scr-02-home.html',
@@ -365,6 +387,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
         'scr-06-profile.html',
         'scr-08-favorites.html',
         'scr-search.html',
+        'scr-12-settings.html',
         'scr-13-fallback.html',
       ]),
     ).toEqual(['scr-07-history']);
@@ -377,6 +400,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-07-history',
       'scr-08-favorites',
       'scr-search',
+      'scr-12-settings',
     ]);
     expect(missingRequiredScreenStems(['scr-02-home.html'])).toEqual([
       'scr-03-browse',
@@ -386,6 +410,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-07-history',
       'scr-08-favorites',
       'scr-search',
+      'scr-12-settings',
       'scr-13-fallback',
     ]);
     expect(missingRequiredScreenStems([])).toEqual([
@@ -397,6 +422,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-07-history',
       'scr-08-favorites',
       'scr-search',
+      'scr-12-settings',
       'scr-13-fallback',
     ]);
   });
@@ -522,6 +548,7 @@ describe('runA11yCheck', () => {
     expect(output.stderr).toContain('scr-07-history');
     expect(output.stderr).toContain('scr-08-favorites');
     expect(output.stderr).toContain('scr-search');
+    expect(output.stderr).toContain('scr-12-settings');
     expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
   });
 
@@ -534,6 +561,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -550,6 +578,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -566,6 +595,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -582,6 +612,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -598,6 +629,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -614,6 +646,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -629,6 +662,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -645,10 +679,28 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-12-settings.html', PASSING_SETTINGS_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
     expect(output.stderr).toContain('scr-search');
+    expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
+  });
+
+  it('fails when the required SCR-12 settings fixture is missing', async () => {
+    const root = tempDir('a11y-nosettings-');
+    writeSource(root, 'screens/scr-02-home.html', PASSING_HOME_HTML);
+    writeSource(root, 'screens/scr-03-browse.html', PASSING_BROWSE_HTML);
+    writeSource(root, 'screens/scr-04-drama.html', PASSING_DRAMA_HTML);
+    writeSource(root, 'screens/scr-05-play.html', PASSING_PLAY_HTML);
+    writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
+    writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
+    writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('scr-12-settings');
     expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
   });
 
@@ -713,7 +765,7 @@ describe('runA11yCheck', () => {
     expect(output.stdout).not.toMatch(/in TikTok WebView/);
   });
 
-  it('the committed SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08, search and SCR-13 fixtures pass the real axe-core run in jsdom', async () => {
+  it('the committed SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08, search, SCR-12 and SCR-13 fixtures pass the real axe-core run in jsdom', async () => {
     const output = await runA11yCheck({
       root: repoRoot,
       source: defaultSource(repoRoot),
@@ -721,7 +773,7 @@ describe('runA11yCheck', () => {
     expect(output.ok).toBe(true);
     expect(output.exitCode).toBe(0);
     expect(output.stdout).toContain('a11y passed');
-    expect(output.stdout).toContain('9 screens');
+    expect(output.stdout).toContain('10 screens');
     expect(output.stdout).toContain(A11Y_HOST_DISCLAIMER);
   });
 });
@@ -900,5 +952,36 @@ describe('QA-010 does not skip the engine or claim TikTok WebView', () => {
     expect(fixture).toContain('Search');
     expect(fixture).toContain('Type a title or a tag to find a drama.');
     expect(fixture).not.toContain('#/vip');
+  });
+
+  it('the SCR-12 fixture still matches SettingsPage structure', () => {
+    const page = readFileSync(join(repoRoot, 'app/src/routes/SettingsPage.tsx'), 'utf8');
+    expect(page).toMatch(/data-testid="settings-page"/);
+    expect(page).toMatch(/<main/);
+    expect(page).toMatch(/<h1/);
+    expect(page).toMatch(/data-testid="settings-version"/);
+    expect(page).toMatch(/data-testid="settings-legal"/);
+    expect(page).toMatch(/data-testid="settings-support"/);
+    expect(page).toMatch(/data-testid="settings-cache"/);
+    expect(page).not.toMatch(/#\/vip/);
+    const fixture = readFileSync(
+      join(repoRoot, 'packages/quality/a11y/screens/scr-12-settings.html'),
+      'utf8',
+    );
+    expect(fixture).toContain('data-testid="settings-page"');
+    expect(fixture).toContain('data-testid="settings-version"');
+    expect(fixture).toContain('data-testid="settings-legal"');
+    expect(fixture).toContain('data-testid="settings-terms"');
+    expect(fixture).toContain('data-testid="settings-privacy"');
+    expect(fixture).toContain('data-testid="settings-support-mail"');
+    expect(fixture).toContain('data-testid="settings-cache"');
+    expect(fixture).toContain('<html lang="en">');
+    expect(fixture).toContain('Settings');
+    expect(fixture).toContain('support@example.invalid');
+    expect(fixture).toContain('mailto:support@example.invalid');
+    expect(fixture).toContain('The official Terms of Service URL has not been published yet.');
+    expect(fixture).not.toContain('#/vip');
+    expect(fixture).not.toMatch(/beans/i);
+    expect(fixture).not.toMatch(/sign.?out|log.?out/i);
   });
 });
