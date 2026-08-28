@@ -29,11 +29,7 @@ export const BLOCKING_IMPACTS = ['critical', 'serious'] as const;
 
 export const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag22aa'] as const;
 
-export const REQUIRED_SCREEN_STEMS = [
-  'scr-02-home',
-  'scr-03-browse',
-  'scr-13-fallback',
-] as const;
+export const REQUIRED_SCREEN_STEMS = ['scr-02-home', 'scr-03-browse', 'scr-13-fallback'] as const;
 
 export const CONTRAST_MIN = 4.5;
 
