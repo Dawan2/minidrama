@@ -95,8 +95,8 @@ expected [ 'ep_test_0001' ] to deeply equal [ 'ep_test_0001', 'ep_test_0001' ]
 | Who | Overlap |
 | --- | --- |
 | `bc-264077b7` PLY-012 | **Idle. Landed** `aa8a9e8`. `player-fatal.ts` / re-issue kept. This slot adds stall next to them |
-| `bc-b0108787` QA-010 | **RUNNING.** `.github/` / axe-core not edited |
-| `bc-4233e1b3` cycle-6 plan | **RUNNING.** Plan docs not edited |
+| `bc-b0108787` QA-010 | **Idle. Landed** `3e8bdb2` while this slot ran. `.github/` / axe-core not edited here |
+| `bc-4233e1b3` cycle-6 plan | **Idle. Landed** `68d2747`. Plan docs not rewritten. Rank 2 is the rest of the sheet; this slice is S7, not 倍速 |
 
 `git diff origin/main -- .github/ packages/quality/` is empty of this slot's work.
 
@@ -104,7 +104,10 @@ expected [ 'ep_test_0001' ] to deeply equal [ 'ep_test_0001', 'ep_test_0001' ]
 
 ## 5. Verify
 
-`pnpm verify` is the gate for this branch.
+`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`3e8bdb2`: QA-010
+axe-core L1 and the cycle-6 plan). L1 sequence is now format → lint → typecheck →
+check:commits → check:skips → **check:a11y** → test:coverage → check:coverage → build →
+guardrails.
 
 ---
 
