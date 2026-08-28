@@ -33,7 +33,8 @@
     "check:contract": "pnpm --filter @minidrama/quality run check:contract",
     "check:commits": "pnpm --filter @minidrama/quality run check:commits",
     "check:skips": "pnpm --filter @minidrama/quality run check:skips",
-    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run check:commits && pnpm run check:skips && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
+    "check:a11y": "pnpm --filter @minidrama/quality run check:a11y",
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run check:commits && pnpm run check:skips && pnpm run check:a11y && pnpm run test:coverage && pnpm run check:coverage && pnpm run build && pnpm run check:guardrails"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

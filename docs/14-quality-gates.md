@@ -74,6 +74,8 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 
 **2026-08-27 (W16 G1.9 leftover / D-20).** The format-only half landed first (`bc-72e30448` / `cf7ecd4`). This slot adds the 需求/缺陷编号 half: `feat: add a widget` is G1.9 red even though it is Conventional Commits. History on `main` is still not rewritten.
 
+**2026-08-28 (W16 QA-010).** Smallest axe-core scan is `pnpm check:a11y`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. It runs axe-core in **jsdom** over committed implemented-screen HTML (`packages/quality/a11y/screens`, SCR-13 first). critical + serious = 0 fails the job. jsdom cannot complete axe's `color-contrast` (no canvas); the equivalent checker on declared CSS colors is the S-A2 reverse path — an injected white-on-white fixture is red. Tests are not skipped. This is **not** a TikTok WebView measurement (X-04 / PLY-002 still unmeasured) and does **not** close protocol-C4 exit 3 / S-A1 on every SCR/PNL. A comment that names WCAG is not this gate.
+
 **2026-08-27 (W16 QA-011 / C-12 / X-12 / X-04 / X-05).** a11y is a release blocker: `docs/14-test-plan.md` §6.4 now matches `docs/plan/definition-of-done.md` §6 rather than "P2, 不阻断首个上架版本". The L3 host matrix is TikTok WebView (`§6.2`). Native APK/iOS size and crash/ANR are N/A; §5.4 and G3.8 use the Minis ZIP / first-screen JS / JS-error budgets from `docs/03-nonfunctional.md` §2. `QA-010` (axe-core in CI) is not this writeback.
 
 ---
