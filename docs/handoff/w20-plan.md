@@ -4,8 +4,8 @@
 > Protocol arithmetic still makes W20 a C4 verify wave (`wave-protocol.md` §2). Not
 > adjudicated. Running-count C6 already had its verify wave at W19.
 > **Branch:** `cursor/w20-plan-cycle-7-badf`, cut from `origin/main` at `e6926f2`.
-> Merged forward onto `c46bbf5` (leftover C6 INF-004 S-C3, after-lock QA-010 SCR-02,
-> then W20 QA-010 SCR-03 landed while this slot wrote).
+> Merged forward onto `25a96b4` (leftover C6 INF-004 S-C3, after-lock QA-010 SCR-02,
+> W20 QA-010 SCR-03, then W20 CN-10 start/switch timeout landed while this slot wrote).
 > The cut tip *is* `docs/verify/cycle-6-report.md` (W19 independent verify, not passed;
 > D-17 still billing-red; protocol-C4 still 1/3). PLY-011 S6 lock chrome is an ancestor
 > (`9b563b0`).
@@ -43,11 +43,11 @@ playback).
 
 ## 2. Ranked remaining work (one screen)
 
-| Rank | Item | Disposition on `c46bbf5` |
+| Rank | Item | Disposition on `25a96b4` |
 |---|---|---|
-| **1** | **D-17** CI billing | **Open. Cannot be code-fixed.** Run 33131307979 on `c46bbf5`: 4s, empty steps. Annotation on check-run `98721228200` is the spending-limit sentence. Last green CI still PNL-01 |
-| **2** | **Protocol-C4 交互验收单** | **Still 1/3.** Swipe / playNext / double-tap / kept 倍速 / scrub plugins / stall / PLY-012 / PLY-011 on `main`. 倍速 / scrub plugin-owned (X-26). Tap pause is VePlayer's. Sheet is not 全过. Do not invent `playbackRate`. Remaining C4 playback in flight (`bc-7fbe0bc1`) |
-| **3** | **QA-010 remainder** after SCR-03 | Further implemented screens. Smallest job, SCR-02, and SCR-03 already on `main`. Leave those files |
+| **1** | **D-17** CI billing | **Open. Cannot be code-fixed.** Run 33131517380 on `25a96b4`: 4s, empty steps. Annotation on check-run `98721892434` is the spending-limit sentence. Last green CI still PNL-01 |
+| **2** | **Protocol-C4 交互验收单** | **Still 1/3.** Swipe / playNext / double-tap / kept 倍速 / scrub plugins / stall / PLY-012 / PLY-011 / CN-10 on `main`. 倍速 / scrub plugin-owned (X-26). Tap pause is VePlayer's. Sheet is not 全过. Do not invent `playbackRate` |
+| **3** | **QA-010 remainder** after SCR-03 | **In flight** (`bc-afae2991` drama, `bc-f6e4b6a7` play). Smallest job, SCR-02, and SCR-03 already on `main`. Leave those files and the in-flight agents |
 | **—** | **INF-004 S-C3** | **Not remaining.** Landed at `51ab72f` / `dea3066` (`bc-2c841f7a`). Was in flight leftover C6 at first draft. S-C4 stays further. Do not retake |
 | **4** | **C4-03** T14/T16/T15 | **Still open.** `postgres:` refused. Do not fake |
 | **5** | **C4-07** SCR-11 / D8 | **Still blocked.** No subscription path. Do not invent one |
@@ -55,12 +55,11 @@ playback).
 Protocol-C4 exits overall: **1/3** (exit 2 met as the named HTTP case; exits 1 and 3
 unmet). C5-01 / C5-02 / QA-011 / QA-010 SCR-13 / QA-010 SCR-02 / QA-010 SCR-03 /
 INF-004 S-C1 / INF-004 S-C3 / HOME continue / G2.3 / PRG-001 remainder / PRG-002 drama
-CTA / PLY-012 / PLY-011 / S7 stall / kept 倍速 / scrub are **not remaining**.
+CTA / PLY-012 / PLY-011 / CN-10 / S7 stall / kept 倍速 / scrub are **not remaining**.
 
-First C7 implement instruction: re-derive `origin/main`. Leave `bc-7fbe0bc1`. Rank 3
-(next implemented a11y screen after browse) is the unblocked remainder behind that
-agent. There is no unblocked engineering pick that is P3's file or a leftover-branch
-drop except that remainder.
+First C7 implement instruction: re-derive `origin/main`. Leave `bc-afae2991` and
+`bc-f6e4b6a7`. There is no unblocked engineering pick behind them that is not P3's file
+or a leftover-branch drop.
 
 Partner questions Q-G-1…Q-G-10 remain **unknown**.
 
@@ -80,8 +79,8 @@ Partner questions Q-G-1…Q-G-10 remain **unknown**.
 | P-08 | Do not rewrite `wave-protocol.md` §6.2 (D-19) or §2 (X-21) | P3's file. Registered, not edited |
 | P-09 | Do not rewrite `docs/plan/backlog.md` for the QA-011 P1 countersign | P1's file |
 | P-10 | Do not retake leftover `c3-remain` or `c4-subseq` | D-18 and C4-08 already landed by other tips |
-| P-11 | Leave the in-flight W20 remaining C4 playback tip | `bc-7fbe0bc1`. §8 rule 4 |
-| P-12 | Record leftover C6, after-lock, and W20 next-a11y as landed | First draft said leftover C6 and after-lock in flight (user-noted `bc-2c841f7a` / `bc-1a5a2455`). The tree moved. Do not retake their files |
+| P-11 | Leave the in-flight W20 a11y tips | `bc-afae2991` drama; `bc-f6e4b6a7` play. §8 rule 4 |
+| P-12 | Record leftover C6, after-lock, next-a11y, and CN-10 as landed | First draft said leftover C6 and after-lock in flight (user-noted `bc-2c841f7a` / `bc-1a5a2455`). The tree moved. Do not retake their files |
 
 ---
 
@@ -96,11 +95,11 @@ Protocol-C4 exits stay 1/3 in the ranking; they are not this slot's implementati
 
 ## 5. For the next slots
 
-**Implement.** Re-derive `origin/main` first: `bc-7fbe0bc1` (remaining C4 playback) is
-running. Leave its files. Do not pick D-17, G2.3, HOME continue, leftover ads, leftover
-remain, `#/vip`, sqlite-named-as-Postgres, 倍速, PLY-012, PLY-011 `locked-chrome.tsx`,
-QA-010 SCR-13, QA-010 SCR-02, QA-010 SCR-03, INF-004 S-C1, or INF-004 S-C3. Rank 3 (next
-implemented a11y screen after browse) is the unblocked remainder.
+**Implement.** Re-derive `origin/main` first: `bc-afae2991` (drama a11y) and
+`bc-f6e4b6a7` (play-screen a11y) are running. Leave their files. Do not pick D-17, G2.3,
+HOME continue, leftover ads, leftover remain, `#/vip`, sqlite-named-as-Postgres, 倍速,
+PLY-012, PLY-011 `locked-chrome.tsx`, CN-10 `player-start.ts`, QA-010 SCR-13, QA-010
+SCR-02, QA-010 SCR-03, INF-004 S-C1, or INF-004 S-C3.
 
 **Ops.** D-17. A red `main` that has empty `steps` is not a test result. Local verify
 cannot corroborate R6.

@@ -4,8 +4,9 @@
 > **Date:** 2026-08-28.
 > **Branch:** `cursor/w20-plan-cycle-7-badf`, cut from `origin/main` at **`e6926f2`**
 > ("Merge cursor/w19-verify-cycle-6-72c4: C6 does not pass; D-17 still billing-red").
-> Merged forward onto **`c46bbf5`** (leftover C6 INF-004 S-C3, after-lock QA-010
-> SCR-02, then W20 QA-010 SCR-03 landed while this slot wrote).
+> Merged forward onto **`25a96b4`** (leftover C6 INF-004 S-C3, after-lock QA-010
+> SCR-02, W20 QA-010 SCR-03, then W20 CN-10 start/switch timeout landed while this
+> slot wrote).
 > The cut tip *is* the C6 report merge. Unique report commit `bd04816`. Snapshot in the
 > report's §§0–12 is `eff5eb2`; postscript trunk `9b563b0` (PLY-011 S6 lock chrome) is an
 > ancestor of this SHA.
@@ -13,11 +14,11 @@
 > passed; D-17 still billing-red; protocol-C4 still 1/3), `docs/plan/cycle-6-backlog.md`
 > (the predecessor this continues), `docs/plan/wave-protocol.md` §4.3 / §5.1 / §7,
 > `docs/gates/open-questions.md`, and `main` itself — every claim below was re-derived
-> against `c46bbf5` rather than copied from a handoff. PLY-011 landed on `main` **after**
+> against `25a96b4` rather than copied from a handoff. PLY-011 landed on `main` **after**
 > the report's §0–§12 snapshot (`9b563b0`); the report's own §13 already recorded that.
 > Leftover C6 `bc-2c841f7a` and after-lock `bc-1a5a2455` were RUNNING at first draft and
-> are ancestors of `c46bbf5` before this file merges. W20 next-a11y `bc-25aea5c1` landed
-> SCR-03 the same way.
+> are ancestors of `25a96b4` before this file merges. W20 next-a11y `bc-25aea5c1` and
+> remaining C4 playback `bc-7fbe0bc1` (CN-10) landed the same way.
 > **Predecessor:** `docs/plan/cycle-6-backlog.md`. Unfinished tasks keep their original IDs
 > and acceptance criteria (`docs/plan/wave-protocol.md` §7).
 > **This slot implemented nothing.** No source file, no test, no gate, no contract was
@@ -57,8 +58,8 @@ this running-count plan. Stage-acceptance E2E is not opened here.
 | Rank | Item | What a work slot may do |
 |---|---|---|
 | **1** | **D-17** GitHub Actions billing | **Nothing in code.** Account / ops. Cannot be closed from a branch |
-| **2** | **Protocol-C4 交互验收单** still 1/3 | Do not open as an implement epic. Named remainders already on `main` (§1.2). 倍速 / scrub stay X-26. Do not invent `playbackRate`. Do not retake landed chrome. Leave in-flight `bc-7fbe0bc1` (remaining C4 playback) |
-| **3** | **QA-010 remainder** after SCR-03 | Further implemented screens. SCR-13 / SCR-02 / SCR-03 are already on `main`. Do not retake. Do not start a twin of the landed stems |
+| **2** | **Protocol-C4 交互验收单** still 1/3 | Do not open as an implement epic. Named remainders already on `main` (§1.2), including CN-10 start/switch timeout. 倍速 / scrub stay X-26. Do not invent `playbackRate`. Do not retake landed chrome |
+| **3** | **QA-010 remainder** after SCR-03 | **In flight** (`bc-afae2991` drama a11y, `bc-f6e4b6a7` play-screen a11y). Leave their files. Do not start twins of drama or play. SCR-13 / SCR-02 / SCR-03 are already on `main` |
 | **—** | **INF-004 S-C3** echo-only | **Not remaining.** Landed at `51ab72f` / `dea3066` (`bc-2c841f7a`). Was in flight at first draft. S-C4 stays a further slice |
 | **4** | **C4-03** T14 / T16 / T15 | Still open. **Do not fake.** May defer with IDs kept |
 | **5** | **C4-07** SCR-11 / D8 | Still blocked. No subscription contract. Do not invent `/v1/subscriptions` or `#/vip` |
@@ -73,7 +74,9 @@ Partner answers are **unknown**. None is invented. The questions stay in
 | `bc-2c841f7a` (W18 work leftover C6 item) | **Idle. Landed.** Was RUNNING at first draft. Unique commit `dea3066` `feat(INF-004): fail CI self-audit on echo-only workflow steps` is an ancestor of `51ab72f`. The C6 report §13 warned this agent was a twin PLY-011 (`af1b7ff`). **Re-derived:** that SHA is not in this clone; leftover reset onto `9b563b0` and shipped S-C3 | Do not retake `packages/quality/src/audit.ts`. Do not merge leftover as a second S6. S-C4 is a further slice, not this tip |
 | `bc-1a5a2455` (W18 work next C6 after lock chrome) | **Idle. Landed.** Was RUNNING at first draft (after the C6-report lock). Unique commit `35fa8e8` `ci(qa-010): require the SCR-02 home fixture next to SCR-13` is an ancestor of `51ab72f` | Do not retake `scr-02-home.html` / `a11y.ts`. Dated notes say SCR-02 still does **not** close protocol-C4 exit 3 |
 | `bc-25aea5c1` (W20 work next a11y screen) | **Idle. Landed.** Unique commit `b557c29` `ci(qa-010): require the SCR-03 browse fixture next to home and fallback` is an ancestor of `c46bbf5` | Do not retake `scr-03-browse.html`. Dated notes still do **not** close protocol-C4 exit 3 |
-| `bc-7fbe0bc1` (W20 work remaining C4 playback) | **RUNNING.** No `cursor/*` branch visible on origin yet | Do not guess its files. Do not invent `playbackRate`. Do not retake landed chrome |
+| `bc-7fbe0bc1` (W20 work remaining C4 playback) | **Idle. Landed.** Unique commit `956f04c` `feat(ply-010): 15s start/switch timeout without skipping` is an ancestor of `25a96b4` | Do not retake `player-start.ts` / `PlayerSurface.tsx`. CN-10 is not the full §4.3 sheet |
+| `bc-afae2991` (W20 work drama a11y screen) | **RUNNING.** No `cursor/*` branch visible on origin yet | Do not guess its files. Do not start a twin drama fixture |
+| `bc-f6e4b6a7` (W20 work play-screen a11y) | **RUNNING.** No `cursor/*` branch visible on origin yet | Do not guess its files. Do not start a twin play fixture |
 | `origin/cursor/w13-work-c3-remain-72c4` | **Not an ancestor of `main`.** Original `GET /v1/wallet/transactions`. **D-18 closed by port** | Do not implement a second transactions route. Drop or archive |
 | `origin/cursor/w14-work-c4-subseq-72c4` | Leftover duplicate C4-08 ads. A sibling already landed | Do not retake |
 | `origin/cursor/w18-work-c6-follow-72c4` | **Ancestor.** Landed PLY-011 at `9b563b0` / `533433f` | Do not retake `locked-chrome.tsx` / `PlayPage.tsx` |
@@ -85,19 +88,19 @@ Partner answers are **unknown**. None is invented. The questions stay in
 
 ## 1. What the C6 report said, and what `main` is now
 
-Verified at `c46bbf5`. The report file is an ancestor (`e6926f2` merge / `bd04816`
+Verified at `25a96b4`. The report file is an ancestor (`e6926f2` merge / `bd04816`
 unique). Where §§0–12 talk about `eff5eb2` and §13 talks about `9b563b0`, HEAD is that
-report plus PLY-011 plus leftover C6 S-C3 plus after-lock SCR-02 plus W20 SCR-03. Where a
-handoff disagrees, the tree wins.
+report plus PLY-011 plus leftover C6 S-C3 plus after-lock SCR-02 plus W20 SCR-03 plus
+CN-10. Where a handoff disagrees, the tree wins.
 
 ### 1.1 Protocol-C4 exits — still 1/3
 
 Re-derived. Same three rows as `docs/verify/cycle-6-report.md` §0, including the PLY-011
 postscript.
 
-| Protocol C4 exit (`wave-protocol.md` §5.1) | C6 plan (`aa8a9e8`) | C6 report (`eff5eb2` / `9b563b0`) | This tree (`c46bbf5`) |
+| Protocol C4 exit (`wave-protocol.md` §5.1) | C6 plan (`aa8a9e8`) | C6 report (`eff5eb2` / `9b563b0`) | This tree (`25a96b4`) |
 |---|---|---|---|
-| 交互验收单全过 (`01-product-scope` §4.3) | **Not met.** Swipe / `playNext` / double-tap / PLY-012 on `main`. 倍速 / scrub plugin-owned and not kept. Stall chrome absent | **Still not met as 全过.** Kept progress + `playbackrate` plugins; S7 stall; PLY-012; PLY-011 S6 lock chrome on the postscript tip. Tap pause VePlayer-owned. D9 stays `[ ]` until a device | **Still not met as 全过.** Same as the postscript. Named remainders on `main`. Sheet is not 全过. 倍速 / scrub still plugin-owned (X-26). No client `playbackRate`. No 0.75 constant. Remaining C4 playback is in flight (`bc-7fbe0bc1`) |
+| 交互验收单全过 (`01-product-scope` §4.3) | **Not met.** Swipe / `playNext` / double-tap / PLY-012 on `main`. 倍速 / scrub plugin-owned and not kept. Stall chrome absent | **Still not met as 全过.** Kept progress + `playbackrate` plugins; S7 stall; PLY-012; PLY-011 S6 lock chrome on the postscript tip. Tap pause VePlayer-owned. D9 stays `[ ]` until a device | **Still not met as 全过.** Same as the postscript, plus CN-10 start/switch timeout on `main`. Named remainders on `main`. Sheet is not 全过. 倍速 / scrub still plugin-owned (X-26). No client `playbackRate`. No 0.75 constant |
 | 跨端进度冲突用例通过 | **Met as the named product case.** `cross-end-conflict.test.ts` (3) | **Stays met as that case.** Not a two-phone E2E | **Stays met as that case.** Do not retake |
 | a11y 门禁上线且核心屏零 critical/serious | **Not met.** QA-010 in flight. No axe-core job | **Still not met as S-A1 on every SCR/PNL.** Smallest L1 job on `main` (`check:a11y`, SCR-13 fixture only, host=jsdom). Dated notes say this slice does **not** close exit 3 | **Still not met as S-A1.** Three committed fixtures: `scr-13-fallback.html`, `scr-02-home.html`, `scr-03-browse.html`. Dated notes say this still does not close exit 3 |
 
@@ -109,11 +112,11 @@ exit-3 remainder (other screens). Exit 2 is not remaining.
 W19 scored this table at `eff5eb2` and amended PLY-011 in §13. The rows that moved since
 the C6 *plan* (`aa8a9e8`) are the implement closes; D-17 did not.
 
-| ID | C6 plan (`aa8a9e8`) | C6 report (`eff5eb2` / §13) | This tree (`c46bbf5`) |
+| ID | C6 plan (`aa8a9e8`) | C6 report (`eff5eb2` / §13) | This tree (`25a96b4`) |
 |---|---|---|---|
-| **D-17** rank 1 | Open. Cannot be code-fixed | **Open. Unchanged** | **Open. Unchanged.** CI run [33131307979](https://github.com/Dawan2/minidrama/actions/runs/33131307979) on `c46bbf5` (2026-08-28T00:56:41Z): 4s, empty `steps`. Annotation on check-run `98721228200`: spending-limit / failed payments. Last successful CI on `main` is still [33112204165](https://github.com/Dawan2/minidrama/actions/runs/33112204165) at PNL-01, 2026-08-27T20:12:42Z |
-| **Protocol-C4** rank 2 | 1/3. Sheet not full. Do not invent `playbackRate` | **1/3.** Exit 2 stays met. Exit 1: plugin-owned 倍速 / scrub kept, stall, PLY-011 on postscript. Exit 3: job online as SCR-13 only | **1/3.** Same exits. PLY-011 is an ancestor. Sheet still not 全过. Remaining C4 playback in flight (`bc-7fbe0bc1`) |
-| **QA-010** rank 3 | In flight (`bc-b0108787`) | **Closed as the smallest L1 job** (`a68a964` / `3e8bdb2`). Remainder: other implemented screens | **Smallest job + SCR-02 + SCR-03 on `main`.** Remainder: other implemented screens. Rank 3 is that remainder, not a retake of the three landed stems |
+| **D-17** rank 1 | Open. Cannot be code-fixed | **Open. Unchanged** | **Open. Unchanged.** CI run [33131517380](https://github.com/Dawan2/minidrama/actions/runs/33131517380) on `25a96b4` (2026-08-28T01:00:43Z): 4s, empty `steps`. Annotation on check-run `98721892434`: spending-limit / failed payments. Last successful CI on `main` is still [33112204165](https://github.com/Dawan2/minidrama/actions/runs/33112204165) at PNL-01, 2026-08-27T20:12:42Z |
+| **Protocol-C4** rank 2 | 1/3. Sheet not full. Do not invent `playbackRate` | **1/3.** Exit 2 stays met. Exit 1: plugin-owned 倍速 / scrub kept, stall, PLY-011 on postscript. Exit 3: job online as SCR-13 only | **1/3.** Same exits. PLY-011 and CN-10 are ancestors. Sheet still not 全过 |
+| **QA-010** rank 3 | In flight (`bc-b0108787`) | **Closed as the smallest L1 job** (`a68a964` / `3e8bdb2`). Remainder: other implemented screens | **Smallest job + SCR-02 + SCR-03 on `main`.** Remainder after SCR-03 **in flight** (`bc-afae2991` drama, `bc-f6e4b6a7` play). Rank 3 is that remainder, not a retake of the three landed stems |
 | **PLY-012** | Closed as merge (`aa8a9e8`) | **Stays closed** | **Stays closed.** Do not retake `player-fatal.ts` |
 | **C4-03** | Open. Do not fake | **Open. Not faked** | **Open. Not faked.** `postgres:` refused. No Drizzle. Redis only in refuse tests. Rank 4 here because the two in-flight C6 remainders landed |
 | **C4-07** | Open, blocked | **Open, blocked** | **Open, blocked.** No `#/vip`. No OpenAPI subscription path. Rank 5 here |
@@ -163,10 +166,10 @@ Every `main` push since PNL-01 fails in 4–7 seconds with empty steps. On this 
 
 ```
 $ gh run list --repo Dawan2/minidrama --branch main --limit 2
-33131307979  failure  c46bbf5  CI   4s  2026-08-28T00:56:41Z
-33131307971  failure  c46bbf5  L2   5s  2026-08-28T00:56:41Z
+33131517380  failure  25a96b4  CI   4s  2026-08-28T01:00:43Z
+33131517328  failure  25a96b4  L2   6s  2026-08-28T01:00:42Z
 
-$ gh api repos/Dawan2/minidrama/check-runs/98721228200/annotations
+$ gh api repos/Dawan2/minidrama/check-runs/98721892434/annotations
 # "The job was not started because recent account payments have failed or your
 #  spending limit needs to be increased."
 ```
@@ -211,8 +214,9 @@ agrees.
 | 播放令牌过期静默换发 | **On `main`** (`aa8a9e8` / `player-fatal.ts`). Do not retake |
 | 导航栏 / 安全区 | Wired (D9). Checklist stays `[ ]` until a device. §8 rule 6 |
 
-S7 stall indicator then retry is on `main` (`player-stall.ts`). It is not a §4.3 row; do
-not retake it either.
+S7 stall indicator then retry is on `main` (`player-stall.ts`). CN-10 start/switch
+timeout is on `main` (`player-start.ts`). Neither is a close of §4.3. Do not retake
+them.
 
 **Do not pick 倍速 or scrub as "C7 leftover".** That was already forbidden as a C5 leftover
 and as a C6 leftover. X-26 is P1/P2. A client constant for 0.75 would be the defect.
@@ -220,15 +224,15 @@ and as a C6 leftover. X-26 is P1/P2. A client constant for 0.75 would be the def
 **Acceptance for this rank (the plan-wave close, not the epic).** The sheet is named
 against `c46bbf5`, the landed halves (including PLY-011) are not retaken, and implement
 waves are told not to invent `playbackRate`. A PR that lands 倍速 as "C7 leftover" fails
-this rank. Leave `bc-7fbe0bc1`.
+this rank. Leave `bc-afae2991` and `bc-f6e4b6a7`.
 
 ---
 
-### Rank 3 — QA-010 remainder: after SCR-03
+### Rank 3 — QA-010 remainder: after SCR-03, in flight
 
 | | |
 |---|---|
-| **Owner** | Work slot C, then A for screen fixes |
+| **Owner** | Work slot C, then A for screen fixes. **This wave: `bc-afae2991` (drama) and `bc-f6e4b6a7` (play) already started** |
 | **Existing ID** | **QA-010**. Smallest job, SCR-02, and SCR-03 already on `main`. Remainder is S-A1 on the other implemented screens |
 | **Gated on** | Nothing external. Protocol-C4 exit 3 |
 
@@ -247,9 +251,9 @@ After-lock unique commit `35fa8e8` required SCR-02. W20 next-a11y unique commit
 A `continue-on-error` axe job. A scan of screens that do not exist (`#/recharge`,
 `#/vip`). A claim that jsdom is TikTok WebView.
 
-**What a C7 work slot may do.** Re-derive `origin/main` first. Leave `bc-7fbe0bc1`
-playback files. Do not retake the three landed stems. Pick the next implemented numbered
-screen against the tree at that time — not against this paragraph's guess.
+**What a C7 work slot may do.** Nothing until `bc-afae2991` and `bc-f6e4b6a7` are idle
+and `origin/main` is re-derived. Do not retake the three landed stems. Do not start a
+twin of drama or play.
 
 P1 still owes a countersign on `docs/plan/backlog.md` (QA-011 handoff). This slot does
 not edit P1's file. Registered in §6.
@@ -314,6 +318,7 @@ contract or defer the screen. No partner answer is recorded here.
 | **S7 stall** | On `main`. Do not retake `player-stall.ts` |
 | **PLY-012** token re-issue | On `main` at `aa8a9e8`. Do not retake `player-fatal.ts` |
 | **PLY-011 S6 lock chrome** | On `main` at `9b563b0` / `533433f`. Do not retake `locked-chrome.tsx` |
+| **CN-10 start/switch timeout** | On `main` at `25a96b4` / `956f04c`. Do not retake `player-start.ts` |
 | **C4-04** splash / `GET /v1/config` | Closed in C4 |
 | **C4-01** G1.5 + L1 `workflow_dispatch:` | Closed in C4. `workflow_dispatch:` is on both workflows |
 
@@ -321,9 +326,9 @@ contract or defer the screen. No partner answer is recorded here.
 
 ## Tier A — buildable today; remediations, not a new epic
 
-Per §4.3 these would be the implement picks. After rank 2's in-flight remaining C4
-playback (`bc-7fbe0bc1`) and the blocked C4-03 / C4-07 rows, rank 3 (further a11y
-screens after SCR-03) is the unblocked engineering remainder that is not already owned.
+Per §4.3 these would be the implement picks. After rank 3 (QA-010 remainder in flight
+on drama and play) and the blocked C4-03 / C4-07 rows, there is no unblocked engineering
+item that is not already owned, gated, or P3's file.
 
 ### C5-03 — D-19: refresh `wave-protocol.md` §6.2 (P3's file)
 
@@ -343,9 +348,9 @@ Drop or archive `cursor/w13-work-c3-remain-72c4` and `cursor/w14-work-c4-subseq-
 D-18 and C4-08 already landed by other tips. A second transactions route or a second ads
 slice is the defect.
 
-Leave `cursor/w18-work-c6-left-72c4`, `cursor/w18-work-c6-after-lock-72c4`, and
-`cursor/w20-work-a11y-next-72c4` as ancestors — they landed. Leave `bc-7fbe0bc1` until
-that agent is idle. It is a live remainder, not a drop-or-archive leftover.
+Leave `cursor/w18-work-c6-left-72c4`, `cursor/w18-work-c6-after-lock-72c4`,
+`cursor/w20-work-a11y-next-72c4`, and `cursor/w20-work-c4-remain-72c4` as ancestors —
+they landed. Leave `bc-afae2991` and `bc-f6e4b6a7` until those agents are idle.
 
 ---
 
@@ -476,11 +481,11 @@ Do not open protocol-C5 变现闭环 (§4.3).
 Do not open 00-wave-plan W20 阶段验收.
 ```
 
-**First C7 implement picks.** Re-derive `origin/main` first. Leave `bc-7fbe0bc1`. Do not
-pick D-17, G2.3, HOME continue, leftover ads, leftover remain, `#/vip`,
-Postgres-as-sqlite, 倍速, PLY-012, PLY-011 `locked-chrome.tsx`, QA-010 SCR-13, QA-010
-SCR-02, QA-010 SCR-03, INF-004 S-C1, or INF-004 S-C3. Rank 3 (next implemented a11y
-screen after browse) is the unblocked remainder behind the in-flight playback agent.
+**First C7 implement picks.** Re-derive `origin/main` first. Leave `bc-afae2991` and
+`bc-f6e4b6a7`. Do not pick D-17, G2.3, HOME continue, leftover ads, leftover remain,
+`#/vip`, Postgres-as-sqlite, 倍速, PLY-012, PLY-011 `locked-chrome.tsx`, CN-10
+`player-start.ts`, QA-010 SCR-13, QA-010 SCR-02, QA-010 SCR-03, INF-004 S-C1, or
+INF-004 S-C3.
 
 ---
 
@@ -488,8 +493,8 @@ screen after browse) is the unblocked remainder behind the in-flight playback ag
 
 - **Opening protocol-C5 变现闭环.** §4.3. D-17 is still P1 and protocol-C4 is 1/3.
 - **Opening protocol-C4 播放体验 as a new epic.** Ranked, split, not scheduled by this
-  slot. Named remainders are on `main`. One W20 sibling is already on remaining C4
-  playback (`bc-7fbe0bc1`).
+  slot. Named remainders are on `main`. Two W20 siblings are already on remaining a11y
+  screens (`bc-afae2991` drama, `bc-f6e4b6a7` play). CN-10 is on `main`.
 - **A 倍速 / `playbackRate` client control.** X-26. Forbidden as a leftover by the C5
   plan, the C5 report, the C6 plan, and the C6 report.
 - **A twin of landed QA-010 stems.** SCR-13 / SCR-02 / SCR-03 are on `main`. **A twin
@@ -557,4 +562,4 @@ Per `docs/plan/wave-protocol.md` §3.4 — found, not fixed.
 
 | Date | Wave · slot | Change |
 |---|---|---|
-| 2026-08-28 | W20 · plan | First version. Absorbed `docs/verify/cycle-6-report.md` at `e6926f2` (not passed; protocol-C4 still 1/3; D-17 still billing-red). Cut from `e6926f2`; merged forward onto `c46bbf5`. Leftover C6 `bc-2c841f7a` (INF-004 S-C3), after-lock `bc-1a5a2455` (QA-010 SCR-02), and W20 next-a11y `bc-25aea5c1` (QA-010 SCR-03) **landed while this slot wrote**. Ranked: D-17 (cannot be code-fixed), protocol-C4 交互验收单 still 1/3, QA-010 remainder after SCR-03, C4-03 still open (do not fake), C4-07 still blocked. Remaining C4 playback in flight (`bc-7fbe0bc1`). Did not invent AM answers, Beans, EIS, BytePlus, Postgres, VIP, or a CI-restoration date. Did not implement product code. Did not open protocol-C5 变现闭环 |
+| 2026-08-28 | W20 · plan | First version. Absorbed `docs/verify/cycle-6-report.md` at `e6926f2` (not passed; protocol-C4 still 1/3; D-17 still billing-red). Cut from `e6926f2`; merged forward onto `25a96b4`. Leftover C6 `bc-2c841f7a` (INF-004 S-C3), after-lock `bc-1a5a2455` (QA-010 SCR-02), W20 next-a11y `bc-25aea5c1` (QA-010 SCR-03), and remaining C4 playback `bc-7fbe0bc1` (CN-10) **landed while this slot wrote**. Ranked: D-17 (cannot be code-fixed), protocol-C4 交互验收单 still 1/3, QA-010 remainder after SCR-03 in flight (drama + play), C4-03 still open (do not fake), C4-07 still blocked. Did not invent AM answers, Beans, EIS, BytePlus, Postgres, VIP, or a CI-restoration date. Did not implement product code. Did not open protocol-C5 变现闭环 |
