@@ -3,8 +3,8 @@
 > **Slot:** W20, work slot (`bc-afae2991`). One leftover item, no pull request.
 > **Branch:** `cursor/w20-work-a11y-drama-72c4`, cut from `origin/main` at **`c46bbf5`**
 > (QA-010 remainder already requires SCR-02 home, SCR-03 browse, and SCR-13).
-> Merged forward onto **`25a96b4`** (CN-10 start/switch timeout landed while this
-> slot ran).
+> Merged forward onto **`c965b15`** (CN-10 start/switch timeout and the cycle-7
+> backlog landed while this slot ran).
 > **Item:** **QA-010 remainder** — S-A1 on the next listing-critical implemented
 > screen. After SCR-13, SCR-02, and SCR-03, the inventory ranks **SCR-04**
 > (`#/drama/:dramaId`, drama detail) next. Deleting any of the four required
@@ -22,7 +22,9 @@
 and the SCR-02 / SCR-03 remainders are on `main` at `c46bbf5`. C4-03 / C4-07
 stay skipped. C4-remain playback (`bc-7fbe0bc1`) and cycle-7 plan docs
 (`bc-285529d4`) were in flight at pick; C4-remain landed as CN-10
-(`25a96b4`) while this slot ran. Cycle-7 plan docs were left.
+(`25a96b4`) and cycle-7 plan docs landed at `c965b15` while this slot ran.
+Both were left. A sibling play-screen a11y slot (`bc-f6e4b6a7`) is in flight;
+play files were not edited here.
 
 The named remainder after browse is S-A1 on further implemented screens. SCR-01
 is an overlay. SCR-10 / SCR-11 are not product routes. The test-plan / inventory
@@ -34,7 +36,7 @@ is next and was not already scanned.**
 | D-17 GitHub Actions billing | Rank 1. **Not a branch.** Skipped |
 | C4-03 / C4-07 | Do not fake / no contract. Skipped |
 | C4-remain playback `bc-7fbe0bc1` | **Left.** Landed as CN-10 / `docs/handoff/w20-c4-remain.md` at `25a96b4` while this slot ran |
-| Cycle-7 plan docs `bc-285529d4` | **RUNNING.** Left |
+| Cycle-7 plan docs `bc-285529d4` | **Left.** Landed as `docs/plan/cycle-7-backlog.md` at `c965b15` while this slot ran |
 | QA-010 SCR-13 + SCR-02 + SCR-03 | **On `main`** at `c46bbf5` |
 | **QA-010 remainder SCR-04 drama** | **This slot.** Required stems were home + browse + fallback |
 
@@ -94,7 +96,8 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 | Who | Overlap |
 | --- | --- |
 | `bc-7fbe0bc1` C4-remain playback | **Idle. Landed** `25a96b4` / `docs/handoff/w20-c4-remain.md` (CN-10). Player files not edited here |
-| `bc-285529d4` cycle-7 plan docs | **RUNNING.** `docs/plan/` not rewritten |
+| `bc-285529d4` cycle-7 plan docs | **Idle. Landed** `c965b15` / `docs/plan/cycle-7-backlog.md`. `docs/plan/` not rewritten here |
+| `bc-f6e4b6a7` play-screen a11y | **RUNNING.** Play fixture not edited here |
 
 `git diff origin/main -- app/ server/ .github/` is empty of this slot's work.
 
@@ -102,10 +105,11 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`25a96b4`,
-CN-10 start/switch timeout). L1 sequence is format → lint → typecheck →
-check:commits → check:skips → check:audit → check:a11y → test:coverage →
-check:coverage → build → guardrails.
+`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`c965b15`,
+CN-10 then the cycle-7 backlog). Test counts did not change on the cycle-7
+docs absorb. L1 sequence is format → lint → typecheck → check:commits →
+check:skips → check:audit → check:a11y → test:coverage → check:coverage →
+build → guardrails.
 
 | Gate | Result |
 |---|---|
@@ -129,8 +133,8 @@ is incomplete, not a skip.
 ## 6. What is still open
 
 - **S-A1 on every remaining SCR/PNL.** This slice adds SCR-04 only. SCR-05
-  play, SCR-06 profile, SCR-07…SCR-09, SCR-12, and panels are later remainders.
-  Of the listing-critical trio after browse, play then profile are next.
+  play is in flight on a sibling (`bc-f6e4b6a7`). SCR-06 profile, SCR-07…SCR-09,
+  SCR-12, and panels are later remainders. Do not start a twin of play.
 - **S-A2 on live `app.css`.** `--accent` (#fe2c55) under white label text is
   below 4.5:1. Not remediated here; fixtures use passing body colors.
 - **TikTok WebView.** Not claimed. PLY-002 still `unmeasured`.
@@ -141,7 +145,8 @@ is incomplete, not a skip.
 - **D-17.** Billing. Local verify is not CI.
 - **C4-03 / C4-07**, GATE-7 / GATE-8, Beans. Unchanged.
 - **C4-remain playback** (`bc-7fbe0bc1`). Left; landed as CN-10 while this
-  slot ran. **Cycle-7 plan docs** (`bc-285529d4`). In flight. Not this slot.
+  slot ran. **Cycle-7 plan docs** (`bc-285529d4`). Left; landed as
+  `docs/plan/cycle-7-backlog.md` while this slot ran. Plan file not rewritten.
 - **C5-03 / D-19.** P3 writeback of `wave-protocol.md` §6.2.
 - **`docs/plan/cycle-6-backlog.md`.** Plan-slot file.
 
