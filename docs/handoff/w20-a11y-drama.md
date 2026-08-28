@@ -102,23 +102,25 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this branch at `c46bbf5` plus the SCR-04 remainder.
-L1 sequence is format → lint → typecheck → check:commits → check:skips →
-check:audit → check:a11y → test:coverage → check:coverage → build → guardrails.
+`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`25a96b4`,
+CN-10 start/switch timeout). L1 sequence is format → lint → typecheck →
+check:commits → check:skips → check:audit → check:a11y → test:coverage →
+check:coverage → build → guardrails.
 
 | Gate | Result |
 |---|---|
 | Format / lint / types | pass |
-| G1.9 commits | `1 new commits vs origin/main, 0 prose, 0 missing-id` (unique commit carries `QA-010` / `SCR-04`) |
-| G1.10 skips | `236 test files, 0 skips, 0 empty` |
+| G1.9 commits | `2 new commits vs origin/main, 0 prose, 0 missing-id` (merge commits skipped; unique commits carry `QA-010` / `SCR-04`) |
+| G1.10 skips | `237 test files, 0 skips, 0 empty` |
 | INF-004 audit | `audit passed (2 workflows, 0 continue-on-error, 0 if: false, 0 swallowed exits, 0 echo-only)` |
 | QA-010 a11y | `a11y passed (4 screens, 0 critical, 0 serious, host=jsdom, not TikTok WebView)` |
-| Tests + coverage | **3,563 passing** — shared 63, quality 434, config 45, server 1,785, app 1,236. Coverage: global lines 94.37% (17730/18787), branches 90.88%, core 95.70%, **diff lines 100.00% (6/6)** |
-| Build | pass — `index-C3L6HYpZ.js` 364.54 kB / 111.58 kB gzip (PLY-011's client; this slot did not edit product UI) |
+| Tests + coverage | **3,577 passing** — shared 63, quality 434, config 45, server 1,785, app 1,250. Coverage: global lines 94.36% (17871/18939), branches 90.87%, core 95.70%, **diff lines 100.00% (6/6)** |
+| Build | pass — `index-B2g09p35.js` 366.74 kB / 112.08 kB gzip (CN-10's client; this slot did not edit product UI) |
 | Guardrails | `platform guardrails passed (artifact: /workspace/app/dist)` |
 
 Native `<video>` remains absent. Test count did not fall (3,560 on `main` after
-SCR-03 → 3,563 here; the extra tests are this remainder). jsdom still prints
+SCR-03; CN-10 added player-start tests; 3,577 here includes this remainder's
+three extra quality tests). jsdom still prints
 `HTMLCanvasElement's getContext()` while axe attempts `color-contrast`; that
 is incomplete, not a skip.
 
