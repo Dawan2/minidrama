@@ -171,6 +171,21 @@ const PASSING_FAVORITES_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+const PASSING_SEARCH_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>Search</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="search-page">
+    <h1>Search</h1>
+    <p>Type a title or a tag to find a drama.</p>
+    <a href="#/home">Back</a>
+  </main>
+</body>
+</html>
+`;
+
 function writeRequiredStems(
   root: string,
   bodies: {
@@ -182,6 +197,7 @@ function writeRequiredStems(
     readonly profile?: string;
     readonly history?: string;
     readonly favorites?: string;
+    readonly search?: string;
   } = {},
 ): void {
   writeSource(root, 'screens/scr-13-fallback.html', bodies.fallback ?? PASSING_HTML);
@@ -192,6 +208,7 @@ function writeRequiredStems(
   writeSource(root, 'screens/scr-06-profile.html', bodies.profile ?? PASSING_PROFILE_HTML);
   writeSource(root, 'screens/scr-07-history.html', bodies.history ?? PASSING_HISTORY_HTML);
   writeSource(root, 'screens/scr-08-favorites.html', bodies.favorites ?? PASSING_FAVORITES_HTML);
+  writeSource(root, 'screens/scr-search.html', bodies.search ?? PASSING_SEARCH_HTML);
 }
 
 const CONTRAST_FAIL_HTML = `<!DOCTYPE html>
@@ -272,8 +289,8 @@ describe('isScreenFileName / listScreenFiles', () => {
     expect(files).toEqual([join(root, 'screens/scr-13-fallback.html')]);
   });
 
-  it('lists the history fixture next to favorites, profile, play, drama, browse, home and fallback when all eight are present', () => {
-    const root = tempDir('a11y-walk-history-');
+  it('lists the search fixture next to history, favorites, profile, play, drama, browse, home and fallback when all nine are present', () => {
+    const root = tempDir('a11y-walk-search-');
     writeSource(root, 'screens/scr-02-home.html', PASSING_HOME_HTML);
     writeSource(root, 'screens/scr-03-browse.html', PASSING_BROWSE_HTML);
     writeSource(root, 'screens/scr-04-drama.html', PASSING_DRAMA_HTML);
@@ -282,6 +299,7 @@ describe('isScreenFileName / listScreenFiles', () => {
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     expect(listScreenFiles(join(root, 'screens'))).toEqual([
       join(root, 'screens/scr-02-home.html'),
       join(root, 'screens/scr-03-browse.html'),
@@ -291,6 +309,7 @@ describe('isScreenFileName / listScreenFiles', () => {
       join(root, 'screens/scr-07-history.html'),
       join(root, 'screens/scr-08-favorites.html'),
       join(root, 'screens/scr-13-fallback.html'),
+      join(root, 'screens/scr-search.html'),
     ]);
   });
 
@@ -300,7 +319,7 @@ describe('isScreenFileName / listScreenFiles', () => {
 });
 
 describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
-  it('requires the SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08 and SCR-13 fixtures so deleting any is red', () => {
+  it('requires the SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08, search and SCR-13 fixtures so deleting any is red', () => {
     expect(REQUIRED_SCREEN_STEMS).toEqual([
       'scr-02-home',
       'scr-03-browse',
@@ -309,6 +328,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-06-profile',
       'scr-07-history',
       'scr-08-favorites',
+      'scr-search',
       'scr-13-fallback',
     ]);
     expect(
@@ -320,6 +340,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
         'scr-06-profile.html',
         'scr-07-history.html',
         'scr-08-favorites.html',
+        'scr-search.html',
         'scr-13-fallback.html',
       ]),
     ).toEqual([]);
@@ -330,7 +351,20 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
         'scr-04-drama.html',
         'scr-05-play.html',
         'scr-06-profile.html',
+        'scr-07-history.html',
         'scr-08-favorites.html',
+        'scr-13-fallback.html',
+      ]),
+    ).toEqual(['scr-search']);
+    expect(
+      missingRequiredScreenStems([
+        'scr-02-home.html',
+        'scr-03-browse.html',
+        'scr-04-drama.html',
+        'scr-05-play.html',
+        'scr-06-profile.html',
+        'scr-08-favorites.html',
+        'scr-search.html',
         'scr-13-fallback.html',
       ]),
     ).toEqual(['scr-07-history']);
@@ -342,6 +376,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-06-profile',
       'scr-07-history',
       'scr-08-favorites',
+      'scr-search',
     ]);
     expect(missingRequiredScreenStems(['scr-02-home.html'])).toEqual([
       'scr-03-browse',
@@ -350,6 +385,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-06-profile',
       'scr-07-history',
       'scr-08-favorites',
+      'scr-search',
       'scr-13-fallback',
     ]);
     expect(missingRequiredScreenStems([])).toEqual([
@@ -360,6 +396,7 @@ describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
       'scr-06-profile',
       'scr-07-history',
       'scr-08-favorites',
+      'scr-search',
       'scr-13-fallback',
     ]);
   });
@@ -484,6 +521,7 @@ describe('runA11yCheck', () => {
     expect(output.stderr).toContain('scr-06-profile');
     expect(output.stderr).toContain('scr-07-history');
     expect(output.stderr).toContain('scr-08-favorites');
+    expect(output.stderr).toContain('scr-search');
     expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
   });
 
@@ -495,6 +533,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -510,6 +549,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -525,6 +565,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -540,6 +581,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -555,6 +597,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-05-play.html', PASSING_PLAY_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -570,6 +613,7 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-05-play.html', PASSING_PLAY_HTML);
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
@@ -584,10 +628,27 @@ describe('runA11yCheck', () => {
     writeSource(root, 'screens/scr-05-play.html', PASSING_PLAY_HTML);
     writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
     writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
+    writeSource(root, 'screens/scr-search.html', PASSING_SEARCH_HTML);
     writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
     expect(output.stderr).toContain('scr-08-favorites');
+    expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
+  });
+
+  it('fails when the required search fixture is missing', async () => {
+    const root = tempDir('a11y-nosearch-');
+    writeSource(root, 'screens/scr-02-home.html', PASSING_HOME_HTML);
+    writeSource(root, 'screens/scr-03-browse.html', PASSING_BROWSE_HTML);
+    writeSource(root, 'screens/scr-04-drama.html', PASSING_DRAMA_HTML);
+    writeSource(root, 'screens/scr-05-play.html', PASSING_PLAY_HTML);
+    writeSource(root, 'screens/scr-06-profile.html', PASSING_PROFILE_HTML);
+    writeSource(root, 'screens/scr-07-history.html', PASSING_HISTORY_HTML);
+    writeSource(root, 'screens/scr-08-favorites.html', PASSING_FAVORITES_HTML);
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('scr-search');
     expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
   });
 
@@ -652,7 +713,7 @@ describe('runA11yCheck', () => {
     expect(output.stdout).not.toMatch(/in TikTok WebView/);
   });
 
-  it('the committed SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08 and SCR-13 fixtures pass the real axe-core run in jsdom', async () => {
+  it('the committed SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08, search and SCR-13 fixtures pass the real axe-core run in jsdom', async () => {
     const output = await runA11yCheck({
       root: repoRoot,
       source: defaultSource(repoRoot),
@@ -660,7 +721,7 @@ describe('runA11yCheck', () => {
     expect(output.ok).toBe(true);
     expect(output.exitCode).toBe(0);
     expect(output.stdout).toContain('a11y passed');
-    expect(output.stdout).toContain('8 screens');
+    expect(output.stdout).toContain('9 screens');
     expect(output.stdout).toContain(A11Y_HOST_DISCLAIMER);
   });
 });
@@ -816,6 +877,28 @@ describe('QA-010 does not skip the engine or claim TikTok WebView', () => {
     expect(fixture).toContain('<html lang="en">');
     expect(fixture).toContain('Favourites');
     expect(fixture).toContain('Find something to follow');
+    expect(fixture).not.toContain('#/vip');
+  });
+
+  it('the search fixture still matches SearchPage structure', () => {
+    const page = readFileSync(join(repoRoot, 'app/src/routes/SearchPage.tsx'), 'utf8');
+    expect(page).toMatch(/data-testid="search-page"/);
+    expect(page).toMatch(/<main/);
+    expect(page).toMatch(/<h1/);
+    expect(page).toMatch(/role="search"/);
+    expect(page).toMatch(/data-testid="search-input"/);
+    expect(page).toMatch(/search.prompt/);
+    const fixture = readFileSync(
+      join(repoRoot, 'packages/quality/a11y/screens/scr-search.html'),
+      'utf8',
+    );
+    expect(fixture).toContain('data-testid="search-page"');
+    expect(fixture).toContain('data-testid="search-input"');
+    expect(fixture).toContain('data-testid="search-idle"');
+    expect(fixture).toContain('role="search"');
+    expect(fixture).toContain('<html lang="en">');
+    expect(fixture).toContain('Search');
+    expect(fixture).toContain('Type a title or a tag to find a drama.');
     expect(fixture).not.toContain('#/vip');
   });
 });
