@@ -74,6 +74,8 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 
 **2026-08-27 (W16 G1.9 leftover / D-20).** The format-only half landed first (`bc-72e30448` / `cf7ecd4`). This slot adds the 需求/缺陷编号 half: `feat: add a widget` is G1.9 red even though it is Conventional Commits. History on `main` is still not rewritten.
 
+**2026-08-27 (W16 QA-011 / C-12 / X-12 / X-04 / X-05).** a11y is a release blocker: `docs/14-test-plan.md` §6.4 now matches `docs/plan/definition-of-done.md` §6 rather than "P2, 不阻断首个上架版本". The L3 host matrix is TikTok WebView (`§6.2`). Native APK/iOS size and crash/ANR are N/A; §5.4 and G3.8 use the Minis ZIP / first-screen JS / JS-error budgets from `docs/03-nonfunctional.md` §2. `QA-010` (axe-core in CI) is not this writeback.
+
 ---
 
 ## 3. 覆盖率门禁与 ratchet 机制
@@ -151,7 +153,7 @@ PR 进入 merge queue 后、以及合入 `main` 后的每次构建触发。
 | G3.5 隐私合规清单 | SDK 收集行为与隐私政策一致性核对、权限清单 diff 审查、App Store 隐私标签/安卓合规检测(详见 [14-security.md §6](./14-security.md)) | 未完成核对或存在不一致 |
 | G3.6 内容安全就绪 | 审核通道可用性探活、敏感词库版本确认、应急下架开关演练记录在有效期内(详见 [14-security.md §7](./14-security.md)) | 任一项缺失 |
 | G3.7 变异测试达标 | 核心模块当期变异测试报告存在且存活率 ≤ 40% | 缺报告或超标 |
-| G3.8 崩溃率准入 | 灰度阶段崩溃率 < 0.3%、ANR 率 < 0.3%(以灰度监控数据为准) | 超标则终止放量 |
+| G3.8 稳定性准入 | 灰度阶段 JS 错误率 < 0.5% 会话、白屏率 < 0.1%(Minis 口径,DoD S-M10)。原生崩溃率/ANR 对本形态 N/A | 超标则终止放量 |
 
 ### 5.2 人工确认项(必须留痕,签署人记录在发布单)
 
@@ -163,19 +165,23 @@ PR 进入 merge queue 后、以及合入 `main` 后的每次构建触发。
 ### 5.3 灰度发布门禁
 
 - 客户端按 1% → 5% → 20% → 50% → 100% 放量,每档观察期 ≥ 24 小时;
-- 任一档触发:崩溃率/ANR 超标(G3.8)、支付成功率环比下跌 > 3 个百分点、播放失败率环比上升 > 2 个百分点 —— **自动暂停放量并告警**,人工决策回滚或修复;
+- 任一档触发:JS 错误率/白屏率超标(G3.8)、支付成功率环比下跌 > 3 个百分点、播放失败率环比上升 > 2 个百分点 —— **自动暂停放量并告警**,人工决策回滚或修复;
 - 后端采用金丝雀发布,错误率/延迟超 SLO 自动回滚。
 
-### 5.4 性能与体积预算(初始值,允许收紧、放宽须豁免)
+### 5.4 性能与体积预算(Minis 形态;允许收紧、放宽须豁免)
+
+**2026-08-27 (W16 QA-011 / X-05).** Native APK/iOS 体积与崩溃率/ANR 不是本产品的形态。替代口径取自 `docs/03-nonfunctional.md` §2 与 DoD S-M4 / S-M10。官方硬限 ZIP ≤ 200 MB、无空文件(`AC-CMP-1`)仍在上层;下表是更严的内部预算。APK/AAB 与 App Store 下载大小对本形态 N/A,不作为门禁指标。
 
 | 指标 | 预算 |
 |------|------|
-| 安卓包体积(APK/AAB 下载大小) | ≤ 60 MB,单次 PR 增幅 > 2 MB 需说明 |
-| iOS 包体积(App Store 下载大小) | ≤ 80 MB,单次 PR 增幅 > 2 MB 需说明 |
-| 冷启动到可交互 | P90 ≤ 2.5 s(中端机基线) |
+| ZIP 包体积 | ≤ 20 MB(官方硬限 200 MB 的 10%);单次增量 > 2 MB 需说明 |
+| 首屏 JS(gzip) | ≤ 300 KB;单 PR 增幅 > 30 KB 需说明 |
+| 首屏总传输(不含视频) | ≤ 800 KB |
+| 冷启动到可交互(TTI,TikTok WebView) | P90 ≤ 2.5 s(中端机基线) |
 | 点击剧集到首帧起播 | P90 ≤ 1.2 s(WiFi)/ ≤ 2.5 s(4G) |
 | 播放百秒卡顿时长 | P95 ≤ 1 s |
 | 核心 API(登录、鉴权、解锁、下单)P95 | ≤ 300 ms(服务端) |
+| JS 错误率 / 白屏率 | 错误率 < 0.5% 会话;白屏率 < 0.1%(替代原生崩溃率) |
 
 ---
 
