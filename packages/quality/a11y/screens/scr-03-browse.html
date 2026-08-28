@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Theatre</title>
+    <style>
+      html,
+      body {
+        background: #0b0b0f;
+        color: #f4f4f7;
+      }
+      a {
+        color: #f4f4f7;
+      }
+    </style>
+  </head>
+  <body>
+    <main data-testid="browse-page">
+      <p>
+        <a href="#/home">Home</a>
+        <a href="#/me">Me</a>
+      </p>
+      <h1>Theatre</h1>
+      <div data-testid="browse-filters">
+        <div data-testid="browse-categories" role="group" aria-label="Categories">
+          <button type="button" data-testid="browse-category-all" aria-pressed="true">All</button>
+          <button type="button" data-testid="browse-category-ROMANCE" aria-pressed="false">
+            Romance
+          </button>
+        </div>
+        <div data-testid="browse-sorts" role="group" aria-label="Sort">
+          <button type="button" data-testid="browse-sort-HOT" aria-pressed="true">Popular</button>
+          <button type="button" data-testid="browse-sort-NEW" aria-pressed="false">New</button>
+        </div>
+      </div>
+      <div data-testid="empty-state">
+        <p>Nothing to watch in the catalogue yet. Try again in a moment.</p>
+        <button type="button">Try again</button>
+      </div>
+    </main>
+  </body>
+</html>
