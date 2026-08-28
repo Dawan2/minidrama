@@ -2,12 +2,14 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { ok, type PlaybackDescriptor } from '@minidrama/shared';
 import { createPlayerFacade } from './player-facade';
 import { createProgressHeartbeat } from './progress-heartbeat';
+import { createStallWatchdog } from './player-stall';
 import { verticalSwipe } from './episode-swipe';
 import { isDoubleTap, type TapPoint } from './episode-double-tap';
 import { translate } from '../core/i18n';
 import type { PlatformBridge } from '../platform/types';
 import type { PlayerFacade } from './player-facade';
 import type { ProgressHeartbeat, ProgressHeartbeatReport } from './progress-heartbeat';
+import type { StallChrome, StallPacing } from './player-stall';
 
 export interface PlayerSurfaceProps {
   readonly bridge: PlatformBridge;
@@ -46,6 +48,13 @@ export interface PlayerSurfaceProps {
    * classified here: it is undocumented and must not decide locked vs blocked vs transport.
    */
   readonly onPlayerFatal?: () => void;
+  /**
+   * S7 stall retry (`AC-PL-7`). PlayPage remints the route episode. Ignored when omitted.
+   * The overlay stays on this surface so the last frame is not torn down.
+   */
+  readonly onStallRetry?: () => void;
+  /** Test seam. Production uses `Date.now` / `setInterval`. */
+  readonly stall?: StallPacing;
 }
 
 export interface PlayerSurfaceHandle {
@@ -87,14 +96,19 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
       onSwipePrevious,
       onDoubleTap,
       onPlayerFatal,
+      onStallRetry,
+      stall,
     },
     ref,
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const facadeRef = useRef<PlayerFacade | null>(null);
     const heartbeatRef = useRef<ProgressHeartbeat | null>(null);
+    const stallRef = useRef<ReturnType<typeof createStallWatchdog> | null>(null);
     const progressRef = useRef(progress);
     progressRef.current = progress;
+    const stallPacingRef = useRef(stall);
+    stallPacingRef.current = stall;
     const onEndedRef = useRef(onEnded);
     onEndedRef.current = onEnded;
     const onSwipeNextRef = useRef(onSwipeNext);
@@ -105,6 +119,8 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
     onDoubleTapRef.current = onDoubleTap;
     const onPlayerFatalRef = useRef(onPlayerFatal);
     onPlayerFatalRef.current = onPlayerFatal;
+    const onStallRetryRef = useRef(onStallRetry);
+    onStallRetryRef.current = onStallRetry;
     const pointerOrigin = useRef<{ x: number; y: number } | null>(null);
     const lastTap = useRef<TapPoint | null>(null);
     const playlistRef = useRef(playlist);
@@ -115,6 +131,7 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
     const wantedEpisodeRef = useRef(episodeId);
     const [state, setState] = useState<SurfaceState>('loading');
     const [generation, setGeneration] = useState(0);
+    const [stallChrome, setStallChrome] = useState<StallChrome>('none');
 
     useImperativeHandle(ref, () => ({
       enqueueNext(descriptor: PlaybackDescriptor): void {
@@ -188,6 +205,18 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
               },
             });
       heartbeatRef.current = heartbeat;
+      const pacing = stallPacingRef.current;
+      const stallWatchdog = createStallWatchdog({
+        onChrome: (chrome) => {
+          if (!cancelled) {
+            setStallChrome(chrome);
+          }
+        },
+        ...(pacing?.now === undefined ? {} : { now: pacing.now }),
+        ...(pacing?.schedule === undefined ? {} : { schedule: pacing.schedule }),
+      });
+      stallRef.current = stallWatchdog;
+      setStallChrome('none');
 
       void createPlayerFacade(bridge, {
         container,
@@ -195,6 +224,7 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         upNext: album.slice((startIndex === -1 ? 0 : startIndex) + 1),
         onEvent: (event, payload) => {
           heartbeat?.observe(event, payload);
+          stallWatchdog.observe(event, payload);
           if (event === 'ended') {
             onEndedRef.current?.();
           }
@@ -243,6 +273,10 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         heartbeat?.dispose();
         if (heartbeatRef.current === heartbeat) {
           heartbeatRef.current = null;
+        }
+        stallWatchdog.dispose();
+        if (stallRef.current === stallWatchdog) {
+          stallRef.current = null;
         }
         facade?.destroy();
         facade = null;
@@ -310,6 +344,31 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
         }}
       >
         <div ref={containerRef} data-testid="player-container" className="player-surface__mount" />
+        {stallChrome === 'none' ? null : (
+          <div className="player-stall" data-phase={stallChrome} data-testid="player-stall">
+            <span
+              aria-hidden="true"
+              className="player-stall__indicator"
+              data-testid="player-stall-indicator"
+            />
+            <p className="player-stall__copy" role="status">
+              {translate('player.stalled')}
+            </p>
+            {stallChrome === 'retry' ? (
+              <button
+                className="player-stall__retry"
+                data-testid="player-stall-retry"
+                type="button"
+                onClick={() => {
+                  stallRef.current?.reset();
+                  onStallRetryRef.current?.();
+                }}
+              >
+                {translate('state.retry')}
+              </button>
+            ) : null}
+          </div>
+        )}
         {state === 'unavailable' ? (
           <p role="alert" data-testid="player-unavailable">
             {translate('player.unavailable')}

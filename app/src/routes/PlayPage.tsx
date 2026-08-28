@@ -27,6 +27,7 @@ import type { SurfaceError } from '../data/failure';
 import type { TranslationKey } from '../core/i18n';
 import type { UnlockPacing } from '../unlock/coin-unlock';
 import type { AdPlacement } from '../data/unlock-api';
+import type { StallPacing } from '../player/player-stall';
 
 /**
  * SCR-05, the player screen.
@@ -59,6 +60,10 @@ import type { AdPlacement } from '../data/unlock-api';
  * PLAYER_FATAL (`PLY-012`) re-mints the route episode once and applies the fresh descriptor
  * on the retained instance. A failed mint overlays retry copy on the last frame — it does
  * not unmount VePlayer into a blank surface. The ERROR payload is not classified.
+ *
+ * S7 stall (`AC-PL-7`) is inferred from a `timeupdate` gap, not from a buffering event
+ * VePlayer does not document. Indicator at 1.5 s, retry at 8 s, last frame stays. Retry
+ * remints the route episode. Definition is never changed (`AC-PL-6`).
  */
 
 const EMPTY_EPISODES: Page<EpisodeItem> = {
@@ -81,9 +86,11 @@ export interface PlayPageProps {
   readonly bridge: PlatformBridge;
   /** Passed through to PNL-02. Present so a test can shorten the payment poll budget. */
   readonly unlockPacing?: UnlockPacing;
+  /** Passed through to the stall watchdog. Present so a test can drive S7 without a wall clock. */
+  readonly stallPacing?: StallPacing;
 }
 
-export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Element {
+export function PlayPage({ bridge, unlockPacing, stallPacing }: PlayPageProps): React.JSX.Element {
   const { episodeId = '' } = useParams();
   const navigate = useNavigate();
   const playbackApi = usePlaybackApi();
@@ -286,6 +293,11 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
         onPlayerFatal={() => {
           void requestReissue();
         }}
+        onStallRetry={() => {
+          fatalAttemptsRef.current = 0;
+          setFatalOverlay(null);
+          void requestReissue();
+        }}
         onRetry={() => {
           session.reload();
           catalog.reload();
@@ -298,6 +310,7 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
         routeEpisodeId={episodeId}
         session={session.resource}
         surfaceRef={surfaceRef}
+        {...(stallPacing === undefined ? {} : { stall: stallPacing })}
         {...(next === undefined || gesturesBlocked
           ? {}
           : {
@@ -497,6 +510,7 @@ function Attempt({
   onDoubleTap,
   onEnded,
   onPlayerFatal,
+  onStallRetry,
   onRetry,
   onSwipeNext,
   onSwipePrevious,
@@ -504,6 +518,7 @@ function Attempt({
   progress,
   routeEpisodeId,
   session,
+  stall,
   surfaceRef,
 }: {
   readonly bridge: PlatformBridge;
@@ -512,6 +527,7 @@ function Attempt({
   readonly onDoubleTap?: () => void;
   readonly onEnded: () => void;
   readonly onPlayerFatal?: () => void;
+  readonly onStallRetry?: () => void;
   readonly onRetry: () => void;
   readonly onSwipeNext?: () => void;
   readonly onSwipePrevious?: () => void;
@@ -522,6 +538,7 @@ function Attempt({
   };
   readonly routeEpisodeId: string;
   readonly session: Resource<PlaybackDescriptor>;
+  readonly stall?: StallPacing;
   readonly surfaceRef: React.Ref<PlayerSurfaceHandle>;
 }): React.JSX.Element {
   if (locked) {
@@ -552,6 +569,8 @@ function Attempt({
         playlist={playlist}
         progress={progress}
         {...(onPlayerFatal === undefined ? {} : { onPlayerFatal })}
+        {...(onStallRetry === undefined ? {} : { onStallRetry })}
+        {...(stall === undefined ? {} : { stall })}
         {...(onSwipeNext === undefined ? {} : { onSwipeNext })}
         {...(onSwipePrevious === undefined ? {} : { onSwipePrevious })}
         {...(onDoubleTap === undefined ? {} : { onDoubleTap })}

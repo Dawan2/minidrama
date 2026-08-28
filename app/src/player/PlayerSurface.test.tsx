@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ok, type PlaybackDescriptor, type WatchProgressReport } from '@minidrama/shared';
 
@@ -430,5 +432,120 @@ describe('PlayerSurface', () => {
       expect(MockVePlayer.instances[0]?.playing).toBe(false);
     });
     expect(report).not.toHaveBeenCalled();
+  });
+});
+
+function stallClock() {
+  let nowMs = 0;
+  let tick: () => void = () => {};
+  return {
+    pacing: {
+      now: () => nowMs,
+      schedule: (fn: () => void) => {
+        tick = fn;
+        return () => {
+          tick = () => {};
+        };
+      },
+    },
+    advance(ms: number) {
+      nowMs += ms;
+      act(() => {
+        tick();
+      });
+    },
+  };
+}
+
+describe('S7 stall chrome (AC-PL-7)', () => {
+  it('keeps the last frame and shows the indicator after the watchdog plus 1.5 s', async () => {
+    const pacing = stallClock();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface bridge={bridge} episodeId="ep_1" playlist={playlist} stall={pacing.pacing} />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    act(() => {
+      MockVePlayer.instances[0]!.emitForTest('play');
+    });
+    expect(screen.queryByTestId('player-stall')).toBeNull();
+    pacing.advance(2_000);
+    expect(screen.queryByTestId('player-stall')).toBeNull();
+    pacing.advance(1_500);
+
+    expect(screen.getByTestId('player-stall').getAttribute('data-phase')).toBe('indicator');
+    expect(screen.getByTestId('player-stall-indicator')).toBeDefined();
+    expect(screen.queryByTestId('player-stall-retry')).toBeNull();
+    expect(MockVePlayer.instances[0]?.destroyed).toBe(false);
+    expect(screen.getByTestId('player-container')).toBeDefined();
+    expect(forbiddenElements()).toEqual([]);
+  });
+
+  it('offers retry at 8 s without changing definition, and retry keeps the instance', async () => {
+    const onStallRetry = vi.fn();
+    const pacing = stallClock();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onStallRetry={onStallRetry}
+        playlist={playlist}
+        stall={pacing.pacing}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    act(() => {
+      MockVePlayer.instances[0]!.emitForTest('play');
+    });
+    pacing.advance(2_000 + 8_000);
+
+    expect(screen.getByTestId('player-stall').getAttribute('data-phase')).toBe('retry');
+    fireEvent.click(screen.getByTestId('player-stall-retry'));
+    expect(onStallRetry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('player-stall')).toBeNull();
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(MockVePlayer.instances[0]?.destroyed).toBe(false);
+    expect(screen.getByTestId('player-container')).toBeDefined();
+  });
+
+  it('clears the overlay when position advances and does not stall a pause', async () => {
+    const pacing = stallClock();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface bridge={bridge} episodeId="ep_1" playlist={playlist} stall={pacing.pacing} />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const instance = MockVePlayer.instances[0]!;
+    act(() => {
+      instance.emitForTest('play');
+    });
+    pacing.advance(2_000 + 1_500);
+    expect(screen.getByTestId('player-stall')).toBeDefined();
+    act(() => {
+      instance.tick(3, 90);
+    });
+    expect(screen.queryByTestId('player-stall')).toBeNull();
+
+    act(() => {
+      instance.pause();
+    });
+    pacing.advance(2_000 + 8_000);
+    expect(screen.queryByTestId('player-stall')).toBeNull();
+    expect(instance.destroyed).toBe(false);
+  });
+
+  it('does not invent 倍速, axe-core, a subscription path, or postgres', () => {
+    const source = readFileSync(join(process.cwd(), 'src/player/PlayerSurface.tsx'), 'utf8');
+    expect(source).not.toMatch(/playbackRate|axe-core|#\/vip|postgres:/);
   });
 });
