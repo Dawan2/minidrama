@@ -10,10 +10,10 @@ import type { ApiFailure } from '../data/failure';
  * The commercial gate refused this play. VePlayer is not constructed — a competing pause
  * control would fight AC-PL-6, and a demo album would play a catalogue id the server
  * refused (D-16). Cover + lock mark sit under PNL-02. A missing or refused cover is
- * CoverImage's placeholder: no invented CDN host, no `<img>` beside the allowlist.
+ * CoverImage's placeholder: no invented CDN host, no raw image element beside the allowlist.
  *
  * Recharge stays off (C4-06). Ads stay behind `features.adUnlock`. This module does
- * not open a channel, invent `playbackRate`, or name a BytePlus `vid`.
+ * not open a channel, invent a speed ladder, or name a BytePlus vid.
  */
 
 export interface LockedPoster {
