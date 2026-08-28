@@ -86,7 +86,9 @@ L1 提交/PR 级(每次 push,目标 < 10 分钟)
 
 **2026-08-28 (W20 QA-010 remainder, SCR-06).** The scan now requires SCR-06 (profile / `#/me`) next to SCR-02, SCR-03, SCR-04, SCR-05, and SCR-13. Deleting any of the six stems is red. Remaining implemented SCR/PNL fixtures are later remainders. Host is still jsdom, not TikTok WebView. This still does **not** close protocol-C4 exit 3 / S-A1 on every screen.
 
-**2026-08-28 (W20 QA-010 remainder, SCR-08).** The scan now requires SCR-08 (favourites / `#/favorites`) next to SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, and SCR-13. Deleting any of the seven stems is red. SCR-07 history is in flight on a sibling and is not required here. Remaining implemented SCR/PNL fixtures are later remainders. Host is still jsdom, not TikTok WebView. This still does **not** close protocol-C4 exit 3 / S-A1 on every screen.
+**2026-08-28 (W20 QA-010 remainder, SCR-07).** The scan now requires SCR-07 (history / continue watching) next to SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, and SCR-13. Deleting any of the seven stems is red. Remaining implemented SCR/PNL fixtures are later remainders. Host is still jsdom, not TikTok WebView. This still does **not** close protocol-C4 exit 3 / S-A1 on every screen.
+
+**2026-08-28 (W20 QA-010 remainder, SCR-08).** The scan now requires SCR-08 (favourites / `#/favorites`) next to SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, and SCR-13. Deleting any of the seven stems is red. Remaining implemented SCR/PNL fixtures are later remainders. Host is still jsdom, not TikTok WebView. This still does **not** close protocol-C4 exit 3 / S-A1 on every screen.
 
 **2026-08-28 (W18 INF-004 / S-C1).** CI self-audit is `pnpm check:audit`, an L1 step in `.github/workflows/ci.yml` and a required step inside `pnpm verify`. It scans committed GitHub workflow files. `continue-on-error: true`, `if: false`, `allow_failure: true`, and a `|| true` swallowed exit are red. A comment that names those keys is not this gate. A scan that saw no workflow files is red. S-C3 echo-only steps, S-C4 required-checks vs branch protection, and a job-count ratchet are further slices. `workflow_dispatch:` as an event is not a bypass.
 
