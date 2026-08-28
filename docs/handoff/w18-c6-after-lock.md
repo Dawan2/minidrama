@@ -2,15 +2,15 @@
 
 > **Slot:** W18, work slot (`bc-1a5a2455`). One leftover item, no pull request.
 > **Branch:** `cursor/w18-work-c6-after-lock-72c4`, cut from `origin/main` at **`9b563b0`**
-> (PLY-011 S6 cover + lock chrome already on main). Merged forward onto **`e6926f2`**
-> (W19 cycle-6 verify report landed while this slot wrote).
+> (PLY-011 S6 cover + lock chrome already on main). Merged forward onto **`35744ba`**
+> (W19 cycle-6 report, then leftover C6 INF-004 S-C3, landed while this slot wrote).
 > **Item:** **QA-010 remainder** — S-A1 on one more implemented screen. The smallest
 > axe-core job scanned SCR-13 only. This slice requires **SCR-02** (`#/home`) as a
 > second stem. Deleting either fixture is red. Host stays jsdom, not TikTok WebView.
 > **Not in scope:** D-17 billing, C4-03 Postgres, C4-07 VIP, PLY-011 (`9b563b0`, not
-> retaken), leftover C6 `bc-2c841f7a` (duplicate S6 chrome on
-> `cursor/w18-work-c6-left-72c4`), cycle-6 verify docs `bc-fffd4f10`, remaining
-> SCR/PNL fixtures, S-C3 / S-C4, playback failure report path. No pull request.
+> retaken), leftover C6 `bc-2c841f7a` (INF-004 S-C3, landed `35744ba`), cycle-6
+> verify docs `bc-fffd4f10` (landed `e6926f2`), remaining SCR/PNL fixtures, S-C4,
+> playback failure report path. No pull request.
 
 ---
 
@@ -19,8 +19,9 @@
 `docs/plan/cycle-6-backlog.md` ranks D-17 first (not a branch) and protocol-C4
 交互验收单 second. PLY-011 S6 locked chrome is on `main` at `9b563b0`. 倍速 /
 scrub / stall are already landed as plugin-owned or named remainders. C4-03 /
-C4-07 stay skipped. Leftover C6 `bc-2c841f7a` is a twin of PLY-011; its files
-were left. Cycle-6 verify docs `bc-fffd4f10` were left.
+C4-07 stay skipped. Leftover C6 `bc-2c841f7a` was in flight (first a PLY-011 twin,
+then INF-004 S-C3). Cycle-6 verify docs `bc-fffd4f10` were in flight. Both landed
+while this slot merged; their files were left.
 
 Rank 3 after the smallest QA-010 job is the named remainder: S-A1 on further
 implemented screens. SCR-01 is an overlay. SCR-10 / SCR-11 are not product
@@ -30,11 +31,11 @@ routes. SCR-02 is the first implemented numbered hash screen.
 | --- | --- |
 | D-17 GitHub Actions billing | Rank 1. **Not a branch.** Skipped |
 | PLY-011 S6 cover + lock | **On `main`** at `9b563b0`. Not retaken |
-| Leftover C6 `bc-2c841f7a` | **RUNNING.** Twin of PLY-011 on `cursor/w18-work-c6-left-72c4`. Left |
+| Leftover C6 `bc-2c841f7a` | **RUNNING** at pick (first a PLY-011 twin). **Landed** INF-004 S-C3 at `35744ba`. Left |
 | Cycle-6 verify `bc-fffd4f10` | **RUNNING** at pick. **Landed** `e6926f2` / `docs/verify/cycle-6-report.md` while this slot merged. Left |
 | C4-03 / C4-07 | Do not fake / no contract. Skipped |
 | 充值 on PNL-02 | C4-06. Recharge stays disabled |
-| INF-004 S-C3 / S-C4 | Further slices. Not this remainder |
+| INF-004 S-C3 / S-C4 | S-C3 **RUNNING** at pick (`bc-2c841f7a`). **Landed** while this slot merged. S-C4 stays further |
 | **QA-010 remainder SCR-02** | **This slot.** Required stems were SCR-13 only |
 
 This slice does **not** claim protocol-C4 exit 3 closed.
@@ -91,7 +92,7 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 | Who | Overlap |
 | --- | --- |
 | `bc-119dafb6` PLY-011 | **Idle. Landed** `9b563b0`. Player lock chrome not edited |
-| `bc-2c841f7a` leftover C6 | **RUNNING.** Twin S6 on `cursor/w18-work-c6-left-72c4`. Player files not edited here |
+| `bc-2c841f7a` leftover C6 | **Idle. Landed** `35744ba` / INF-004 S-C3. Audit files not edited here |
 | `bc-fffd4f10` cycle-6 verify | **Idle. Landed** `e6926f2`. `docs/verify/` not rewritten |
 
 `git diff origin/main -- app/ server/ .github/` is empty of this slot's work.
@@ -100,10 +101,10 @@ Exit 1. A comment that names WCAG is not this gate. Stdout on green says
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`e6926f2`,
-W19 cycle-6 report). L1 sequence is format → lint → typecheck → check:commits →
-check:skips → check:audit → check:a11y → test:coverage → check:coverage → build →
-guardrails.
+`pnpm verify` exited 0 on this branch after absorbing `origin/main` (`35744ba`,
+W19 cycle-6 report then INF-004 S-C3). L1 sequence is format → lint → typecheck →
+check:commits → check:skips → check:audit → check:a11y → test:coverage →
+check:coverage → build → guardrails.
 
 | Gate | Result |
 |---|---|
@@ -133,7 +134,8 @@ is incomplete, not a skip.
 - **TikTok WebView.** Not claimed. PLY-002 still `unmeasured`.
 - **Protocol-C4 exit 3.** Not closed. This is the named QA-010 remainder after
   the smallest job.
-- **S-C3 / S-C4.** Echo-only steps and required-checks vs branch protection.
+- **S-C4.** Required-checks vs GitHub branch protection. S-C3 echo-only landed
+  at `35744ba`. D-17 still falsifies GitHub reverse-verification.
 - **`POST /v1/playback/sessions/{id}/failures`.** Report path. No invented endpoint.
 - **D-17.** Billing. Local verify is not CI.
 - **C4-03 / C4-07**, GATE-7 / GATE-8, Beans. Unchanged.
