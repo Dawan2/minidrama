@@ -4,16 +4,19 @@
 > **Date:** 2026-08-28.
 > **Branch:** `cursor/w18-plan-cycle-6-c656`, cut from `origin/main` at **`0846582`**
 > ("docs(c5): record the QA-011 landing in the W17 postscript; D-17 still billing-red").
+> Merged forward onto **`aa8a9e8`** (PLY-012 silent re-issue landed while this slot wrote).
 > **Inputs:** `docs/verify/cycle-5-report.md` at **`0846582`** (W17 independent verify; not passed;
 > snapshot SHA `a8e1c63`, postscript QA-011 trunk `7ce8620`, this file is the report tip),
 > `docs/plan/cycle-5-backlog.md` (the predecessor this continues), `docs/plan/wave-protocol.md`
 > §4.3 / §5.1 / §7, `docs/gates/open-questions.md`, and `main` itself — every claim below was
-> re-derived against `0846582` rather than copied from a handoff. QA-011 landed on `main`
+> re-derived against `aa8a9e8` rather than copied from a handoff. QA-011 landed on `main`
 > **after** the report's §0–§12 snapshot (`7ce8620`); the report's own §13 already recorded that.
+> PLY-012 landed at `aa8a9e8` **after** the report listed it open.
 > **Predecessor:** `docs/plan/cycle-5-backlog.md`. Unfinished tasks keep their original IDs and
 > acceptance criteria (`docs/plan/wave-protocol.md` §7).
 > **This slot implemented nothing.** No source file, no test, no gate, no contract was touched. The
-> only files added are this one and `docs/handoff/w18-plan.md`. No pull request.
+> only files added are this one and `docs/handoff/w18-plan.md`. `origin/main` was absorbed after
+> PLY-012 landed; those product files are not this slot's. No pull request.
 
 ---
 
@@ -47,9 +50,9 @@ running-count plan. Search is not opened here.
 | **1** | **D-17** GitHub Actions billing | **Nothing in code.** Account / ops. Cannot be closed from a branch |
 | **2** | **Protocol-C4 交互验收单** still not met, despite PLY-010 | Do not open as an implement epic. Named remainder only (§1.2). 倍速 / scrub stay X-26. Do not invent `playbackRate` |
 | **3** | **QA-010** a11y gate | **In flight** (`bc-b0108787`). Leave its files. Do not start a twin axe-core job |
-| **4** | **PLY-012** token re-issue | **In flight** (`bc-264077b7` / `cursor/w16-work-c5-after-like-72c4`). Leave it. Do not start a second remint |
-| **5** | **C4-03** T14 / T16 / T15 | Still open. **Do not fake.** May defer with IDs kept |
-| **6** | **C4-07** SCR-11 / D8 | Still blocked. No subscription contract. Do not invent `/v1/subscriptions` |
+| **—** | **PLY-012** token re-issue | **Not remaining.** Landed at `aa8a9e8` (`bc-264077b7`). Was in flight at first draft |
+| **4** | **C4-03** T14 / T16 / T15 | Still open. **Do not fake.** May defer with IDs kept |
+| **5** | **C4-07** SCR-11 / D8 | Still blocked. No subscription contract. Do not invent `/v1/subscriptions` |
 
 Partner answers are **unknown**. None is invented. The questions stay in
 `docs/gates/open-questions.md`.
@@ -59,7 +62,7 @@ Partner answers are **unknown**. None is invented. The questions stay in
 | Who | State at write time | Rule |
 |---|---|---|
 | `bc-b0108787` (W16 work QA-010 a11y scan) | **RUNNING.** No `cursor/*` branch visible on origin yet | Do not guess its files. Re-derive `origin/main` before picking an a11y remainder. Do not start a twin |
-| `bc-264077b7` (W16 work next C5 after like-gesture) | **RUNNING.** `origin/cursor/w16-work-c5-after-like-72c4` (`6b6e2e3`). Unique product commit `271408f` `feat(ply-012): re-mint the playback session once on VePlayer error`. Not an ancestor of `0846582` | Do not rewrite `PlayPage.tsx` / `player-fatal.ts` / `PlayerSurface.tsx`. Integrator merges or it stays outstanding |
+| `bc-264077b7` (W16 work next C5 after like-gesture) | **Idle. Landed.** `aa8a9e8` / `cursor/w16-work-c5-after-like-72c4`. Unique product commit `271408f` is an ancestor. PLAYER_FATAL re-mints once on VePlayer `error` | Do not retake `PlayPage.tsx` / `player-fatal.ts` / `PlayerSurface.tsx` |
 | `origin/cursor/w13-work-c3-remain-72c4` | **Not an ancestor of `main`.** Original `GET /v1/wallet/transactions`. **D-18 closed by port**, not by this tip | Do not implement a second transactions route. Drop or archive |
 | `origin/cursor/w14-work-c4-subseq-72c4` | Leftover duplicate C4-08 ads. A sibling already landed | Do not retake |
 
@@ -67,17 +70,17 @@ Partner answers are **unknown**. None is invented. The questions stay in
 
 ## 1. What the C5 report said, and what `main` is now
 
-Verified at `0846582`. The report file *is* this SHA. Where §§0–12 talk about `a8e1c63` and §13
-talks about `7ce8620`, the tree at HEAD is the report plus that postscript already merged. Where a
+Verified at `aa8a9e8`. The report file is an ancestor (`0846582`). Where §§0–12 talk about
+`a8e1c63` and §13 talks about `7ce8620`, HEAD is that report plus QA-011 plus PLY-012. Where a
 handoff disagrees, the tree wins.
 
 ### 1.1 Protocol-C4 exits — still 1/3
 
 Re-derived. Same three rows as `docs/verify/cycle-5-report.md` §0, including the QA-011 postscript.
 
-| Protocol C4 exit (`wave-protocol.md` §5.1) | C5 plan (`7ecca77`) | C5 report (`a8e1c63` / `7ce8620`) | This tree (`0846582`) |
+| Protocol C4 exit (`wave-protocol.md` §5.1) | C5 plan (`7ecca77`) | C5 report (`a8e1c63` / `7ce8620`) | This tree (`aa8a9e8`) |
 |---|---|---|---|
-| 交互验收单全过 (`01-product-scope` §4.3) | **Not met** | **Still not met.** Swipe 切集, `ended` → retained `playNext`, double-tap favourite on `main`. 倍速 / scrub plugin-owned (X-26). PLY-012 absent | **Still not met**, despite PLY-010. Same split. PLY-012 still not an ancestor. That is not the full sheet |
+| 交互验收单全过 (`01-product-scope` §4.3) | **Not met** | **Still not met.** Swipe 切集, `ended` → retained `playNext`, double-tap favourite on `main`. 倍速 / scrub plugin-owned (X-26). PLY-012 absent | **Still not met**, despite PLY-010. Same split, plus PLY-012 now on `main` (`aa8a9e8`). 倍速 / scrub still plugin-owned. That is not the full sheet |
 | 跨端进度冲突用例通过 | **Not met** (LWW unit tests only) | **Met as the named product case.** `cross-end-conflict.test.ts` (3) plus the pre-seek heartbeat hold | **Stays met as that case.** Not a two-phone E2E. Do not retake |
 | a11y 门禁上线且核心屏零 critical/serious | **Not met** | **Still not met.** QA-011 writeback on `main` at `7ce8620`. QA-010 absent. No axe-core job | **Still not met.** `.github/workflows/` has no `axe` job. QA-010 is in flight, not landed |
 
@@ -89,9 +92,9 @@ is not remaining.
 W17 scored this table at `a8e1c63` and amended QA-011 in §13. The rows that moved since the C5
 *plan* (`7ecca77`) are the implement closes; D-17 did not.
 
-| ID | C5 plan (`7ecca77`) | C5 report (`a8e1c63` / §13) | This tree (`0846582`) |
+| ID | C5 plan (`7ecca77`) | C5 report (`a8e1c63` / §13) | This tree (`aa8a9e8`) |
 |---|---|---|---|
-| **D-17** rank 1 | Open. Cannot be code-fixed | **Open. Unchanged** | **Open. Unchanged.** CI run [33128418756](https://github.com/Dawan2/minidrama/actions/runs/33128418756) on `0846582` (2026-08-28T00:03:13Z): 7s, empty `steps`, spending-limit annotation on check-run `98711991675`. Last successful CI on `main` is still [33112204165](https://github.com/Dawan2/minidrama/actions/runs/33112204165) at PNL-01, 2026-08-27T20:12:42Z |
+| **D-17** rank 1 | Open. Cannot be code-fixed | **Open. Unchanged** | **Open. Unchanged.** CI run [33128549734](https://github.com/Dawan2/minidrama/actions/runs/33128549734) on `aa8a9e8` (2026-08-28T00:05:26Z): 4s, empty `steps`. Same spending-limit class as check-run `98711991675` on `0846582`. Last successful CI on `main` is still [33112204165](https://github.com/Dawan2/minidrama/actions/runs/33112204165) at PNL-01, 2026-08-27T20:12:42Z |
 | **Protocol-C4** rank 2 | 0/3, split, not opened | **1/3.** Exit 2 met as the named case. Exit 1 partial. Exit 3 unmet | **1/3.** Same. PLY-010 named remainders on `main`; sheet still not full |
 | **G2.3** | Not remaining (YAML) | Stays a job. GitHub has not run it | **Not remaining.** Job `smoke` still in `l2.yml`. Do not retake |
 | **C4-03** | Open. Do not fake | Open. Not faked | **Open. Not faked.** `postgres:` refused. No Drizzle. Redis only in refuse tests |
@@ -106,7 +109,7 @@ W17 scored this table at `a8e1c63` and amended QA-011 in §13. The rows that mov
 | **PRG-002 drama CTA** | Open | **Closed** | **Closed.** Do not retake `drama-continue-cta.ts` |
 | **QA-011** | Not started | Writeback on `main` (`7ce8620`) | **Closed as writeback.** Heading `可用性与无障碍(上架阻断)`. Not the axe-core job |
 | **QA-010** | Not started | Absent. Later agent started after snapshot | **In flight** (`bc-b0108787`). Not on `main`. Rank 3 |
-| **PLY-012** | Open | Open. After-like RUNNING, not on `main` | **In flight** (`bc-264077b7`). Rank 4. Unique commit not an ancestor |
+| **PLY-012** | Open | Open. After-like RUNNING, not on `main` | **Closed as merge.** `aa8a9e8` / `271408f`. Do not retake |
 | **Tier C / AM** | Unknown | Unknown. No date invented | **Unknown.** No date invented |
 
 The C5 plan's first implement pick (G1.10) landed. Its integrator pick (D-18) landed. Its rank-1
@@ -115,7 +118,7 @@ scorecard, and it is why C6 is still remediation rather than a new epic.
 
 ### 1.3 Defects the C5 report left, re-tested here
 
-| ID | Sev | State at `0846582` |
+| ID | Sev | State at `aa8a9e8` |
 |---|:---:|---|
 | **D-17** | P1 | **Open, unchanged.** Same billing annotation, now on this SHA. Local `pnpm verify` cannot corroborate R6 |
 | **D-18** | P2 | **Stays closed.** OpenAPI 24 paths / 27 operations. Path + router + client agree. Remain branch leftover |
@@ -144,8 +147,8 @@ Every `main` push since PNL-01 fails in 4–7 seconds with empty steps. On this 
 
 ```
 $ gh run list --repo Dawan2/minidrama --branch main --limit 2
-33128418756  failure  0846582  CI   7s  2026-08-28T00:03:13Z
-33128418712  failure  0846582  L2   5s  2026-08-28T00:03:13Z
+33128549734  failure  aa8a9e8  CI   4s  2026-08-28T00:05:26Z
+33128549589  failure  aa8a9e8  L2   5s  2026-08-28T00:05:26Z
 
 $ gh api repos/Dawan2/minidrama/check-runs/98711991675/annotations
 # "The job was not started because recent account payments have failed or your
@@ -172,12 +175,12 @@ local `pnpm verify` is R6.
 |---|---|
 | **Owner** | This plan wave names the remainder. Implement waves do **not** start 倍速 / scrub while X-26 is unadjudicated, and do **not** retake swipe / playNext / double-tap |
 | **Carries forward** | `PLY-010` (sheet, not the landed slices), `PLY-011` remainder, X-26 |
-| **Gated on** | Re-verification of running-count C5 / C2 L2 observer, or an explicit P3 amendment of §4.3. Neither has happened. Token re-issue is rank 4 (in flight). a11y is rank 3 (in flight) |
+| **Gated on** | Re-verification of running-count C5 / C2 L2 observer, or an explicit P3 amendment of §4.3. Neither has happened. Token re-issue landed (`aa8a9e8`). a11y is rank 3 (in flight) |
 
 `docs/01-product-scope.md` §4.3 is the sheet. PLY-010's acceptance is that sheet, item by item.
 W16 landed three named remainders. That is not a close.
 
-| §4.3 row | State at `0846582` |
+| §4.3 row | State at `aa8a9e8` |
 |---|---|
 | 竖屏全屏 / session-gated player | On `main`. D-16 stays closed |
 | 单击暂停/继续 | **VePlayer-owned** (`AC-PL-6`). Product source does not `preventDefault` a single tap. Do not add a competing pause |
@@ -187,7 +190,7 @@ W16 landed three named remainders. That is not a close.
 | 上下滑切集 | **On `main`** (`episode-swipe.ts`). Do not retake |
 | 自动连播，遇付费墙停 | **On `main`.** `ended` → `gateAdvance` → retained `playNext` or PNL-02. Do not retake |
 | 付费墙拦截页 | PNL-02 on `main`. Ads call sites exist with `adUnlock: false`. Recharge stays disabled. Last steps are C4-06 / C4-08, not a new panel |
-| 播放令牌过期静默换发 | **Open, in flight.** Rank 4. Not an ancestor of this SHA |
+| 播放令牌过期静默换发 | **On `main`** (`aa8a9e8` / `player-fatal.ts`). VePlayer `error` re-mints the route episode once on the retained instance. Failed mint overlays retry copy on the last frame. Do not retake |
 | 导航栏 / 安全区 | Wired (D9). Checklist stays `[ ]` until a device. §8 rule 6 |
 
 **Do not pick 倍速 or scrub as "C6 leftover".** That was already forbidden as a C5 leftover
@@ -195,8 +198,8 @@ W16 landed three named remainders. That is not a close.
 constant for 0.75 would be the defect.
 
 **Acceptance for this rank (the plan-wave close, not the epic).** The sheet is named against
-`0846582`, the landed halves are not retaken, in-flight PLY-012 is left alone, and implement waves
-are told not to invent `playbackRate`. A PR that lands 倍速 as "C6 leftover" fails this rank.
+`aa8a9e8`, the landed halves (including PLY-012) are not retaken, and implement waves are told
+not to invent `playbackRate`. A PR that lands 倍速 as "C6 leftover" fails this rank.
 
 ---
 
@@ -226,27 +229,17 @@ P1's file. Registered in §6.
 
 ---
 
-### Rank 4 — PLY-012: token re-issue, in flight
+### PLY-012 — not remaining
 
-| | |
-|---|---|
-| **Owner** | Work slot A. **This wave: `bc-264077b7` already started** |
-| **Existing ID** | **PLY-012** |
-| **Depends on** | `PLY-010` (landed slices), `PBK-002` |
-
-Acceptance is unchanged: on token expiry, silent re-issue and resume with no user-visible
-interruption; on re-issue failure, a clear error plus retry, not a blank screen.
-
-The unique commit on `origin/cursor/w16-work-c5-after-like-72c4` is `271408f` (re-mint once on
-VePlayer error). That is **not** on `main`. This slot does not read that branch as a close, and
-does not guess whether one remint on error is the full expiry path.
-
-**What a C6 work slot may do.** Leave `PlayPage.tsx`, `PlayerSurface.tsx`, `player-fatal.ts`, and
-the after-like handoff alone. Do not start a second remint.
+Landed at `aa8a9e8` while the first draft of this file still listed `bc-264077b7` as RUNNING.
+`PlayPage` re-mints `POST /v1/playback/sessions` once on VePlayer `error` and applies the fresh
+descriptor on the retained instance (`player-fatal.ts` / `reissue`). A failed mint overlays retry
+copy on the last frame. That is the named PLY-012 remainder. It is **not** protocol-C4 exit 1
+(倍速 / scrub still sit on the sheet). Do not retake.
 
 ---
 
-### Rank 5 — C4-03: T14 / T16 / T15, still do not fake
+### Rank 4 — C4-03: T14 / T16 / T15, still do not fake
 
 Same task as `docs/plan/cycle-4-backlog.md` C4-03 and `docs/plan/cycle-5-backlog.md` rank 3. Same
 IDs: **T14**, **T16**, **T15**.
@@ -261,7 +254,7 @@ on sqlite.
 
 ---
 
-### Rank 6 — C4-07: SCR-11 / D8, still no contract
+### Rank 5 — C4-07: SCR-11 / D8, still no contract
 
 Same task as C4-07. OpenAPI: 24 paths, none a subscription. No `vip:` in `app/src/routes/routes.ts`.
 Profile Subscribe stays disabled. `GET /v1/users/me` has no `vip` field; tests refuse a
@@ -284,6 +277,7 @@ defer the screen. No partner answer is recorded here.
 | **C5-02 / D-18** | `GET /v1/wallet/transactions` is 200 empty page, lockstep with OpenAPI |
 | **QA-011 / C-12** | Writeback on `main` at `7ce8620`. Not the gate |
 | **PLY-010 swipe / playNext / double-tap** | On `main`. Rank 2 is the rest of the sheet |
+| **PLY-012** token re-issue | On `main` at `aa8a9e8`. Do not retake `player-fatal.ts` |
 | **C4-04** splash / `GET /v1/config` | Closed in C4 |
 | **C4-01** G1.5 + L1 `workflow_dispatch:` | Closed in C4. `workflow_dispatch:` is on both workflows |
 
@@ -291,8 +285,9 @@ defer the screen. No partner answer is recorded here.
 
 ## Tier A — buildable today; remediations, not a new epic
 
-Per §4.3 these would be the implement picks. After ranks 3 and 4 (both in flight) there is no
-unblocked engineering item that is not already owned, gated, or P3's file.
+Per §4.3 these would be the implement picks. After rank 3 (QA-010 in flight) and the blocked
+C4-03 / C4-07 rows, there is no unblocked engineering item that is not already owned, gated, or
+P3's file.
 
 ### C5-03 — D-19: refresh `wave-protocol.md` §6.2 (P3's file)
 
@@ -301,7 +296,7 @@ unblocked engineering item that is not already owned, gated, or P3's file.
 | **Owner** | **P3** |
 | **Existing ID** | **D-19** |
 
-§6.2 still describes a tree that is not `0846582` ("no database, no migration, 27 seed episodes
+§6.2 still describes a tree that is not `aa8a9e8` ("no database, no migration, 27 seed episodes
 against a floor of 80, no CI L2"). This plan slot does not edit P3's file (§3.4). Status columns
 in §5.1 (C3 `[~]`, protocol-C4 `[ ]`) are also stale relative to the running-count reports; same
 owner; X-21 stays unadjudicated.
@@ -322,7 +317,7 @@ No new unblocked halves. Do not retake C4-05 / C4-06 / C4-08.
 |---|---|---|
 | **C4-05** / **C3-08** | Stubbed `POST /v2/oauth/token/` | GATE-1 + GATE-6. No synthesised `open_id` |
 | **C4-06** / **C3-09** | Stubbed `trade_order/create` | Q-G-7. Recharge stays disabled. No rate in types |
-| **C4-07** | Profile card is the honest stand-in | A contract, then GATE-2 + GATE-4 (**rank 6**) |
+| **C4-07** | Profile card is the honest stand-in | A contract, then GATE-2 + GATE-4 (**rank 5**) |
 | **C4-08** | Call sites + server `isEnded` | GATE-4 unit ids. `adUnlock` stays false |
 | **D-21** / **PLY-002** | Contract probe returns `unmeasured` | Devices. Q-G-10. Do not copy C1 research as a C6 measurement |
 
@@ -350,11 +345,11 @@ Nine business-track blockers, still zero external evidence. Filing is not answer
 
 ## 2. Evidence
 
-Re-derived at `0846582`. Commands to re-run, not to believe.
+Re-derived at `aa8a9e8`. Commands to re-run, not to believe.
 
 ```
 $ git rev-parse --short HEAD
-0846582
+aa8a9e8
 
 $ gh api repos/Dawan2/minidrama/check-runs/98711991675/annotations
 # "The job was not started because recent account payments have failed or your
@@ -367,7 +362,7 @@ $ rg -n 'axe' .github/workflows/ || echo "no axe in workflows"
 # no axe in workflows
 
 $ git merge-base --is-ancestor origin/cursor/w16-work-c5-after-like-72c4 origin/main; echo $?
-1
+0
 
 $ rg -n 'vip:' app/src/routes/routes.ts || echo "no vip route"
 # no vip route
@@ -403,15 +398,14 @@ Rank 2 — protocol-C4 交互验收单 still not met despite PLY-010.
 Rank 3 — QA-010 a11y. In flight `bc-b0108787`. Leave it.
   QA-011 writeback already on main. Do not retake 14-test-plan.md §6.4.
 
-Rank 4 — PLY-012 token re-issue. In flight `bc-264077b7`. Leave it.
-  Unique commit 271408f is not an ancestor of 0846582.
+PLY-012 — closed as merge (`aa8a9e8` / `271408f`). Do not retake player-fatal.ts.
 
-Rank 5 — C4-03 T14/T16/T15. Do not fake; may defer with IDs kept.
+Rank 4 — C4-03 T14/T16/T15. Do not fake; may defer with IDs kept.
 
-Rank 6 — C4-07. A contract, then GATE-2 + GATE-4.
+Rank 5 — C4-07. A contract, then GATE-2 + GATE-4.
 
 Not remaining: G2.3, HOME continue UI, C5-01, C5-02, QA-011, PRG-001 named case,
-PRG-002 drama CTA, C4-01, C4-04, PLY-010 landed slices.
+PRG-002 drama CTA, C4-01, C4-04, PLY-010 landed slices, PLY-012.
 
 Tier A paper
   C5-03 = D-19 P3 writeback of wave-protocol.md §6.2
@@ -425,22 +419,21 @@ Tier C — Q-G-1…Q-G-10 unknown. GATE-0…GATE-8 no movement.
 Do not open protocol-C5 变现闭环 (§4.3).
 ```
 
-**First C6 implement picks.** Re-derive `origin/main` first. Leave `bc-b0108787` and
-`bc-264077b7`. Do not pick D-17, G2.3, HOME continue, leftover ads, leftover remain, `#/vip`,
-Postgres-as-sqlite, or 倍速. If both in-flight agents are idle and neither landed, pick against
-the tree at that time — QA-010 then PLY-012, in that rank order — not against a guess written
-here.
+**First C6 implement picks.** Re-derive `origin/main` first. Leave `bc-b0108787`. Do not pick
+D-17, G2.3, HOME continue, leftover ads, leftover remain, `#/vip`, Postgres-as-sqlite, 倍速, or
+PLY-012. If the QA-010 agent is idle and did not land, pick QA-010 against the tree at that time
+— not against a guess written here.
 
 ---
 
 ## 4. What is deliberately not in this backlog as an implement assignment
 
 - **Opening protocol-C5 变现闭环.** §4.3. D-17 is still P1 and protocol-C4 is 1/3.
-- **Opening protocol-C4 播放体验 as a new epic.** Ranked, split, not scheduled by this slot. Two
-  W16 siblings are already on the remaining rows (QA-010, PLY-012).
+- **Opening protocol-C4 播放体验 as a new epic.** Ranked, split, not scheduled by this slot. One
+  W16 sibling is already on the remaining a11y row (QA-010). PLY-012 landed while this slot wrote.
 - **A 倍速 / `playbackRate` client control.** X-26. Forbidden as a leftover by the C5 plan and the
   C5 report.
-- **A twin QA-010 or twin PLY-012.** In flight.
+- **A twin QA-010.** In flight. **A PLY-012 retake.** Landed at `aa8a9e8`.
 - **A G2.3 retake.** On `main` as of C4/C5.
 - **A HOME continue rail UI retake.** On `main`.
 - **A second wallet-transactions route.** D-18 closed.
@@ -498,4 +491,4 @@ Per `docs/plan/wave-protocol.md` §3.4 — found, not fixed.
 
 | Date | Wave · slot | Change |
 |---|---|---|
-| 2026-08-28 | W18 · plan | First version. Absorbed `docs/verify/cycle-5-report.md` at `0846582` (not passed; protocol-C4 1/3; D-17 first). Cut from `0846582`. QA-011 **already on `main`**. Ranked: D-17 (cannot be code-fixed), protocol-C4 交互验收单 still not met despite PLY-010, QA-010 in flight (`bc-b0108787`), PLY-012 in flight (`bc-264077b7`), C4-03 still open (do not fake), C4-07 still blocked. Did not invent AM answers, Beans, EIS, BytePlus, or a CI-restoration date. Did not implement product code. Did not open protocol-C5 变现闭环 |
+| 2026-08-28 | W18 · plan | First version. Absorbed `docs/verify/cycle-5-report.md` at `0846582` (not passed; protocol-C4 1/3; D-17 first). Cut from `0846582`; merged forward onto `aa8a9e8`. QA-011 **already on `main`**. PLY-012 **landed while this slot wrote** (`bc-264077b7` / `aa8a9e8`) — not remaining. Ranked: D-17 (cannot be code-fixed), protocol-C4 交互验收单 still not met despite PLY-010, QA-010 in flight (`bc-b0108787`), C4-03 still open (do not fake), C4-07 still blocked. Did not invent AM answers, Beans, EIS, BytePlus, or a CI-restoration date. Did not implement product code. Did not open protocol-C5 变现闭环 |
