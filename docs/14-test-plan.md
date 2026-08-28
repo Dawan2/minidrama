@@ -202,7 +202,9 @@
 
 **2026-08-28 (W20 QA-010 remainder, SCR-04).** 扫描现在同时要求 SCR-04(剧详情 / `#/drama/:dramaId`)与 SCR-02、SCR-03、SCR-13。删掉任一 stem 为红。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
 
-**2026-08-28 (W20 QA-010 remainder, SCR-07).** 扫描现在同时要求 SCR-07(追剧·历史 / `#/history`)与 SCR-02、SCR-03、SCR-04、SCR-13。删掉任一 stem 为红。SCR-05 播放由在飞 sibling 占用 `check:a11y` 直至该 stem 落地;SCR-06 我的是第一项 C7 remainder。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
+**2026-08-28 (W20 QA-010 remainder, SCR-05).** 扫描现在同时要求 SCR-05(播放器 / `#/play/:episodeId`)与 SCR-02、SCR-03、SCR-04、SCR-13。删掉任一 stem 为红。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
+
+**2026-08-28 (W20 QA-010 remainder, SCR-07).** 扫描现在同时要求 SCR-07(追剧·历史 / `#/history`)与 SCR-02、SCR-03、SCR-04、SCR-05、SCR-13。删掉任一 stem 为红。SCR-06 我的是第一项 C7 remainder。其余已实现 SCR/PNL 仍是后续 remainder。宿主仍是 jsdom,不是 TikTok WebView。这仍不是协议 C4 出场 3 / S-A1 全屏关闭。
 
 WCAG 2.2 Level AA 中适用于 TikTok WebView 内竖屏 H5 的子集。明确 N/A:物理键盘导航与焦点顺序降级为"不得存在焦点陷阱";页面级 landmark 按移动端简化。阻断项与 DoD §6.2 S-A1…S-A10 一致:
 
