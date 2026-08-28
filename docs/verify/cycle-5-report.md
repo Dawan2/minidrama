@@ -607,32 +607,45 @@ the same shape in the other direction — a workflow that looks like a gate.
 
 ---
 
-## 13. Postscript — in-flight at snapshot
+## 13. Postscript — what moved while this report was being written
 
 Everything above through §12 was measured against `origin/main` at **`a8e1c63`**
 (2026-08-27T23:54:38Z). `pnpm verify` ran in this slot on that SHA (3,416 tests, exit 0).
-Two agents were RUNNING at snapshot; neither had landed when this section was written.
+Two agents were RUNNING at snapshot. One landed before this file merged to `main`.
 
-| Agent | Name | Origin branch at snapshot | State when this section was written |
+| Agent | Branch | Tip at snapshot | State when this section was written |
 |---|---|---|---|
-| `bc-17fae197` | W16 work C5 excluding G1.9 | `origin/cursor/w16-work-c5-nog19-72c4` (`34768de` / `ac4ad43`) | **RUNNING, not on `main`.** QA-011 / C-12 a11y writeback. Explicitly not QA-010 axe-core. `docs/14-test-plan.md` / `docs/14-quality-gates.md` on that tip are not this tree |
-| `bc-264077b7` | W16 work next C5 after like-gesture | none visible on origin | **RUNNING, no `cursor/*` branch.** Handoff on the nog19 tip names it as PLY-012 token re-issue. This slot did not guess its files |
+| `bc-17fae197` W16 work C5 excluding G1.9 | `cursor/w16-work-c5-nog19-72c4` | `ac4ad43` | **Landed.** `origin/main` **`7ce8620`** (2026-08-28T00:00:30Z): "a11y is a listing blocker, and native APK budgets are N/A". Agent IDLE |
+| `bc-264077b7` W16 work next C5 after like-gesture | none at snapshot; later `origin/cursor/w16-work-c5-after-like-72c4` (`271408f`) | — | **Still RUNNING, not on `main`.** Unique commit `feat(ply-012): re-mint the playback session once on VePlayer error`. Player files. Not an ancestor of `7ce8620` |
 
-**Neither landing, if it happens after this file is pushed, changes the §0 verdict by
-itself.**
+**QA-011 landing does not change the §0 verdict.** Re-derived against `7ce8620`, not the
+handoff:
 
-- QA-011 is a document adoption (a11y as a listing blocker). It is not protocol-C4 exit 3.
-  An axe-core job would be. Do not back-write a pass if only the writeback merges.
-- PLY-012 is one remaining §4.3 row. It would not complete the interaction sheet (倍速 /
-  scrub / X-26 still sit there) and it would not restore GitHub Actions.
-- D-17, C5-03 / D-19, C4-03, C4-07, AM items: unchanged unless the tree itself changes.
-  No AM date appeared while this report was written.
+- `docs/14-test-plan.md` §6.4 heading is `可用性与无障碍(上架阻断)`. Dated note 2026-08-27
+  records the DoD §6 adoption. `QA-010` is named as the later CI job; **this slice does not
+  add axe-core.** `.github/workflows/` has no `axe` job on `7ce8620`.
+- Protocol-C4 exit 3 therefore stays **Not met**. The scorecard row "QA-011 in flight" in
+  §9 should now read "QA-011 writeback on `main`; QA-010 absent". Still not the gate.
+- D-17 is unchanged on the new tip. CI run
+  [33128264933](https://github.com/Dawan2/minidrama/actions/runs/33128264933) and L2 run
+  [33128264851](https://github.com/Dawan2/minidrama/actions/runs/33128264851) on `7ce8620`
+  (2026-08-28T00:00:35Z) are 4–5 second billing failures with empty `steps`.
+- Unmerged `cursor/*` vs `7ce8620`: remain, leftover ads, after-like PLY-012. The nog19
+  branch is an ancestor. Topology §2's third unmerged row is closed by this landing.
 
-`origin/cursor/w13-work-c3-remain-72c4` and leftover `cursor/w14-work-c4-subseq-72c4` are
-still not ancestors of `main`.
+**PLY-012 has not landed.** A session re-mint on VePlayer error would close one remaining
+§4.3 row. It would not complete the interaction sheet (倍速 / scrub / X-26 still sit
+there), would not restore GitHub Actions, and is not merged here.
+
+A later agent `bc-b0108787` (W16 work QA-010 a11y scan) started after snapshot. Not waited
+on. `.github/` on `7ce8620` still has no axe-core job.
+
+C5-03 / D-19, C4-03, C4-07, AM items: unchanged. No AM date appeared.
 
 The verdict in §0 stands: running-count C5 does not pass, on D-17 and on protocol-C4
-exits (now 1/3). The C5 backlog's buildable remediations (C5-01, C5-02) do pass, the
-named playback remainders are on `main`, and the AM-blocked half is still unknown.
+exits (1/3 at `a8e1c63`; still 1/3 after QA-011). The C5 backlog's buildable remediations
+(C5-01, C5-02) do pass, QA-011 is now a writeback on `main` rather than an open conflict,
+the named playback remainders are on `main`, and the AM-blocked half is still unknown.
 
-Snapshot SHA for §§0–12: **`a8e1c6326acace6ebdeff2b9fce02fe1c76b8417`**.
+Snapshot SHA for §§0–12: **`a8e1c6326acace6ebdeff2b9fce02fe1c76b8417`**. Trunk after the
+QA-011 merge: **`7ce86201fc0033621400b0a372c665e876663869`**.
