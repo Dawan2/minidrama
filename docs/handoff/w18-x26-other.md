@@ -52,7 +52,7 @@ tap-pause stays VePlayer's and double-tap 点赞 stays ours.
 | `app/src/styles/app.css` | Comment: playbackrate plugin stays VePlayer's |
 
 No HTML media rate field. No `<select>`. No `<video>`. No `vid_demo_`. No 0.75
-constant. Sibling's seek-inference / horizontal-scrub files are untouched.
+constant. Scrub inference from `079701b` is composed onto this tip.
 
 ---
 
@@ -89,7 +89,7 @@ expected <element> not to be null
 | --- | --- |
 | `bc-c68b4e10` scrub | **Landed** on `main` at `079701b` while this slot verified. Composed: keep **both** progress (never listed) and `playbackrate` (never listed). Sibling assertions that `ignores` still contains `playbackrate` were inverted |
 | `bc-402f89a0` stall | **Landed** `7ce0fd0`. Stall overlay kept |
-| `bc-19bb7d97` C6-next | **RUNNING.** Not this slice |
+| `bc-19bb7d97` C6-next | **Landed** `5544125` (INF-004 S-C1 audit) while this slot composed. Fast-forwarded. Did not retake audit files |
 
 G2.3 stays the L2 `smoke` job. D-17 is still billing. No BytePlus ingest ids.
 
@@ -97,23 +97,25 @@ G2.3 stays the L2 `smoke` job. D-17 is still billing. No BytePlus ingest ids.
 
 ## 5. Verify
 
-`pnpm verify` exited 0 on this tip before absorbing scrub (`2831249`, vs `7ce0fd0`):
+`pnpm verify` exited 0 after absorbing `origin/main` (`5544125`, INF-004 S-C1
+audit + plugin-owned scrub at `079701b`).
 
-- skip-check: 233 files, 0 skips
-- a11y: 1 screen, 0 critical, 0 serious
-- app tests: 1220 passed
-- coverage: diff lines 95.83% (23/24)
-- build: `index-DSMQRv7L.js` 363.18 kB
+| Gate | Result |
+|---|---|
+| Format / lint / types | pass |
+| Commits / skips / audit / a11y | pass — `check:audit` from INF-004: 2 workflows, 0 continue-on-error |
+| Tests + coverage | **3,542 passing** — shared 63, quality 419, config 45, server 1,785, app 1,230. Coverage: global lines 94.35% (17617/18672), branches 90.95%, core 95.70%, **diff lines 87.50% (7/8)** |
+| Build | pass — `index-ByK_fUdY.js` 363.77 kB / 111.39 kB gzip |
+| Guardrails | `platform guardrails passed (artifact: /workspace/app/dist)` |
 
-Post-compose numbers in the following commit.
-
-Native `<video>` remains absent. Rate plugin is kept. Progress inference is now an ancestor.
+Native `<video>` remains absent. Rate plugin is kept. Progress inference is an ancestor.
 
 ---
 
 ## 6. What is still open
 
-- **Scrub inference.** Landed on `main` at `079701b` (`cursor/w18-work-x26-72c4`). Composed onto this tip.
+- **Scrub inference.** Landed on `main` at `079701b`. Composed onto this tip.
+- **INF-004 S-C1.** Landed at `5544125`. Not retaken.
 - **Full 交互验收单.** Tap pause stays VePlayer-owned. Sheet is not 全过.
 - **X-26 as a P1/P2 write.** This slice does not amend `01-product-scope` or
   inventory. It refuses a client constant.
