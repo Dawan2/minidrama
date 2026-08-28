@@ -86,7 +86,7 @@ jobs:
       - name: G1.10 skip/empty tests
         run: pnpm run check:skips
 
-      # A continue-on-error: true or if: false in a committed workflow exits 1.
+      # A continue-on-error: true, if: false, or echo-only run in a committed workflow exits 1.
       # There is no continue-on-error: a comment that forbids bypasses is not INF-004.
       - name: INF-004 CI self-audit
         run: pnpm run check:audit
