@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { ok, type PlaybackDescriptor } from '@minidrama/shared';
 import { createPlayerFacade } from './player-facade';
 import { createProgressHeartbeat } from './progress-heartbeat';
-import { verticalSwipe } from './episode-swipe';
+import { isHorizontalScrub, verticalSwipe } from './episode-swipe';
 import { isDoubleTap, type TapPoint } from './episode-double-tap';
 import { translate } from '../core/i18n';
 import type { PlatformBridge } from '../platform/types';
@@ -287,6 +287,14 @@ export const PlayerSurface = forwardRef<PlayerSurfaceHandle, PlayerSurfaceProps>
           }
           const touch = event.changedTouches[0];
           if (touch === undefined) {
+            return;
+          }
+          if (
+            Number.isFinite(origin.x) &&
+            Number.isFinite(touch.clientX) &&
+            isHorizontalScrub(origin, { x: touch.clientX, y: touch.clientY })
+          ) {
+            // Kept progress plugin. Do not steal the drag as 切集 and do not preventDefault.
             return;
           }
           const direction = verticalSwipe(origin.y, touch.clientY);

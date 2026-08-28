@@ -200,6 +200,41 @@ describe('PlayerSurface', () => {
     expect(onSwipeNext).toHaveBeenCalledTimes(1);
   });
 
+  it('does not treat a horizontal scrub as 切集, so the progress plugin keeps the drag', async () => {
+    const onSwipeNext = vi.fn();
+    const onSwipePrevious = vi.fn();
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        onSwipeNext={onSwipeNext}
+        onSwipePrevious={onSwipePrevious}
+        playlist={playlist}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    expect(MockVePlayer.instances[0]?.config.ignores.join(',')).not.toMatch(/progress/i);
+    expect(
+      screen.getByTestId('player-container').querySelector('[data-veplayer-progress="kept"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByTestId('player-container').querySelector('input, video, [role="slider"]'),
+    ).toBeNull();
+
+    const surface = screen.getByTestId('player-surface');
+    fireEvent.touchStart(surface, {
+      changedTouches: [{ clientX: 40, clientY: 400 }],
+      touches: [{ clientX: 40, clientY: 400 }],
+    });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 220, clientY: 388 }] });
+    expect(onSwipeNext).not.toHaveBeenCalled();
+    expect(onSwipePrevious).not.toHaveBeenCalled();
+  });
+
   it('treats a double-tap as a like and a single tap as nothing', async () => {
     const onDoubleTap = vi.fn();
     const onSwipeNext = vi.fn();
@@ -430,5 +465,42 @@ describe('PlayerSurface', () => {
       expect(MockVePlayer.instances[0]?.playing).toBe(false);
     });
     expect(report).not.toHaveBeenCalled();
+  });
+
+  it('flushes a plugin scrub without building a second instance or a native video', async () => {
+    const reports: WatchProgressReport[] = [];
+    const bridge = await readyBridge();
+    render(
+      <PlayerSurface
+        bridge={bridge}
+        episodeId="ep_1"
+        playlist={playlist}
+        progress={{
+          intervalSec: 10,
+          report: async (_id, body) => {
+            reports.push(body);
+            return ok(undefined);
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(MockVePlayer.instances).toHaveLength(1);
+    });
+    const player = MockVePlayer.instances[0]!;
+    player.tick(5, 90);
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    player.scrub(40, 90);
+    await waitFor(() => {
+      expect(reports).toHaveLength(1);
+    });
+    expect(reports[0]).toMatchObject({ positionSec: 40, durationSec: 90 });
+    expect(MockVePlayer.instances).toHaveLength(1);
+    expect(forbiddenElements()).toEqual([]);
+    expect(player.config.ignores).toContain('playbackrate');
+    expect(player.config.vid).not.toMatch(/vid_demo_/);
   });
 });
