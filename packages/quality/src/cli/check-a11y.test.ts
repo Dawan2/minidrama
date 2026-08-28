@@ -65,6 +65,29 @@ const PASSING_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+const PASSING_HOME_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>For you</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="home-page">
+    <h1>For you</h1>
+    <a href="#/browse">Theatre</a>
+  </main>
+</body>
+</html>
+`;
+
+function writeRequiredStems(
+  root: string,
+  bodies: { readonly fallback?: string; readonly home?: string } = {},
+): void {
+  mkdirSync(join(root, 'screens'), { recursive: true });
+  writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), bodies.fallback ?? PASSING_HTML);
+  writeFileSync(join(root, 'screens', 'scr-02-home.html'), bodies.home ?? PASSING_HOME_HTML);
+}
+
 describe('check-a11y CLI', () => {
   it('exits 2 on an unknown argument, rather than ignoring it', () => {
     const result = run(['--allow-unknown']);
@@ -85,10 +108,8 @@ describe('check-a11y CLI', () => {
 
   it('exits non-zero when a fixture injects a contrast violation', () => {
     const root = tempDir('cli-a11y-contrast-');
-    mkdirSync(join(root, 'screens'));
-    writeFileSync(
-      join(root, 'screens', 'scr-13-fallback.html'),
-      `<!DOCTYPE html>
+    writeRequiredStems(root, {
+      fallback: `<!DOCTYPE html>
 <html lang="en">
 <head><title>Contrast fail</title>
 <style>p { color: #ffffff; background: #ffffff; }</style>
@@ -96,7 +117,7 @@ describe('check-a11y CLI', () => {
 <body><main><h1>Home</h1><p>secret</p></main></body>
 </html>
 `,
-    );
+    });
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('QA-010 red');
@@ -106,10 +127,8 @@ describe('check-a11y CLI', () => {
 
   it('exits non-zero when axe-core sees a missing html lang', () => {
     const root = tempDir('cli-a11y-lang-');
-    mkdirSync(join(root, 'screens'));
-    writeFileSync(
-      join(root, 'screens', 'scr-13-fallback.html'),
-      `<!DOCTYPE html>
+    writeRequiredStems(root, {
+      fallback: `<!DOCTYPE html>
 <html>
 <head><title>No lang</title>
 <style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
@@ -117,20 +136,30 @@ describe('check-a11y CLI', () => {
 <body><main><h1>Home</h1><p>Hello</p></main></body>
 </html>
 `,
-    );
+    });
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('html-has-lang');
   });
 
-  it('exits zero on a passing implemented-screen fixture', () => {
+  it('exits zero on passing implemented-screen fixtures', () => {
     const root = tempDir('cli-a11y-clean-');
-    mkdirSync(join(root, 'screens'));
-    writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
+    writeRequiredStems(root);
     const result = run(['--root', root, '--source', join(root, 'screens')]);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('a11y passed');
+    expect(result.stdout).toContain('2 screens');
     expect(result.stdout).toContain('not TikTok WebView');
     expect(result.stdout).not.toMatch(/in TikTok WebView/);
+  });
+
+  it('exits non-zero when the required SCR-02 fixture is missing', () => {
+    const root = tempDir('cli-a11y-nohome-');
+    mkdirSync(join(root, 'screens'));
+    writeFileSync(join(root, 'screens', 'scr-13-fallback.html'), PASSING_HTML);
+    const result = run(['--root', root, '--source', join(root, 'screens')]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('scr-02-home');
+    expect(result.stdout).not.toContain('a11y passed');
   });
 });

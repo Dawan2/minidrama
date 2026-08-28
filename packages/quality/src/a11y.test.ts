@@ -66,6 +66,29 @@ const PASSING_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+const PASSING_HOME_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><title>For you</title>
+<style>html, body { background: #0b0b0f; color: #f4f4f7; }</style>
+</head>
+<body>
+  <main data-testid="home-page">
+    <h1>For you</h1>
+    <p>Nothing to watch yet.</p>
+    <a href="#/browse">Theatre</a>
+  </main>
+</body>
+</html>
+`;
+
+function writeRequiredStems(
+  root: string,
+  bodies: { readonly fallback?: string; readonly home?: string } = {},
+): void {
+  writeSource(root, 'screens/scr-13-fallback.html', bodies.fallback ?? PASSING_HTML);
+  writeSource(root, 'screens/scr-02-home.html', bodies.home ?? PASSING_HOME_HTML);
+}
+
 const CONTRAST_FAIL_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head><title>Contrast fail</title>
@@ -144,16 +167,28 @@ describe('isScreenFileName / listScreenFiles', () => {
     expect(files).toEqual([join(root, 'screens/scr-13-fallback.html')]);
   });
 
+  it('lists the home fixture next to fallback when both are present', () => {
+    const root = tempDir('a11y-walk-home-');
+    writeSource(root, 'screens/scr-02-home.html', PASSING_HOME_HTML);
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    expect(listScreenFiles(join(root, 'screens'))).toEqual([
+      join(root, 'screens/scr-02-home.html'),
+      join(root, 'screens/scr-13-fallback.html'),
+    ]);
+  });
+
   it('returns no files when the source cannot be read', () => {
     expect(listScreenFiles(join(tempDir('a11y-gone-'), 'missing'))).toEqual([]);
   });
 });
 
 describe('missingRequiredScreenStems / toRepoFile / formatHit', () => {
-  it('requires the SCR-13 fixture so deleting it is red', () => {
-    expect(REQUIRED_SCREEN_STEMS).toEqual(['scr-13-fallback']);
-    expect(missingRequiredScreenStems(['scr-13-fallback.html'])).toEqual([]);
-    expect(missingRequiredScreenStems([])).toEqual(['scr-13-fallback']);
+  it('requires the SCR-02 and SCR-13 fixtures so deleting either is red', () => {
+    expect(REQUIRED_SCREEN_STEMS).toEqual(['scr-02-home', 'scr-13-fallback']);
+    expect(missingRequiredScreenStems(['scr-02-home.html', 'scr-13-fallback.html'])).toEqual([]);
+    expect(missingRequiredScreenStems(['scr-13-fallback.html'])).toEqual(['scr-02-home']);
+    expect(missingRequiredScreenStems(['scr-02-home.html'])).toEqual(['scr-13-fallback']);
+    expect(missingRequiredScreenStems([])).toEqual(['scr-02-home', 'scr-13-fallback']);
   });
 
   it('formats a hit with a repo-relative path', () => {
@@ -269,12 +304,22 @@ describe('runA11yCheck', () => {
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
     expect(output.stderr).toContain('scr-13-fallback');
+    expect(output.stderr).toContain('scr-02-home');
+    expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
+  });
+
+  it('fails when the required SCR-02 fixture is missing', async () => {
+    const root = tempDir('a11y-nohome-');
+    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
+    expect(output.ok).toBe(false);
+    expect(output.stderr).toContain('scr-02-home');
     expect(output.stderr).toContain(A11Y_HOST_DISCLAIMER);
   });
 
   it('fails when an injected contrast violation is present', async () => {
     const root = tempDir('a11y-contrast-');
-    writeSource(root, 'screens/scr-13-fallback.html', CONTRAST_FAIL_HTML);
+    writeRequiredStems(root, { fallback: CONTRAST_FAIL_HTML });
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(false);
     expect(output.exitCode).toBe(1);
@@ -286,7 +331,7 @@ describe('runA11yCheck', () => {
 
   it('fails when axe-core reports a serious violation', async () => {
     const root = tempDir('a11y-axe-');
-    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    writeRequiredStems(root);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, async () => [
       {
         id: 'html-has-lang',
@@ -302,7 +347,7 @@ describe('runA11yCheck', () => {
 
   it('fails when axe-core throws rather than treating that as a skip', async () => {
     const root = tempDir('a11y-throw-');
-    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    writeRequiredStems(root);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, async () => {
       throw new Error('axe-core is required: a scan that did not run axe-core is not QA-010');
     });
@@ -313,7 +358,7 @@ describe('runA11yCheck', () => {
 
   it('fails when axe-core throws a non-Error', async () => {
     const root = tempDir('a11y-throw-raw-');
-    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    writeRequiredStems(root);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, async () => {
       throw 'nope';
     });
@@ -323,7 +368,7 @@ describe('runA11yCheck', () => {
 
   it('passes a tree whose screens have no blocking axe hit and passing contrast', async () => {
     const root = tempDir('a11y-clean-');
-    writeSource(root, 'screens/scr-13-fallback.html', PASSING_HTML);
+    writeRequiredStems(root);
     const output = await runA11yCheck({ root, source: join(root, 'screens') }, silentAxe);
     expect(output.ok).toBe(true);
     expect(output.exitCode).toBe(0);
@@ -333,7 +378,7 @@ describe('runA11yCheck', () => {
     expect(output.stdout).not.toMatch(/in TikTok WebView/);
   });
 
-  it('the committed SCR-13 fixture passes the real axe-core run in jsdom', async () => {
+  it('the committed SCR-02 and SCR-13 fixtures pass the real axe-core run in jsdom', async () => {
     const output = await runA11yCheck({
       root: repoRoot,
       source: defaultSource(repoRoot),
@@ -341,6 +386,7 @@ describe('runA11yCheck', () => {
     expect(output.ok).toBe(true);
     expect(output.exitCode).toBe(0);
     expect(output.stdout).toContain('a11y passed');
+    expect(output.stdout).toContain('2 screens');
     expect(output.stdout).toContain(A11Y_HOST_DISCLAIMER);
   });
 });
@@ -365,5 +411,21 @@ describe('QA-010 does not skip the engine or claim TikTok WebView', () => {
     );
     expect(fixture).toContain('data-testid="fallback-page"');
     expect(fixture).toContain('<html lang="en">');
+  });
+
+  it('the SCR-02 fixture still matches HomePage structure', () => {
+    const page = readFileSync(join(repoRoot, 'app/src/routes/HomePage.tsx'), 'utf8');
+    expect(page).toMatch(/data-testid="home-page"/);
+    expect(page).toMatch(/<main/);
+    expect(page).toMatch(/<h1/);
+    expect(page).toMatch(/data-testid="empty-state"|home.empty/);
+    const fixture = readFileSync(
+      join(repoRoot, 'packages/quality/a11y/screens/scr-02-home.html'),
+      'utf8',
+    );
+    expect(fixture).toContain('data-testid="home-page"');
+    expect(fixture).toContain('data-testid="empty-state"');
+    expect(fixture).toContain('<html lang="en">');
+    expect(fixture).toContain('For you');
   });
 });
