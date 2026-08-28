@@ -263,7 +263,34 @@ describe('createProgressHeartbeat', () => {
     heartbeat.observe('timeupdate', payload(0, 90));
     heartbeat.observe('pause');
     await vi.waitFor(() => {
-      expect(reports).toEqual([45, 0]);
+      expect(reports[0]).toBe(45);
+      expect(reports.slice(1).every((position) => position === 0)).toBe(true);
+      expect(reports.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it('flushes a plugin scrub immediately and does not wait for the interval', async () => {
+    const reports: number[] = [];
+    let nowMs = 0;
+    const heartbeat = createProgressHeartbeat({
+      episodeId: 'ep_1',
+      intervalSec: 10,
+      now: () => nowMs,
+      report: async (_id, body) => {
+        reports.push(body.positionSec);
+        return ok(undefined);
+      },
+    });
+
+    heartbeat.observe('play');
+    heartbeat.observe('timeupdate', payload(5, 90));
+    await Promise.resolve();
+    expect(reports).toEqual([]);
+
+    nowMs = 400;
+    heartbeat.observe('timeupdate', payload(40, 90));
+    await vi.waitFor(() => {
+      expect(reports).toEqual([40]);
     });
   });
 

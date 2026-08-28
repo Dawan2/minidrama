@@ -4,7 +4,7 @@ import type {
   VePlayerInstance,
   VePlayerPlaylistItem,
 } from './veplayer-types';
-import { ignoresPlaybackratePlugin } from './veplayer-plugins';
+import { ignoresPlaybackratePlugin, ignoresProgressPlugin } from './veplayer-plugins';
 
 /**
  * A stand-in for the platform player, used by `MockBridge` in browser development and tests.
@@ -37,8 +37,12 @@ export class MockVePlayer implements VePlayerInstance {
 
     this.#surface = config.el.ownerDocument.createElement('div');
     this.#surface.dataset['mockVeplayer'] = 'true';
-    // 倍速 is a kept VePlayer plugin, not a control we draw. The mock records that the
-    // constructor left it on; it never creates <video> or a rate <select>.
+    // Progress and 倍速 are kept VePlayer plugins, not controls we draw. The mock records
+    // that the constructor left them on; it never creates <video>, <input type="range">,
+    // or a rate <select>.
+    this.#surface.dataset['veplayerProgress'] = ignoresProgressPlugin(config.ignores)
+      ? 'ignored'
+      : 'kept';
     this.#surface.dataset['veplayerPlaybackrate'] = ignoresPlaybackratePlugin(config.ignores)
       ? 'ignored'
       : 'kept';
@@ -141,6 +145,14 @@ export class MockVePlayer implements VePlayerInstance {
    */
   tick(positionSec: number, durationSec: number): void {
     this.#emit('timeupdate', { currentTime: positionSec, duration: durationSec });
+  }
+
+  /**
+   * Plugin-owned scrub: a position discontinuity on the same instance. Not a second player, not
+   * a `<video>.currentTime` write, not a client progress bar.
+   */
+  scrub(positionSec: number, durationSec: number): void {
+    this.tick(positionSec, durationSec);
   }
 
   #render(albumId: string, episodeId: string, vid: string): void {

@@ -4,16 +4,28 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ignoresPlaybackratePlugin,
+  ignoresProgressPlugin,
   VEPLAYER_CLOSE_VIDEO_CLICK,
   VEPLAYER_CLOSE_VIDEO_DBLCLICK,
   VEPLAYER_IGNORED_PLUGINS,
 } from './veplayer-plugins';
 
 describe('VEPLAYER_IGNORED_PLUGINS', () => {
+  it('keeps the progress bar by not listing it, so scrub stays plugin-owned', () => {
+    expect(ignoresProgressPlugin(VEPLAYER_IGNORED_PLUGINS)).toBe(false);
+    expect(VEPLAYER_IGNORED_PLUGINS).not.toContain('progress');
+    expect(VEPLAYER_IGNORED_PLUGINS.join(',')).not.toMatch(/progress/i);
+  });
+
   it('keeps playbackrate by not listing it, so 倍速 stays plugin-owned', () => {
     expect(ignoresPlaybackratePlugin(VEPLAYER_IGNORED_PLUGINS)).toBe(false);
     expect(VEPLAYER_IGNORED_PLUGINS).not.toContain('playbackrate');
     expect(VEPLAYER_IGNORED_PLUGINS.join(',')).not.toMatch(/playbackrate/i);
+  });
+
+  it('treats a listed progress plugin as hidden, which this slice must not ship', () => {
+    expect(ignoresProgressPlugin(['progress'])).toBe(true);
+    expect(ignoresProgressPlugin(['play'])).toBe(false);
   });
 
   it('treats a listed rate plugin as hidden, which this slice must not ship', () => {

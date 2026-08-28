@@ -87,8 +87,8 @@ expected <element> not to be null
 
 | Who | Overlap |
 | --- | --- |
-| `bc-c68b4e10` scrub | **RUNNING.** Same `veplayer-plugins.ts` / facade / types / mock. Their list still includes `playbackrate`. Compose: keep **both** progress (never listed) and `playbackrate` (never listed). Do not restore the sample's rate ignore |
-| `bc-402f89a0` stall | **Landed** `7ce0fd0`. `PlayerSurface.tsx` stall overlay kept. This slot does not retake it |
+| `bc-c68b4e10` scrub | **Landed** on `main` at `079701b` while this slot verified. Composed: keep **both** progress (never listed) and `playbackrate` (never listed). Sibling assertions that `ignores` still contains `playbackrate` were inverted |
+| `bc-402f89a0` stall | **Landed** `7ce0fd0`. Stall overlay kept |
 | `bc-19bb7d97` C6-next | **RUNNING.** Not this slice |
 
 G2.3 stays the L2 `smoke` job. D-17 is still billing. No BytePlus ingest ids.
@@ -97,18 +97,23 @@ G2.3 stays the L2 `smoke` job. D-17 is still billing. No BytePlus ingest ids.
 
 ## 5. Verify
 
-`pnpm verify` after the unique product commit. Numbers in the following commit /
-this file's postscript.
+`pnpm verify` exited 0 on this tip before absorbing scrub (`2831249`, vs `7ce0fd0`):
 
-Native `<video>` remains absent. Rate plugin is kept. Progress inference stays the
-sibling's.
+- skip-check: 233 files, 0 skips
+- a11y: 1 screen, 0 critical, 0 serious
+- app tests: 1220 passed
+- coverage: diff lines 95.83% (23/24)
+- build: `index-DSMQRv7L.js` 363.18 kB
+
+Post-compose numbers in the following commit.
+
+Native `<video>` remains absent. Rate plugin is kept. Progress inference is now an ancestor.
 
 ---
 
 ## 6. What is still open
 
-- **Scrub inference.** Sibling `cursor/w18-work-x26-72c4`. Horizontal drag as not-切集
-  is not on this tip.
+- **Scrub inference.** Landed on `main` at `079701b` (`cursor/w18-work-x26-72c4`). Composed onto this tip.
 - **Full 交互验收单.** Tap pause stays VePlayer-owned. Sheet is not 全过.
 - **X-26 as a P1/P2 write.** This slice does not amend `01-product-scope` or
   inventory. It refuses a client constant.

@@ -66,7 +66,7 @@ describe('createPlayerFacade', () => {
     expect(MockVePlayer.instances[0]?.config.lang).toBe('en');
   });
 
-  it('keeps the playbackrate plugin and does not invent a client rate ladder', async () => {
+  it('keeps the progress plugin and does not invent a playbackRate ladder', async () => {
     const bridge = await readyBridge();
     await createPlayerFacade(bridge, { container, descriptor });
 
@@ -81,12 +81,13 @@ describe('createPlayerFacade', () => {
       'replay',
       'sdkDefinitionPlugin',
     ]);
-    expect(config?.ignores).not.toContain('playbackrate');
-    expect(config?.ignores.join(',')).not.toMatch(/playbackrate/i);
+    expect(config?.ignores.join(',')).not.toMatch(/progress/i);
     expect(config?.closeVideoClick).toBe(false);
     expect(config?.closeVideoDblclick).toBe(true);
+    expect(config?.ignores).not.toContain('playbackrate');
     expect('playbackRate' in (config ?? {})).toBe(false);
     expect(container.querySelector('input, video, select, [role="slider"]')).toBeNull();
+    expect(container.querySelector('[data-veplayer-progress="kept"]')).not.toBeNull();
     expect(container.querySelector('[data-veplayer-playbackrate="kept"]')).not.toBeNull();
   });
 
