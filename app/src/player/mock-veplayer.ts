@@ -20,6 +20,13 @@ import { ignoresPlaybackratePlugin, ignoresProgressPlugin } from './veplayer-plu
  */
 export class MockVePlayer implements VePlayerInstance {
   static readonly instances: MockVePlayer[] = [];
+  /**
+   * When true, construction and `playNext` do not emit `play`. The CN-10
+   * start/switch timeout needs a first-frame that never arrives; autoplay in
+   * the microtask would clear that wait before a test could advance the clock.
+   * `play()` still emits when a test calls it. `reset()` clears the flag.
+   */
+  static holdPlay = false;
 
   readonly config: VePlayerConfig;
   destroyed = false;
@@ -52,7 +59,7 @@ export class MockVePlayer implements VePlayerInstance {
     queueMicrotask(() => {
       if (!this.destroyed) {
         this.#emit('ready');
-        if (config.autoplay) {
+        if (config.autoplay && !MockVePlayer.holdPlay) {
           this.play();
         }
       }
@@ -61,6 +68,7 @@ export class MockVePlayer implements VePlayerInstance {
 
   static reset(): void {
     MockVePlayer.instances.length = 0;
+    MockVePlayer.holdPlay = false;
   }
 
   /** The episode on screen, which is the constructed one until `playNext()` moves it. */
@@ -112,7 +120,9 @@ export class MockVePlayer implements VePlayerInstance {
       this.#render(next.albumId, next.episodeId, next.vid);
     }
     this.playing = true;
-    this.#emit('play');
+    if (!MockVePlayer.holdPlay) {
+      this.#emit('play');
+    }
   }
 
   destroy(): void {
