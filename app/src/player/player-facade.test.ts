@@ -355,6 +355,66 @@ describe('createPlayerFacade', () => {
     });
   });
 
+  describe('reissue', () => {
+    it('replaces the current token on the retained instance without playNext', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, {
+        container,
+        descriptor: { ...descriptor, playAuthToken: 'token-old' },
+        upNext,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      const instance = MockVePlayer.instances[0]!;
+      expect(
+        result.value.reissue({
+          ...descriptor,
+          playAuthToken: 'token-new',
+          resumePositionSec: 12,
+        }),
+      ).toBe(true);
+      expect(MockVePlayer.instances).toHaveLength(1);
+      expect(instance.destroyed).toBe(false);
+      expect(instance.playNextCount).toBe(0);
+      expect(instance.currentEpisodeId).toBe('ep_1');
+      expect(instance.currentPlayAuthToken).toBe('token-new');
+      expect(instance.config.startTime).toBe(42);
+      expect(result.value.currentEpisode().playAuthToken).toBe('token-new');
+    });
+
+    it('refuses a different episode, because that is 切集 not a re-issue', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, { container, descriptor, upNext });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      expect(result.value.reissue(episode(2))).toBe(false);
+      expect(MockVePlayer.instances[0]?.playNextCount).toBe(0);
+      expect(result.value.currentEpisode().episodeId).toBe('ep_1');
+    });
+
+    it('is inert after destroy', async () => {
+      const bridge = await readyBridge();
+      const result = await createPlayerFacade(bridge, {
+        container,
+        descriptor: { ...descriptor, playAuthToken: 'token-old' },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        return;
+      }
+
+      result.value.destroy();
+      expect(result.value.reissue({ ...descriptor, playAuthToken: 'token-new' })).toBe(false);
+      expect(MockVePlayer.instances[0]?.currentPlayAuthToken).toBe('token-old');
+    });
+  });
+
   it('is inert after destroy, because a resolved promise can still hold a reference', async () => {
     const bridge = await readyBridge();
     const result = await createPlayerFacade(bridge, { container, descriptor, upNext });

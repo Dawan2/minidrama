@@ -7,6 +7,7 @@ import { EpisodePicker } from '../picker/EpisodePicker';
 import { PlayerSurface } from '../player/PlayerSurface';
 import { RetryableError, Skeleton, TerminalError } from '../components/states';
 import { gateAdvance } from './advance-gate';
+import { classifyReissue, exhaustedReissueError, planFatalReissue } from '../player/player-fatal';
 import { ROUTES, playPath } from './routes';
 import { translate } from '../core/i18n';
 import { UnlockPanel } from '../unlock/UnlockPanel';
@@ -22,6 +23,7 @@ import type { PlayerSurfaceHandle } from '../player/PlayerSurface';
 import type { PlatformBridge } from '../platform/types';
 import type { PurchaseCapabilities } from '../catalog/access-presentation';
 import type { Resource } from '../data/use-resource';
+import type { SurfaceError } from '../data/failure';
 import type { TranslationKey } from '../core/i18n';
 import type { UnlockPacing } from '../unlock/coin-unlock';
 import type { AdPlacement } from '../data/unlock-api';
@@ -53,6 +55,10 @@ import type { AdPlacement } from '../data/unlock-api';
  * PNL-05 (quality / speed) stays deleted: VePlayer plugins own those (`AC-PL-6`).
  * Double-tap 点赞 follows the current drama (`PUT /v1/dramas/{id}/favorite`). A single tap
  * is still VePlayer's pause. 倍速 stays plugin-owned (X-26).
+ *
+ * PLAYER_FATAL (`PLY-012`) re-mints the route episode once and applies the fresh descriptor
+ * on the retained instance. A failed mint overlays retry copy on the last frame — it does
+ * not unmount VePlayer into a blank surface. The ERROR payload is not classified.
  */
 
 const EMPTY_EPISODES: Page<EpisodeItem> = {
@@ -65,6 +71,11 @@ const PLAYER_TERMINAL_KEYS = {
   OFFLINE: 'player.offline',
   REJECTED: 'player.rejected',
 } as const satisfies Record<'NOT_FOUND' | 'OFFLINE' | 'REJECTED', TranslationKey>;
+
+type FatalOverlay =
+  | { readonly kind: 'RETRYABLE'; readonly error: SurfaceError }
+  | { readonly kind: 'TERMINAL'; readonly error: Extract<SurfaceError, { kind: 'TERMINAL' }> }
+  | { readonly kind: 'BLOCKED' };
 
 export interface PlayPageProps {
   readonly bridge: PlatformBridge;
@@ -86,7 +97,11 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
   const [advancePlacement, setAdvancePlacement] = useState<AdPlacement | null>(null);
   const [album, setAlbum] = useState<readonly PlaybackDescriptor[]>([]);
   const [likedFlash, setLikedFlash] = useState(false);
+  const [fatalLock, setFatalLock] = useState(false);
+  const [fatalOverlay, setFatalOverlay] = useState<FatalOverlay | null>(null);
   const advancingRef = useRef(false);
+  const fatalBusyRef = useRef(false);
+  const fatalAttemptsRef = useRef(0);
   const surfaceRef = useRef<PlayerSurfaceHandle>(null);
   const episodeIdRef = useRef(episodeId);
   episodeIdRef.current = episodeId;
@@ -96,6 +111,10 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     setAdvanceUnlock(null);
     setAdvancePlacement(null);
     setLikedFlash(false);
+    setFatalLock(false);
+    setFatalOverlay(null);
+    fatalAttemptsRef.current = 0;
+    fatalBusyRef.current = false;
   }, [episodeId]);
 
   const session = useResource(
@@ -141,11 +160,12 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     episodes.resource.status === 'ready' &&
     (session.resource.status === 'ready' || playlist.length > 0);
   const overlayEpisode =
-    locked && catalogEpisode !== null && !unlockDismissed
+    (locked || fatalLock) && catalogEpisode !== null && !unlockDismissed
       ? catalogEpisode
       : advanceUnlock !== null && !unlockDismissed
         ? advanceUnlock
         : null;
+  const gesturesBlocked = pickerOpen || overlayEpisode !== null || fatalOverlay !== null;
 
   async function attemptAdvance(target: EpisodeItem, placement: AdPlacement): Promise<void> {
     if (target.id === episodeIdRef.current || advancingRef.current) {
@@ -183,6 +203,52 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
     }
   }
 
+  async function requestReissue(): Promise<void> {
+    if (fatalBusyRef.current) {
+      return;
+    }
+    if (planFatalReissue(fatalAttemptsRef.current) === 'EXHAUSTED') {
+      setFatalOverlay({ kind: 'RETRYABLE', error: exhaustedReissueError() });
+      return;
+    }
+    fatalBusyRef.current = true;
+    const asked = episodeIdRef.current;
+    const result = await playbackApi.createSession(asked);
+    fatalAttemptsRef.current += 1;
+    fatalBusyRef.current = false;
+    if (asked !== episodeIdRef.current) {
+      return;
+    }
+    const classified = classifyReissue(result);
+    if (classified.kind === 'CONTINUE') {
+      setFatalOverlay(null);
+      setAlbum((current) =>
+        replaceAlbumDescriptor(
+          current,
+          classified.descriptor,
+          session.resource.status === 'ready' ? session.resource.data : undefined,
+        ),
+      );
+      surfaceRef.current?.reissue(classified.descriptor);
+      return;
+    }
+    if (classified.kind === 'LOCKED') {
+      setFatalOverlay(null);
+      setUnlockDismissed(false);
+      setFatalLock(true);
+      return;
+    }
+    if (classified.kind === 'BLOCKED') {
+      setFatalOverlay({ kind: 'BLOCKED' });
+      return;
+    }
+    if (classified.kind === 'RETRYABLE') {
+      setFatalOverlay({ kind: 'RETRYABLE', error: classified.error });
+      return;
+    }
+    setFatalOverlay({ kind: 'TERMINAL', error: classified.error });
+  }
+
   function onEnded(): void {
     const target = nextRef.current;
     if (target === undefined) {
@@ -217,6 +283,9 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
         catalog={catalog.resource}
         locked={locked}
         onEnded={onEnded}
+        onPlayerFatal={() => {
+          void requestReissue();
+        }}
         onRetry={() => {
           session.reload();
           catalog.reload();
@@ -229,27 +298,51 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
         routeEpisodeId={episodeId}
         session={session.resource}
         surfaceRef={surfaceRef}
-        {...(next === undefined || pickerOpen || overlayEpisode !== null
+        {...(next === undefined || gesturesBlocked
           ? {}
           : {
               onSwipeNext: () => {
                 void attemptAdvance(next, 'AFTER_EPISODE');
               },
             })}
-        {...(previous === undefined || pickerOpen || overlayEpisode !== null
+        {...(previous === undefined || gesturesBlocked
           ? {}
           : {
               onSwipePrevious: () => {
                 void attemptAdvance(previous, 'MANUAL_SKIP');
               },
             })}
-        {...(dramaId === '' || pickerOpen || overlayEpisode !== null ? {} : { onDoubleTap })}
+        {...(dramaId === '' || gesturesBlocked ? {} : { onDoubleTap })}
       />
       {likedFlash ? (
         <p className="player-liked" data-testid="player-liked" role="status">
           {translate('player.liked')}
         </p>
       ) : null}
+      {fatalOverlay === null ? null : (
+        <div className="player-fatal" data-testid="player-fatal">
+          {fatalOverlay.kind === 'RETRYABLE' ? (
+            <RetryableError
+              error={fatalOverlay.error}
+              onRetry={() => {
+                fatalAttemptsRef.current = 0;
+                setFatalOverlay(null);
+                void requestReissue();
+              }}
+            />
+          ) : (
+            <TerminalError
+              reason={fatalOverlay.kind === 'BLOCKED' ? 'OFFLINE' : fatalOverlay.error.reason}
+              traceId={fatalOverlay.kind === 'BLOCKED' ? null : fatalOverlay.error.failure.traceId}
+              messageKey={
+                fatalOverlay.kind === 'BLOCKED'
+                  ? 'player.blocked'
+                  : PLAYER_TERMINAL_KEYS[fatalOverlay.error.reason]
+              }
+            />
+          )}
+        </div>
+      )}
       {catalogEpisode === null ? null : (
         <p className="player-meta" data-testid="player-episode-label">
           {translate('drama.episodeLabel', undefined, { n: catalogEpisode.globalEpisodeNumber })}
@@ -305,8 +398,13 @@ export function PlayPage({ bridge, unlockPacing }: PlayPageProps): React.JSX.Ele
             setUnlockDismissed(true);
             setAdvanceUnlock(null);
             setAdvancePlacement(null);
+            setFatalLock(false);
           }}
-          onEntitlementChanged={session.reload}
+          onEntitlementChanged={() => {
+            setFatalLock(false);
+            setAlbum([]);
+            session.reload();
+          }}
           {...(unlockPacing === undefined ? {} : { pacing: unlockPacing })}
           {...(advanceUnlock !== null && advancePlacement !== null
             ? { adPlacement: advancePlacement }
@@ -334,6 +432,18 @@ function playlistForRoute(
     return [session.data];
   }
   return [];
+}
+
+function replaceAlbumDescriptor(
+  album: readonly PlaybackDescriptor[],
+  next: PlaybackDescriptor,
+  fallback: PlaybackDescriptor | undefined,
+): readonly PlaybackDescriptor[] {
+  const base = album.length > 0 ? album : fallback === undefined ? [next] : [fallback];
+  if (base.some((item) => item.episodeId === next.episodeId)) {
+    return base.map((item) => (item.episodeId === next.episodeId ? next : item));
+  }
+  return [...base, next];
 }
 
 /**
@@ -386,6 +496,7 @@ function Attempt({
   locked,
   onDoubleTap,
   onEnded,
+  onPlayerFatal,
   onRetry,
   onSwipeNext,
   onSwipePrevious,
@@ -400,6 +511,7 @@ function Attempt({
   readonly locked: boolean;
   readonly onDoubleTap?: () => void;
   readonly onEnded: () => void;
+  readonly onPlayerFatal?: () => void;
   readonly onRetry: () => void;
   readonly onSwipeNext?: () => void;
   readonly onSwipePrevious?: () => void;
@@ -439,6 +551,7 @@ function Attempt({
         onEnded={onEnded}
         playlist={playlist}
         progress={progress}
+        {...(onPlayerFatal === undefined ? {} : { onPlayerFatal })}
         {...(onSwipeNext === undefined ? {} : { onSwipeNext })}
         {...(onSwipePrevious === undefined ? {} : { onSwipePrevious })}
         {...(onDoubleTap === undefined ? {} : { onDoubleTap })}

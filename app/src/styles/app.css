@@ -836,6 +836,10 @@ a {
   font-size: 13px;
 }
 
+.player-fatal {
+  margin-top: 12px;
+}
+
 .player-next {
   display: inline-block;
   margin-top: 12px;
