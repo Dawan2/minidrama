@@ -91,8 +91,18 @@ describe('listSmokeSpecs / missingRequiredSpecStems', () => {
     const root = tempDir('smoke-specs-');
     mkdirSync(join(root, 'specs'));
     writeFileSync(join(root, 'specs', 'browse-play.spec.ts'), 'test("x", () => {});\n');
+    writeFileSync(join(root, 'specs', 'unlock-panel.spec.ts'), 'test("x", () => {});\n');
     const files = listSmokeSpecs(join(root, 'specs'));
     expect(missingRequiredSpecStems(files)).toEqual(['login-home']);
+  });
+
+  it('requires unlock-panel, so deleting it is red', () => {
+    const root = tempDir('smoke-unlock-');
+    mkdirSync(join(root, 'specs'));
+    writeFileSync(join(root, 'specs', 'login-home.spec.ts'), 'test("x", () => {});\n');
+    writeFileSync(join(root, 'specs', 'browse-play.spec.ts'), 'test("x", () => {});\n');
+    const files = listSmokeSpecs(join(root, 'specs'));
+    expect(missingRequiredSpecStems(files)).toEqual(['unlock-panel']);
   });
 });
 
@@ -118,6 +128,15 @@ describe('preflightSmoke', () => {
     rmSync(join(tree.specsDir, 'login-home.spec.ts'));
     expect(preflightSmoke({ ...tree, root, playwrightBin: 'playwright' })).toContain(
       'login-home.spec.ts',
+    );
+  });
+
+  it('fails when the unlock-panel P0 spec is missing', () => {
+    const root = tempDir('smoke-nounlock-');
+    const tree = writeTree(root);
+    rmSync(join(tree.specsDir, 'unlock-panel.spec.ts'));
+    expect(preflightSmoke({ ...tree, root, playwrightBin: 'playwright' })).toContain(
+      'unlock-panel.spec.ts',
     );
   });
 
@@ -276,7 +295,7 @@ describe('runSmokeCheck', () => {
     expect(output.ok).toBe(true);
     expect(output.exitCode).toBe(0);
     expect(seenOrigin).toBe('http://127.0.0.1:4180');
-    expect(output.stdout).toContain('smoke passed (2 specs against http://127.0.0.1:4180)');
+    expect(output.stdout).toContain('smoke passed (3 specs against http://127.0.0.1:4180)');
   });
 
   it('stops the stack even when Playwright fails', async () => {

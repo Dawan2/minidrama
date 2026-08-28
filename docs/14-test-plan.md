@@ -150,6 +150,8 @@
 | E-26 | 篡改攻击样本:重放旧支付凭证 / 伪造回调(无效签名) | P1 | 服务端拒绝,不发货,产生风控告警(安全 §4) |
 | E-27 | 未登录/他人身份访问订单与解锁接口 | P1 | 401/403,越权防护生效 |
 
+**2026-08-28 (W21 G2.3 remainder, E-20 analog).** G2.3 now requires `unlock-panel.spec.ts` besides `login-home` and `browse-play`. The live spec is the intercept half of E-20 (locked row → PNL-02). Completing coin unlock, IAP sandbox (E-21 / E-22 / E-24), and first-frame play (E-10 / GATE-8) stay later remainders. `adUnlock` stays false. Recharge stays disabled. No `#/vip`. Deleting the stem is red. Not folded into `pnpm verify`.
+
 ### 5.4 UGC 与内容安全
 
 | # | 路径 | 级别 | 关键断言 |

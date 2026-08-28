@@ -216,7 +216,7 @@ pnpm check:artifact       # G2.6; ZIP / first-screen JS; empty files, maps, back
 pnpm check:sast           # G2.4; Semgrep custom rules; a missing binary or high finding fails
 pnpm check:codeql         # G2.4; CodeQL security-extended; a missing binary or high finding fails
 pnpm check:sca            # G2.5; Trivy lockfile SCA; a missing binary or CRITICAL finding fails
-pnpm check:smoke          # G2.3; Playwright P0 smoke; a missing binary, dist, or failed spec fails
+pnpm check:smoke          # G2.3; Playwright P0 smoke; login-home + browse-play + unlock-panel required; a missing binary, dist, or failed spec fails
 pnpm check:secrets        # G1.8; Gitleaks dir scan; a missing binary or a finding fails
 pnpm check:contract       # G1.6; oasdiff breaking vs the committed baseline; a missing binary fails
 pnpm check:commits        # G1.9; Conventional Commits on merge-base(origin/main)..HEAD; prose fails

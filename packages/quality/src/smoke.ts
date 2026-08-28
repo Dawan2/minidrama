@@ -19,15 +19,16 @@ import {
  *
  * Payment sandbox (E-21 / E-22 / E-24) and BytePlus bytes (E-10 first-frame) stay out: GATE-2,
  * GATE-4, and GATE-8 are unanswered. The P0 subset that exists without those is login → feed,
- * and feed → drama → play attempt. A 503 on playback is the honest GATE-8 surface, not a
- * synthesised `vid`.
+ * feed → drama → play attempt, and feed → drama → locked-episode unlock panel (E-20 analog).
+ * A 503 on playback is the honest GATE-8 surface, not a synthesised `vid`. Opening PNL-02
+ * without paying is the honest GATE-2 / GATE-4 surface, not a mock IAP or a Beans rate.
  */
 
 export const USAGE =
   'usage: check-smoke [--root <repo-root>] [--dist <app-dist>] [--specs <specs-dir>] ' +
   '[--config <playwright.config.ts>] [--playwright <binary>]';
 
-export const REQUIRED_SMOKE_SPEC_STEMS = ['login-home', 'browse-play'] as const;
+export const REQUIRED_SMOKE_SPEC_STEMS = ['login-home', 'browse-play', 'unlock-panel'] as const;
 
 export const SMOKE_ORIGIN_ENV_NAME = SMOKE_ORIGIN_ENV;
 
